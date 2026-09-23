@@ -1,42 +1,83 @@
-# RIFT — Robust Intervention & Future Testing
+# RIFT
 
-RIFT is a decision-intelligence engine for testing interventions across counterfactual futures, searching adversarial failures, optimizing candidate policies, and independently verifying constraints before a decision is accepted.
+**Robust Intervention & Future Testing**
 
-## Core loop
+> **Test the decision. Break the future.**
 
-State -> World Model -> Counterfactual Futures -> CHAOS -> QUBO -> Classical/Quantum Optimizer -> GUARDIAN -> Decision
+RIFT is a decision-intelligence engine for testing interventions before they are trusted. It enumerates counterfactual futures, searches adversarial failure conditions, ranks robust policies, and keeps hard safety verification outside the optimizer.
 
-## MVP status
+## The loop
 
-- Deterministic scenario engine
-- Counterfactual intervention enumeration
-- Adversarial failure-search primitives
-- QUBO representation
-- Exact classical baseline optimizer
-- Explicit quantum optimizer interface (no fake quantum execution)
-- Independent safety verification
-- Supabase schema with row-level security
-- Automated pytest workflow
+```
+WORLD STATE
+    ↓
+ORACLE — scenario/world transition model
+    ↓
+COUNTERFACTUAL FUTURES
+    ↓
+CHAOS — adversarial perturbation search
+    ↓
+QUBO — policy energy landscape
+    ↓
+CLASSICAL / QUANTUM OPTIMIZER
+    ↓
+GUARDIAN — independent constraint verification
+    ↓
+ROBUST POLICY
+```
 
-## Run locally
+The current product ships with a runnable **Counterfactual Laboratory** using a smart-building emergency scenario. The browser visualizes the world state, future branches, adversarial findings, policy-energy landscape, and Guardian result.
 
-    python -m venv .venv
-    pip install -e ".[dev]"
-    pytest
-    python -m rift.cli demo
+## Run it
 
-## Architecture
+```bash
+python -m venv .venv
+# Windows: .venv\\Scripts\\activate
+# macOS/Linux: source .venv/bin/activate
+pip install -e ".[dev]"
+pytest
+rift demo
+rift serve
+```
 
-See docs/PRD.md, docs/architecture.md, docs/agents.md, and docs/design-system.md.
+Then open `http://127.0.0.1:8080`.
 
-## Scientific position
+The server intentionally uses Python's standard library for the first product release, so the laboratory has no heavy web dependency.
 
-RIFT does not assume that quantum optimization is faster or better. Quantum methods are treated as benchmarkable backends. Experiments should report solution quality, runtime, constraint violations, noise sensitivity, and reproducibility.
+## Quantum layer — deliberately honest
 
-## Integrations
+RIFT represents candidate decisions as a QUBO and exposes a `QuantumOptimizer` interface. The shipped baseline is exact classical enumeration. A QAOA implementation belongs behind that interface and must be benchmarked against the classical baseline.
 
-Supabase is represented by the versioned schema under backend/supabase. A hosted Supabase project is intentionally not hard-coded into the repository. Billing and code-review integrations are planned behind provider adapters so secrets never enter source control.
+RIFT does **not** claim that quantum hardware automatically evaluates every future, provides guaranteed speedup, or beats classical optimization. The research question is empirical:
 
-## License
+> Can hybrid causal/counterfactual decision systems gain measurable value from quantum optimization on specific policy-search workloads?
 
-TBD before public release.
+When a real quantum backend is added, benchmark solution quality, wall-clock runtime, constraint violations, measurement/sample count, and noise sensitivity.
+
+## Product surfaces
+
+- **Counterfactual Laboratory** — branch the present into candidate futures.
+- **CHAOS** — perturb declared variables and expose worst-case futures.
+- **QUANTUM** — represent policy search as an energy/QUBO problem.
+- **GUARDIAN** — enforce hard constraints independently.
+- **Benchmarking** — compare optimizer methods without hiding failures.
+
+## Repository
+
+- `src/rift/` — deterministic domain engine
+- `web/` — zero-dependency laboratory UI
+- `backend/supabase/` — optional persistence schema with row-level security
+- `docs/PRD.md` — product requirements
+- `docs/architecture.md` — architecture and API direction
+- `docs/agents.md` — ORACLE / CHAOS / QUANTUM / GUARDIAN contracts
+- `docs/design-system.md` — visual system
+
+## Safety boundary
+
+RIFT is a research and simulation system. It does not autonomously control real emergency infrastructure. A real deployment would require validated domain models, calibrated sensors, human oversight, formal hazard analysis, and jurisdiction-specific certification.
+
+## Status
+
+**v0.2.0 — runnable laboratory prototype.**
+
+The core engine is deterministic and testable. Supabase, real quantum hardware, billing, and automated code-review integrations are provider-ready but are not falsely represented as connected services.
