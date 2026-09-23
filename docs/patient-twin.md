@@ -121,8 +121,12 @@ expected calibration, and risk distribution, and published guidance notes
 substantially more is sometimes needed. The current external series
 (5 events, 54 non-events) verdicts `limited`, and the dashboard shows it
 next to the metrics. Good point estimates at n=59 do not upgrade the
-claim: Item 8 remains strong partial until an adequately sized
-independent sample exists. The bar itself is pinned by regression tests.
+claim: calibration evidence remains limited until the predefined
+conservative sample-adequacy bar is met, and larger samples may be
+required depending on the precision target and validation context.
+Meeting the bar is necessary but not sufficient — representativeness,
+context, and fit-for-purpose judgment still apply. The bar itself is
+pinned by regression tests.
 
 ## Sensitivity and thresholds (reported, not gamed)
 
