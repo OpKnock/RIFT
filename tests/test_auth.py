@@ -24,6 +24,6 @@ def test_owner_mismatch_rules():
 
 def test_extract_user_id_shapes():
     assert auth.extract_user_id({"user_id": "u-1"}) == "u-1"
-    assert auth.extract_user_id(None, {"user_id": ["u-2"]}) is None
+    assert auth.extract_user_id(None, {"user_id": ["u-2"]}) == "u-2"
     assert auth.extract_user_id(None, {"user_id": "u-2"}) == "u-2"
     assert auth.extract_user_id({"user": {"id": "u-3"}}) == "u-3"

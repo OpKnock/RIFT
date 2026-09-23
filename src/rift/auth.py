@@ -59,11 +59,42 @@ def is_authorized(headers) -> bool:
     return extract_bearer(headers) == expected
 
 
+def resolve_caller(headers, body: dict | None = None, query: dict | None = None):
+    """Resolve the caller's user_id and any auth failure.
+
+    Returns ``(user_id_or_None, error_or_None)`` where error is
+    ``"unauthorized"`` when the request must be rejected with 401:
+
+    - JWT mode (``RIFT_SUPABASE_JWT_SECRET`` set): identity is the verified
+      token ``sub``; caller-supplied ``user_id`` is ignored entirely.
+    - Service-token mode (``RIFT_API_TOKEN`` set): bearer gate enforced,
+      then ``user_id`` is read from body/query as before.
+    - Open dev mode: ``user_id`` is read from body/query (caller-asserted;
+      only safe for local development — see docs/security.md).
+    """
+    from .auth_jwt import AuthError, jwt_mode_enabled, verify_bearer_token
+
+    if jwt_mode_enabled():
+        get = getattr(headers, "get", None)
+        authorization = get("Authorization") if callable(get) else None
+        try:
+            return verify_bearer_token(authorization), None
+        except AuthError:
+            return None, "unauthorized"
+    if service_token_configured() is not None:
+        if not is_authorized(headers):
+            return None, "unauthorized"
+    return extract_user_id(body, query), None
+
+
 def extract_user_id(body: dict | None, query: dict | None = None) -> str | None:
     for source in (body, query):
         if isinstance(source, dict):
             for key in ("user_id", "owner_id"):
                 value = source.get(key)
+                # parse_qs query dicts carry single-element lists.
+                if isinstance(value, (list, tuple)) and len(value) == 1:
+                    value = value[0]
                 if isinstance(value, str) and value.strip():
                     candidate = value.strip()
                     if len(candidate) <= 128:

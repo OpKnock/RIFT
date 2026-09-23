@@ -4,12 +4,10 @@ All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system,
 
 ## [Unreleased]
 ### Added
+- Verified JWT identity (`rift.auth_jwt`, HS256 via `RIFT_SUPABASE_JWT_SECRET`): gated endpoints authenticate `Bearer` tokens and derive `user_id` from `sub`; spoofed `user_id` values are ignored; `none`/foreign algorithms, bad signatures, and expired tokens fail closed with 401.
+- In-process rate limiting (`rift.ratelimit`, `RIFT_RATE_LIMIT_ENABLED=true`): fixed-window budgets with a stricter `.../execute` scope, `429 + Retry-After`; static assets uncounted.
+- Frontend access-token field (SETTINGS) auto-attached to save/execute calls.
 - Frontend SAVE & EXECUTE panel: persists the current scenario spec and runs it server-side with fingerprinted results; honestly disabled until Supabase is configured.
-### Fixed
-- `/api/demo` no longer crashes on tuple-keyed QUBO JSON (quadratic terms serialize as `"a,b"` strings).
-- Oversized request bodies are consumed-and-discarded before the 413 response, keeping HTTP/1.1 keep-alive connections in sync (previously aborted sockets on some platforms).
-- `experiment_runs.user_id` column added (migration 005); the API already wrote it, which would have failed live inserts.
-### Added
 - Server-side execution: `rift.runner.run_spec` + `POST /api/experiments/{id}/execute` closes the CREATE → RUN → PERSIST → REPRODUCE loop with fingerprint-matched run records.
 - `RIFT_REQUIRE_USER_ID=true` enforcement for persistence POSTs (previously documented but unenforced).
 - Schema/code consistency tests fail the suite when API payload keys drift from migrations.
@@ -17,6 +15,10 @@ All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system,
 - Missing persistence rows now return `404 not_found` (was `502`); engine execution failures return `500 execution_error` with the experiment marked `failed`; `variant_id` must be a string.
 - Removed dead `idx` computation in the QAOA simulator.
 - Cross-user experiment/run reads verified denied-and-allowed via fake-store tests; entropy helpers documented as nats (rescaled inputs, undivided output).
+### Fixed
+- `/api/demo` no longer crashes on tuple-keyed QUBO JSON (quadratic terms serialize as `"a,b"` strings).
+- Oversized request bodies are consumed-and-discarded before the 413 response, keeping HTTP/1.1 keep-alive connections in sync (previously aborted sockets on some platforms).
+- `experiment_runs.user_id` column added (migration 005); the API already wrote it, which would have failed live inserts.
 
 ## [0.6.0] — Counterfactual Laboratory release candidate
 ### Engine and science

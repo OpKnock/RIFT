@@ -4,6 +4,15 @@ Base: `http://127.0.0.1:8080`. All responses include `X-Request-ID`. Errors are
 `{"error": "<code>"}` plus optional non-sensitive `detail`. Upstream failures
 are generic `502` with a `request_id` for log correlation — no stack traces.
 
+## Authentication
+- JWT mode (`RIFT_SUPABASE_JWT_SECRET` set): every gated endpoint requires `Authorization: Bearer <Supabase JWT>`; identity is the verified `sub`, and any caller-supplied `user_id` is ignored. Missing/forged/expired tokens → `401`.
+- Service-token mode (`RIFT_API_TOKEN` set): `Authorization: Bearer <token>` required on gated endpoints.
+- Open mode (neither set): no gate; `user_id` caller-asserted (dev only).
+- The web lab has an access-token field (SETTINGS panel) sent automatically on save/execute.
+
+## Rate limiting
+Enabled with `RIFT_RATE_LIMIT_ENABLED=true`: `429 {"error": "rate_limited", "retry_after_s": N}` plus `Retry-After` header. The `.../execute` endpoint has its own lower budget. Static assets are uncounted.
+
 ## Public (no token required)
 - `GET /api/health` → `{status, engine, version, quantum_backend, persistence, billing}`
 - `GET /api/meta` → engine capabilities, optimizers, backends, limits, auth mode
