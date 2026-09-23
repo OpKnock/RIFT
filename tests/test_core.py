@@ -17,3 +17,14 @@ def test_guardian():
     c = Constraint("capacity", lambda s:s["capacity"]>=10, "capacity too low")
     r = verify({"capacity":4}, [c])
     assert not r.passed and r.violations == ("capacity too low",)
+
+
+def test_robust_engine_runs_quantum_and_classical_paths():
+    from rift.engine import run_experiment
+    from rift.scenarios import emergency_building
+    s=emergency_building()
+    q=QUBO(("route_a","route_c"),{"route_a":1.0,"route_c":1.0},{("route_a","route_c"):-0.5})
+    result=run_experiment(s,q,[{"smoke":2.0},{"crowd":80.0}])
+    assert result.robust_qubo is not None
+    assert result.quantum_policy is not None
+    assert set(result.best_policy.assignment)=={"route_a","route_c"}
