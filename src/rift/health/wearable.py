@@ -104,3 +104,23 @@ def jitter_score(
     if not scores:
         return 0.0
     return sum(scores) / len(scores)
+
+
+def trend_terms(
+    today: WearableObservation | None,
+    yesterday: WearableObservation | None,
+) -> dict[str, float | None]:
+    """Signed one-day velocities for the risk trend term.
+
+    Returns hr_slope (bpm/day, positive = rising) and sleep_delta
+    (hours, negative = worsening), or None per field when either side is
+    missing. Uses only observations up to today — no future leakage.
+    """
+    terms: dict[str, float | None] = {"hr_slope": None, "sleep_delta": None}
+    if today is None or yesterday is None:
+        return terms
+    if today.resting_hr is not None and yesterday.resting_hr is not None:
+        terms["hr_slope"] = today.resting_hr - yesterday.resting_hr
+    if today.sleep_hours is not None and yesterday.sleep_hours is not None:
+        terms["sleep_delta"] = today.sleep_hours - yesterday.sleep_hours
+    return terms

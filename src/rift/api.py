@@ -609,7 +609,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 from .health.demo_data import demo_series
                 from .health.ehr import demo_ehr, normalize_ehr
-                from .health.evaluate import OUTCOME_RULE, backtest, stress_sweep
+                from .health.evaluate import OUTCOME_RULE, backtest, reliability, stress_sweep
                 from .health.twin import DigitalTwin
 
                 ehr, _ = normalize_ehr(demo_ehr())
@@ -631,6 +631,7 @@ class Handler(BaseHTTPRequestHandler):
                     "onset_lags": held_out["onset_lags"],
                     "mean_onset_lag": held_out["mean_onset_lag"],
                     "confusion": held_out["confusion"],
+                    "reliability": reliability(held_out),
                     "stress": stress,
                     "meta": {
                         "engine": "rift",

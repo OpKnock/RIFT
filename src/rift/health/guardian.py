@@ -17,8 +17,8 @@ STALE_FLAG_DAYS = 3
 UNCERTAINTY_FLAG = 0.35
 ALLOWED_OUTPUT_KEYS = {
     "target", "horizon", "risk", "event_predicted", "threshold",
-    "contributions", "input_quality", "measurement_jitter", "uncertainty",
-    "interval", "model", "calibration",
+    "contributions", "input_quality", "measurement_jitter", "trend_terms",
+    "uncertainty", "interval", "model", "calibration",
 }
 
 IMPOSSIBLE_MESSAGES = {

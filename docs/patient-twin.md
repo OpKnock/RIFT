@@ -102,10 +102,20 @@ jitter path below. Public datasets plug in through
 
 Held-out threshold sweep (threshold → sensitivity / specificity):
 0.40 → 0.33 / 0.93 · 0.50 → 0.33 / 0.93 · 0.60 → 0.33 / 0.93 ·
-0.70 → 0.00 / 1.00 · 0.80 → 0.00 / 1.00.
+0.70 → 0.33 / 0.96 · 0.80 → 0.00 / 1.00.
 Lowering the threshold cannot rescue detection — the misses are sudden
 onset shocks the 1-day model cannot foresee, not threshold artifacts. The
 operating point stays 0.60; this table exists so the tradeoff is explicit.
+A bounded velocity term (rising HR / shrinking sleep, capped, deterioration
+only) lifts onsets without hurting specificity; trajectory rollout stays
+level-only and says so.
+
+## Reliability (empirical, still uncalibrated)
+
+`evaluate.reliability` bins held-out predicted risks and compares against
+realized frequencies: ECE 0.22 (mid bin overconfident 0.28 vs 0.07, high
+bin 0.71 vs 0.33 on n=3). The probabilities are therefore NOT calibrated —
+the dashboard says so, and this number is the receipt.
 
 ## Measurement jitter → uncertainty
 
