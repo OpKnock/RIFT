@@ -22,6 +22,39 @@ function showError(message) {
   banner.textContent = message;
 }
 
+function authHeaders(extra) {
+  const headers = { ...(extra || {}) };
+  let token = "";
+  try {
+    token = ($("#accessToken") && $("#accessToken").value) ||
+      localStorage.getItem("rift-access-token") || "";
+  } catch (error) {
+    token = ($("#accessToken") && $("#accessToken").value) || "";
+  }
+  if (token.trim()) headers.Authorization = "Bearer " + token.trim();
+  return headers;
+}
+
+function persistAccessToken() {
+  try {
+    const input = $("#accessToken");
+    if (!input) return;
+    if (input.value) localStorage.setItem("rift-access-token", input.value);
+  } catch (error) {
+    /* private mode: token stays in memory for this page */
+  }
+}
+
+function restoreAccessToken() {
+  try {
+    const input = $("#accessToken");
+    const saved = localStorage.getItem("rift-access-token");
+    if (input && saved) input.value = saved;
+  } catch (error) {
+    /* unavailable: leave empty */
+  }
+}
+
 function clearError() {
   const banner = $("#errorBanner");
   if (!banner) return;
@@ -123,7 +156,7 @@ async function saveExperiment() {
   try {
     const response = await fetch("/api/experiments", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
       body: JSON.stringify(currentSpecBody()),
     });
     const data = await response.json();
@@ -151,7 +184,7 @@ async function executeSaved() {
   try {
     const response = await fetch("/api/experiments/" + encodeURIComponent(savedExperimentId) + "/execute", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
       body: "{}",
     });
     const data = await response.json();
@@ -377,9 +410,12 @@ async function run() {
 
 $("#run").onclick = run;
 const saveBtn = $("#saveExp");
-if (saveBtn) saveBtn.onclick = saveExperiment;
+if (saveBtn) saveBtn.onclick = () => { persistAccessToken(); saveExperiment(); };
 const execBtn = $("#execExp");
-if (execBtn) execBtn.onclick = executeSaved;
+if (execBtn) execBtn.onclick = () => { persistAccessToken(); executeSaved(); };
+const tokenInput = $("#accessToken");
+if (tokenInput) tokenInput.onchange = persistAccessToken;
+restoreAccessToken();
 refreshSystemStatus();
 renderHistory();
 run();

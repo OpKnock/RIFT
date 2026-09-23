@@ -14,10 +14,9 @@ from urllib.parse import parse_qs, urlparse
 
 from . import __version__ as ENGINE_VERSION
 from .auth import (
-    extract_user_id,
-    is_authorized,
     owner_mismatch,
     require_user_id_enforced,
+    resolve_caller,
     service_token_configured,
 )
 from .benchmark import benchmark_suite
@@ -45,6 +44,7 @@ from .multivariable import (
 )
 from .observability import Timer, log_event, new_request_id
 from .optimizer import QUBO, QuantumOptimizer, exact_minimize
+from . import ratelimit
 from .robust import rank_robust_candidates
 from .robust_qubo import build_robust_qubo, robust_policy_cost
 from .runner import run_spec
@@ -320,6 +320,26 @@ def _is_not_found_error(exc: Exception) -> bool:
     return "PGRST116" in text or "0 rows" in text
 
 
+def _client_ip(handler: BaseHTTPRequestHandler) -> str:
+    """Best-effort client identity for rate limiting.
+
+    Uses ``X-Forwarded-For`` only when the operator explicitly trusts the
+    proxy (``RIFT_TRUST_PROXY=true``); otherwise the direct peer address.
+    """
+    import os
+
+    if os.getenv("RIFT_TRUST_PROXY", "false").strip().lower() in ("1", "true", "yes"):
+        forwarded = handler.headers.get("X-Forwarded-For")
+        if forwarded and isinstance(forwarded, str):
+            first = forwarded.split(",")[0].strip()
+            if first:
+                return first[:128]
+    try:
+        return str(handler.client_address[0])
+    except (AttributeError, IndexError, TypeError):
+        return "unknown"
+
+
 def _is_valid_uuid(value: str) -> bool:
     try:
         parsed = uuid.UUID(str(value))
@@ -332,7 +352,7 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "RIFT/0.6"
     protocol_version = "HTTP/1.1"
 
-    def _send(self, status, data, content_type="application/json", request_id=None):
+    def _send(self, status, data, content_type="application/json", request_id=None, extra_headers=None):
         raw = data if isinstance(data, bytes) else data.encode()
         self.send_response(status)
         self.send_header("Content-Type", content_type)
@@ -343,6 +363,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Referrer-Policy", "no-referrer")
         if request_id:
             self.send_header("X-Request-ID", request_id)
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, str(value))
         # Same-origin lab: no cross-origin auto-allow. Fronted deployments
         # should set explicit ACAO at the edge, not here.
         self.end_headers()
@@ -401,11 +423,18 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, UnicodeDecodeError):
             return None, raw
 
-    def _require_auth(self, request_id):
-        if not is_authorized(self.headers):
+    def _identity(self, request_id, body=None, query=None):
+        """Resolve caller identity; send 401 on failure.
+
+        Returns ``(user_id_or_None, ok)``. In JWT mode the identity is the
+        verified token sub and caller-supplied user_id is ignored; otherwise
+        user_id comes from body/query (service-token gate still enforced).
+        """
+        user_id, error = resolve_caller(self.headers, body, query)
+        if error:
             self._send(401, json.dumps({"error": "unauthorized"}), request_id=request_id)
-            return False
-        return True
+            return None, False
+        return user_id, True
 
     def _load_row(self, fetch, timer, request_id, method, path):
         """Fetch one Supabase row; return (row, None) or (None, (status, body)).
@@ -431,6 +460,26 @@ class Handler(BaseHTTPRequestHandler):
             return None, (404, None)
         return row, None
 
+    def _rate_limit(self, timer: Timer, request_id: str, method: str, path: str) -> bool:
+        """Enforce the in-process rate limit. Returns True to continue."""
+        if not ratelimit.enabled():
+            return True
+        allowed, retry_after, scope = ratelimit.check_request(_client_ip(self), path)
+        if allowed:
+            return True
+        log_event(
+            "rate_limited", request_id=request_id, method=method,
+            scope=scope, retry_after_s=retry_after,
+        )
+        self._send(
+            429,
+            json.dumps({"error": "rate_limited", "retry_after_s": retry_after}),
+            request_id=request_id,
+            extra_headers={"Retry-After": retry_after},
+        )
+        self._finish(timer, request_id, method, path, 429, "rate_limited")
+        return False
+
     def do_OPTIONS(self):
         request_id = new_request_id()
         timer = Timer()
@@ -443,6 +492,8 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
+        if not self._rate_limit(timer, request_id, "GET", path):
+            return
 
         if path == "/api/health":
             payload = {
@@ -478,7 +529,8 @@ class Handler(BaseHTTPRequestHandler):
             self._finish(timer, request_id, "GET", path, 200)
             return
         if path == "/api/billing/entitlement":
-            if not self._require_auth(request_id):
+            caller, ok = self._identity(request_id, None, query)
+            if not ok:
                 self._finish(timer, request_id, "GET", path, 401, "auth")
                 return
             store = SupabaseStore()
@@ -486,7 +538,6 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(503, json.dumps({"error": "persistence_not_configured"}), request_id=request_id)
                 self._finish(timer, request_id, "GET", path, 503, "persistence_not_configured")
                 return
-            caller = (query.get("user_id") or [""])[0] or None
             if not caller:
                 self._send(400, json.dumps({"error": "user_id is required"}), request_id=request_id)
                 self._finish(timer, request_id, "GET", path, 400, "validation")
@@ -519,13 +570,14 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/experiments/") and path.endswith("/runs"):
             parts = path.strip("/").split("/")
             if len(parts) == 4:
-                if not self._require_auth(request_id):
-                    self._finish(timer, request_id, "GET", path, 401, "auth")
-                    return
                 experiment_id = parts[2]
                 if not _is_valid_uuid(experiment_id):
                     self._send(400, json.dumps({"error": "invalid_id"}), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 400, "validation")
+                    return
+                caller, ok = self._identity(request_id, None, query)
+                if not ok:
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
                     return
                 store = SupabaseStore()
                 if not store.configured:
@@ -535,18 +587,17 @@ class Handler(BaseHTTPRequestHandler):
                     }), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 503, "persistence_not_configured")
                     return
+                experiment, failed = self._load_row(
+                    lambda: store.get_experiment(experiment_id),
+                    timer, request_id, "GET", path,
+                )
+                if failed:
+                    return
+                if owner_mismatch(experiment.get("user_id"), caller):
+                    self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 403, "auth")
+                    return
                 try:
-                    experiment, failed = self._load_row(
-                        lambda: store.get_experiment(experiment_id),
-                        timer, request_id, "GET", path,
-                    )
-                    if failed:
-                        return
-                    caller = (query.get("user_id") or [None])[0]
-                    if owner_mismatch(experiment.get("user_id"), caller):
-                        self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 403, "auth")
-                        return
                     result = store.list_runs(experiment_id)
                     self._send(200, json.dumps(result.data), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 200)
@@ -558,13 +609,14 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/experiments/"):
             parts = path.strip("/").split("/")
             if len(parts) == 3:
-                if not self._require_auth(request_id):
-                    self._finish(timer, request_id, "GET", path, 401, "auth")
-                    return
                 experiment_id = parts[2]
                 if not _is_valid_uuid(experiment_id):
                     self._send(400, json.dumps({"error": "invalid_id"}), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 400, "validation")
+                    return
+                caller, ok = self._identity(request_id, None, query)
+                if not ok:
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
                     return
                 store = SupabaseStore()
                 if not store.configured:
@@ -580,7 +632,6 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 if failed:
                     return
-                caller = (query.get("user_id") or [None])[0]
                 if owner_mismatch(row.get("user_id"), caller):
                     self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 403, "auth")
@@ -591,13 +642,14 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/runs/"):
             parts = path.strip("/").split("/")
             if len(parts) == 3:
-                if not self._require_auth(request_id):
-                    self._finish(timer, request_id, "GET", path, 401, "auth")
-                    return
                 run_id = parts[2]
                 if not _is_valid_uuid(run_id):
                     self._send(400, json.dumps({"error": "invalid_id"}), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 400, "validation")
+                    return
+                caller, ok = self._identity(request_id, None, query)
+                if not ok:
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
                     return
                 store = SupabaseStore()
                 if not store.configured:
@@ -610,7 +662,6 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 if failed:
                     return
-                caller = (query.get("user_id") or [None])[0]
                 if owner_mismatch(row.get("user_id"), caller):
                     self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 403, "auth")
@@ -674,11 +725,10 @@ class Handler(BaseHTTPRequestHandler):
         timer = Timer()
         parsed = urlparse(self.path)
         path = parsed.path
+        if not self._rate_limit(timer, request_id, "POST", path):
+            return
 
         if path == "/api/experiments":
-            if not self._require_auth(request_id):
-                self._finish(timer, request_id, "POST", path, 401, "auth")
-                return
             body, raw = self._read_json()
             if body == "overflow":
                 self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
@@ -688,13 +738,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 400, "validation")
                 return
+            owner, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+            if not ok:
+                self._finish(timer, request_id, "POST", path, 401, "auth")
+                return
             try:
                 spec = validate_spec_payload(body if isinstance(body, dict) else {})
             except ValueError as exc:
                 self._send(400, json.dumps({"error": "invalid_request", "detail": str(exc)[:300]}), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 400, "validation")
                 return
-            owner = extract_user_id(body if isinstance(body, dict) else None)
             if require_user_id_enforced() and not owner:
                 self._send(400, json.dumps({"error": "missing_user_id"}), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 400, "validation")
@@ -733,9 +786,6 @@ class Handler(BaseHTTPRequestHandler):
         if (path.startswith("/api/experiments/") and (path.endswith("/runs") or path.endswith("/run"))):
             parts = path.strip("/").split("/")
             if len(parts) == 4:
-                if not self._require_auth(request_id):
-                    self._finish(timer, request_id, "POST", path, 401, "auth")
-                    return
                 experiment_id = parts[2]
                 if not _is_valid_uuid(experiment_id):
                     self._send(400, json.dumps({"error": "invalid_id"}), request_id=request_id)
@@ -749,6 +799,10 @@ class Handler(BaseHTTPRequestHandler):
                 if body is None:
                     self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
+                caller, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+                if not ok:
+                    self._finish(timer, request_id, "POST", path, 401, "auth")
                     return
                 try:
                     run = validate_run_payload(body if isinstance(body, dict) else {})
@@ -768,7 +822,6 @@ class Handler(BaseHTTPRequestHandler):
                     )
                     if failed:
                         return
-                    caller = extract_user_id(body if isinstance(body, dict) else None)
                     if require_user_id_enforced() and not caller:
                         self._send(400, json.dumps({"error": "missing_user_id"}), request_id=request_id)
                         self._finish(timer, request_id, "POST", path, 400, "validation")
@@ -800,9 +853,6 @@ class Handler(BaseHTTPRequestHandler):
         if path.startswith("/api/experiments/") and path.endswith("/execute"):
             parts = path.strip("/").split("/")
             if len(parts) == 4:
-                if not self._require_auth(request_id):
-                    self._finish(timer, request_id, "POST", path, 401, "auth")
-                    return
                 experiment_id = parts[2]
                 if not _is_valid_uuid(experiment_id):
                     self._send(400, json.dumps({"error": "invalid_id"}), request_id=request_id)
@@ -815,6 +865,10 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 if body is None:
                     body = {}
+                caller, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+                if not ok:
+                    self._finish(timer, request_id, "POST", path, 401, "auth")
+                    return
                 store = SupabaseStore()
                 if not store.configured:
                     self._send(503, json.dumps({"error": "persistence_not_configured"}), request_id=request_id)
@@ -826,7 +880,6 @@ class Handler(BaseHTTPRequestHandler):
                 )
                 if failed:
                     return
-                caller = extract_user_id(body if isinstance(body, dict) else None)
                 if require_user_id_enforced() and not caller:
                     self._send(400, json.dumps({"error": "missing_user_id"}), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 400, "validation")
@@ -909,9 +962,6 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
         if path == "/api/billing/checkout":
-            if not self._require_auth(request_id):
-                self._finish(timer, request_id, "POST", path, 401, "auth")
-                return
             body, raw = self._read_json()
             if body == "overflow":
                 self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
@@ -920,6 +970,10 @@ class Handler(BaseHTTPRequestHandler):
             if body is None:
                 self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
+            _, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+            if not ok:
+                self._finish(timer, request_id, "POST", path, 401, "auth")
                 return
             provider = LemonSqueezyProvider()
             if not provider.configured:
