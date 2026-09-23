@@ -26,7 +26,7 @@ GUARDIAN — independent constraint verification
 ROBUST POLICY
 ```
 
-The current product ships with a runnable **Counterfactual Laboratory** using a smart-building emergency scenario. The browser visualizes the world state, future branches, adversarial findings, policy-energy landscape, and Guardian result.
+The current product ships with a runnable **Counterfactual Laboratory** using a smart-building emergency scenario. v0.3 adds interactive state controls and a dependency-free QAOA statevector simulator for small QUBOs. The browser visualizes the world state, future branches, adversarial findings, policy-energy landscape, and Guardian result.
 
 ## Run it
 
@@ -46,7 +46,7 @@ The server intentionally uses Python's standard library for the first product re
 
 ## Quantum layer — deliberately honest
 
-RIFT represents candidate decisions as a QUBO and exposes a `QuantumOptimizer` interface. The shipped baseline is exact classical enumeration. A QAOA implementation belongs behind that interface and must be benchmarked against the classical baseline.
+RIFT represents candidate decisions as a QUBO and exposes a `QuantumOptimizer` interface. The shipped baseline is exact classical enumeration, and the default quantum adapter is now a small dependency-free QAOA statevector simulator. QAOA prepares an initial superposition, alternates a QUBO-derived cost phase with an X mixer, and uses a classical parameter search. This follows the standard hybrid structure documented by IBM Quantum. citeturn0search0
 
 RIFT does **not** claim that quantum hardware automatically evaluates every future, provides guaranteed speedup, or beats classical optimization. The research question is empirical:
 
@@ -60,7 +60,8 @@ When a real quantum backend is added, benchmark solution quality, wall-clock run
 - **CHAOS** — perturb declared variables and expose worst-case futures.
 - **QUANTUM** — represent policy search as an energy/QUBO problem.
 - **GUARDIAN** — enforce hard constraints independently.
-- **Benchmarking** — compare optimizer methods without hiding failures.
+- **Benchmarking** — compare exact enumeration and simulated QAOA without hiding failures.
+- **Scenario controls** — perturb crowd, smoke, capacity, and blocked-stairwell conditions live.
 
 ## Repository
 
@@ -78,6 +79,6 @@ RIFT is a research and simulation system. It does not autonomously control real 
 
 ## Status
 
-**v0.2.0 — runnable laboratory prototype.**
+**v0.3.0 — interactive QAOA laboratory prototype.**
 
 The core engine is deterministic and testable. Supabase, real quantum hardware, billing, and automated code-review integrations are provider-ready but are not falsely represented as connected services.
