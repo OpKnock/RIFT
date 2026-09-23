@@ -23,7 +23,8 @@ def scenario_payload(scenario:Scenario):
     classical_robust=exact_minimize(robust_qubo)
     quantum_robust=QuantumOptimizer().solve(robust_qubo)
     bench=benchmark_suite(q)
-    robust_bench={"qubo":{"variables":robust_qubo.variables,"linear":robust_qubo.linear,"quadratic":robust_qubo.quadratic,"offset":robust_qubo.offset},"classical":{"assignment":classical_robust.assignment,"energy":classical_robust.energy,"method":classical_robust.method},"qaoa":{"assignment":quantum_robust.assignment,"energy":quantum_robust.energy,"method":quantum_robust.method}}
+    cvar_robust=QuantumOptimizer().solve(robust_qubo,objective="cvar",alpha=0.25)
+    robust_bench={"qubo":{"variables":robust_qubo.variables,"linear":robust_qubo.linear,"quadratic":robust_qubo.quadratic,"offset":robust_qubo.offset},"classical":{"assignment":classical_robust.assignment,"energy":classical_robust.energy,"method":classical_robust.method},"qaoa":{"assignment":quantum_robust.assignment,"energy":quantum_robust.energy,"method":quantum_robust.method},"cvar_qaoa":{"assignment":cvar_robust.assignment,"energy":cvar_robust.energy,"method":cvar_robust.method,"alpha":0.25}}
     return {
       "scenario":{"name":scenario.name,"initial_state":scenario.initial_state,"interventions":{k:list(v) for k,v in scenario.interventions.items()}},
       "futures":[{"policy":f.policy,"state":f.state,"score":f.score,"valid":f.valid} for f in futures],
