@@ -3,6 +3,8 @@
 All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system, not a certified product.
 
 ## [Unreleased]
+### Added
+- Frontend SAVE & EXECUTE panel: persists the current scenario spec and runs it server-side with fingerprinted results; honestly disabled until Supabase is configured.
 ### Fixed
 - `/api/demo` no longer crashes on tuple-keyed QUBO JSON (quadratic terms serialize as `"a,b"` strings).
 - Oversized request bodies are consumed-and-discarded before the 413 response, keeping HTTP/1.1 keep-alive connections in sync (previously aborted sockets on some platforms).
@@ -12,6 +14,8 @@ All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system,
 - `RIFT_REQUIRE_USER_ID=true` enforcement for persistence POSTs (previously documented but unenforced).
 - Schema/code consistency tests fail the suite when API payload keys drift from migrations.
 - Guardian feasibility flags in CHAOS UI (`REJECTED UNDER PERTURBATION`); regression tests for Guardian rejection and blocked-exit penalty semantics.
+- Missing persistence rows now return `404 not_found` (was `502`); engine execution failures return `500 execution_error` with the experiment marked `failed`; `variant_id` must be a string.
+- Removed dead `idx` computation in the QAOA simulator.
 
 ## [0.6.0] — Counterfactual Laboratory release candidate
 ### Engine and science

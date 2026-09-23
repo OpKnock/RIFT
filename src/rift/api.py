@@ -309,6 +309,17 @@ def configured_scenario(query):
     return scenario
 
 
+def _is_not_found_error(exc: Exception) -> bool:
+    """Best-effort classification of Supabase/PostgREST missing-row errors.
+
+    ``.single()`` raises (rather than returning None) when no row matches;
+    PostgREST reports that as code PGRST116 / "0 rows". Anything else is a
+    genuine dependency failure. Kept narrow to avoid mislabeling outages.
+    """
+    text = str(exc)
+    return "PGRST116" in text or "0 rows" in text
+
+
 def _is_valid_uuid(value: str) -> bool:
     try:
         parsed = uuid.UUID(str(value))
@@ -395,6 +406,30 @@ class Handler(BaseHTTPRequestHandler):
             self._send(401, json.dumps({"error": "unauthorized"}), request_id=request_id)
             return False
         return True
+
+    def _load_row(self, fetch, timer, request_id, method, path):
+        """Fetch one Supabase row; return (row, None) or (None, (status, body)).
+
+        Missing rows become 404; transport/API failures become 502. Callers
+        must still apply ownership checks on the returned row.
+        """
+        try:
+            fetched = fetch()
+        except Exception as exc:
+            if _is_not_found_error(exc):
+                self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+                self._finish(timer, request_id, method, path, 404, "not_found")
+                return None, (404, None)
+            log_event("dependency_failure", request_id=request_id, dependency="supabase")
+            self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+            self._finish(timer, request_id, method, path, 502, "persistence_error")
+            return None, (502, None)
+        row = (fetched.data if fetched else None) or {}
+        if not row:
+            self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+            self._finish(timer, request_id, method, path, 404, "not_found")
+            return None, (404, None)
+        return row, None
 
     def do_OPTIONS(self):
         request_id = new_request_id()
@@ -501,7 +536,12 @@ class Handler(BaseHTTPRequestHandler):
                     self._finish(timer, request_id, "GET", path, 503, "persistence_not_configured")
                     return
                 try:
-                    experiment = store.get_experiment(experiment_id).data or {}
+                    experiment, failed = self._load_row(
+                        lambda: store.get_experiment(experiment_id),
+                        timer, request_id, "GET", path,
+                    )
+                    if failed:
+                        return
                     caller = (query.get("user_id") or [None])[0]
                     if owner_mismatch(experiment.get("user_id"), caller):
                         self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
@@ -534,20 +574,19 @@ class Handler(BaseHTTPRequestHandler):
                     }), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 503, "persistence_not_configured")
                     return
-                try:
-                    result = store.get_experiment(experiment_id)
-                    row = result.data or {}
-                    caller = (query.get("user_id") or [None])[0]
-                    if owner_mismatch(row.get("user_id"), caller):
-                        self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 403, "auth")
-                        return
-                    self._send(200, json.dumps(result.data), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 200)
-                except Exception:
-                    log_event("dependency_failure", request_id=request_id, dependency="supabase")
-                    self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 502, "persistence_error")
+                row, failed = self._load_row(
+                    lambda: store.get_experiment(experiment_id),
+                    timer, request_id, "GET", path,
+                )
+                if failed:
+                    return
+                caller = (query.get("user_id") or [None])[0]
+                if owner_mismatch(row.get("user_id"), caller):
+                    self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 403, "auth")
+                    return
+                self._send(200, json.dumps(row), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
                 return
         if path.startswith("/api/runs/"):
             parts = path.strip("/").split("/")
@@ -565,20 +604,19 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(503, json.dumps({"error": "persistence_not_configured"}), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 503, "persistence_not_configured")
                     return
-                try:
-                    result = store.get_run(run_id)
-                    row = result.data or {}
-                    caller = (query.get("user_id") or [None])[0]
-                    if owner_mismatch(row.get("user_id"), caller):
-                        self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 403, "auth")
-                        return
-                    self._send(200, json.dumps(result.data), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 200)
-                except Exception:
-                    log_event("dependency_failure", request_id=request_id, dependency="supabase")
-                    self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 502, "persistence_error")
+                row, failed = self._load_row(
+                    lambda: store.get_run(run_id),
+                    timer, request_id, "GET", path,
+                )
+                if failed:
+                    return
+                caller = (query.get("user_id") or [None])[0]
+                if owner_mismatch(row.get("user_id"), caller):
+                    self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 403, "auth")
+                    return
+                self._send(200, json.dumps(row), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
                 return
 
         files = {
@@ -724,7 +762,12 @@ class Handler(BaseHTTPRequestHandler):
                     self._finish(timer, request_id, "POST", path, 503, "persistence_not_configured")
                     return
                 try:
-                    experiment = store.get_experiment(experiment_id).data or {}
+                    experiment, failed = self._load_row(
+                        lambda: store.get_experiment(experiment_id),
+                        timer, request_id, "POST", path,
+                    )
+                    if failed:
+                        return
                     caller = extract_user_id(body if isinstance(body, dict) else None)
                     if require_user_id_enforced() and not caller:
                         self._send(400, json.dumps({"error": "missing_user_id"}), request_id=request_id)
@@ -777,19 +820,24 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(503, json.dumps({"error": "persistence_not_configured"}), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 503, "persistence_not_configured")
                     return
+                row, failed = self._load_row(
+                    lambda: store.get_experiment(experiment_id),
+                    timer, request_id, "POST", path,
+                )
+                if failed:
+                    return
+                caller = extract_user_id(body if isinstance(body, dict) else None)
+                if require_user_id_enforced() and not caller:
+                    self._send(400, json.dumps({"error": "missing_user_id"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
+                if owner_mismatch(row.get("user_id"), caller):
+                    self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 403, "auth")
+                    return
+                stored_scenario = row.get("scenario") or {}
+                optimizer_config = row.get("optimizer_config") or {}
                 try:
-                    row = store.get_experiment(experiment_id).data or {}
-                    caller = extract_user_id(body if isinstance(body, dict) else None)
-                    if require_user_id_enforced() and not caller:
-                        self._send(400, json.dumps({"error": "missing_user_id"}), request_id=request_id)
-                        self._finish(timer, request_id, "POST", path, 400, "validation")
-                        return
-                    if owner_mismatch(row.get("user_id"), caller):
-                        self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
-                        self._finish(timer, request_id, "POST", path, 403, "auth")
-                        return
-                    stored_scenario = row.get("scenario") or {}
-                    optimizer_config = row.get("optimizer_config") or {}
                     spec = validate_spec_payload({
                         "name": row.get("name", "experiment"),
                         "scenario_name": stored_scenario.get("name", "smart-building-emergency"),
@@ -801,7 +849,34 @@ class Handler(BaseHTTPRequestHandler):
                         "seed": row.get("seed"),
                         "description": row.get("description", ""),
                     })
+                except ValueError as exc:
+                    try:
+                        store.update_experiment(experiment_id, {"status": "failed", "error": {"message": str(exc)[:300]}})
+                    except Exception:
+                        pass
+                    self._send(422, json.dumps({"error": "invalid experiment", "detail": str(exc)[:300]}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 422, "validation")
+                    return
+                try:
                     record = run_spec(spec)
+                except ValueError as exc:
+                    try:
+                        store.update_experiment(experiment_id, {"status": "failed", "error": {"message": str(exc)[:300]}})
+                    except Exception:
+                        pass
+                    self._send(422, json.dumps({"error": "invalid experiment", "detail": str(exc)[:300]}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 422, "validation")
+                    return
+                except Exception:
+                    try:
+                        store.update_experiment(experiment_id, {"status": "failed", "error": {"message": "execution failed"}})
+                    except Exception:
+                        pass
+                    log_event("internal_error", request_id=request_id, route="execute")
+                    self._send(500, json.dumps({"error": "execution_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 500, "internal")
+                    return
+                try:
                     run_payload: dict = {
                         "experiment_id": experiment_id,
                         "optimizer": spec.optimizer,
@@ -827,13 +902,6 @@ class Handler(BaseHTTPRequestHandler):
                         log_event("dependency_failure", request_id=request_id, dependency="supabase")
                     self._send(201, json.dumps(created.data), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 201)
-                except ValueError as exc:
-                    try:
-                        store.update_experiment(experiment_id, {"status": "failed", "error": {"message": str(exc)[:300]}})
-                    except Exception:
-                        pass
-                    self._send(422, json.dumps({"error": "invalid experiment", "detail": str(exc)[:300]}), request_id=request_id)
-                    self._finish(timer, request_id, "POST", path, 422, "validation")
                 except Exception:
                     log_event("dependency_failure", request_id=request_id, dependency="supabase")
                     self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
@@ -864,10 +932,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
             variant_id = (body.get("variant_id") if isinstance(body, dict) else None) or (
                 provider.config.default_variant_id if provider.config else None)
-            if not variant_id:
+            if isinstance(variant_id, int):
+                variant_id = str(variant_id)
+            if not isinstance(variant_id, str) or not variant_id.strip():
                 self._send(400, json.dumps({"error": "variant_id is required"}), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 400, "validation")
                 return
+            variant_id = variant_id.strip()
             email = body.get("email") if isinstance(body, dict) else None
             if email is not None and (not isinstance(email, str) or len(email) > 320 or "@" not in email):
                 self._send(400, json.dumps({"error": "invalid email"}), request_id=request_id)
