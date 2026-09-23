@@ -18,6 +18,7 @@ UNCERTAINTY_FLAG = 0.35
 ALLOWED_OUTPUT_KEYS = {
     "target", "horizon", "risk", "event_predicted", "threshold",
     "contributions", "input_quality", "uncertainty", "interval", "model",
+    "calibration",
 }
 
 IMPOSSIBLE_MESSAGES = {
@@ -79,12 +80,22 @@ def json_text(record: dict) -> str:
         return ""
 
 
-def verdict(state: PatientState, risk_record: dict, previous: PatientState | None = None) -> dict:
+def check_population(ehr) -> dict:
+    """Out-of-distribution scope check. The demo weights assume adults."""
+    flags: list[str] = []
+    age = getattr(ehr, "age", None) if ehr is not None else None
+    if age is not None and (age < 18 or age > 90):
+        flags.append(f"age {age:.0f} is outside the adult demo scope (18-90): treat output as out-of-distribution")
+    return {"rejections": [], "flags": flags}
+
+
+def verdict(state: PatientState, risk_record: dict, previous: PatientState | None = None, ehr=None) -> dict:
     """Combined verdict. display_allowed is False when any rejection exists."""
     state_check = check_state(state, previous)
     pred_check = check_prediction(risk_record)
-    rejections = state_check["rejections"] + pred_check["rejections"]
-    flags = state_check["flags"] + pred_check["flags"]
+    pop_check = check_population(ehr)
+    rejections = state_check["rejections"] + pred_check["rejections"] + pop_check["rejections"]
+    flags = state_check["flags"] + pred_check["flags"] + pop_check["flags"]
     return {
         "display_allowed": not rejections,
         "rejections": rejections,

@@ -92,6 +92,8 @@ function render(d) {
   const iv = risk.interval || [0, 0];
   $("#riskInterval").textContent = Number(iv[0]).toFixed(2) + "–" + Number(iv[1]).toFixed(2);
   $("#riskQuality").textContent = Number(risk.input_quality ?? 0).toFixed(2);
+  const calibEl = $("#riskCalib");
+  if (calibEl) calibEl.textContent = String(risk.calibration || "unknown").toUpperCase();
 
   const st = d.state || {};
   $("#twinDay").textContent = "DAY " + d.day_index;
@@ -166,7 +168,10 @@ async function run() {
 
 ["day"].forEach((id) => {
   const el = $("#" + id);
-  if (el) el.oninput = () => { $("#" + id + "Out").value = el.value; };
+  if (el) {
+    el.oninput = () => { $("#" + id + "Out").value = el.value; };
+    el.onchange = run;
+  }
 });
 const policyEl = $("#policy");
 if (policyEl) policyEl.onchange = run;

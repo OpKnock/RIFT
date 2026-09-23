@@ -11,6 +11,25 @@ RIFT: EHR + wearable → personalized patient state → synchronized digital
 twin → **FORESIGHT** future trajectories → counterfactuals →
 robustness/uncertainty → Guardian → clinician dashboard.
 
+```
+EHR ──normalize──┐
+                 ├─→ PatientState(t) ──→ twin.sync ──→ baseline(<t) ──→ deviations
+wearable ─replay─┘          │                  │              │
+  (ReplaySource /           │                  ▼              ▼
+   LiveIngestSource)        │           24h strain risk ──→ contributions
+                            │                  │
+                            │                  ├─→ FORESIGHT: 4 policies ──→ futures
+                            │                  │                    ├─→ 3-day trajectories
+                            │                  │                    └─→ robust ranking (perturbations)
+                            │                  │
+                            │                  ├─→ uncertainty = quality-base + spread/2
+                            │                  │
+                            │                  └─→ Guardian (reject vs flag) ──→ reasons
+                            │
+                            └─→ snapshot → history (replayable) → dashboard
+```
+
+
 ## Pipeline
 
 ```
@@ -31,6 +50,36 @@ wearable stream ─┘                                    ↓ deviations from ba
 
 New observations update the twin: call `twin.update(day)` (or replay a
 range); baselines, risk, futures, and Guardian are all recomputed.
+
+## Forecasting hygiene (no baseline leakage)
+
+The baseline for day `t` uses only observations with `day_index < t`, so an
+abnormal today can never redefine today's "normal". Day 0 has an empty
+baseline (cold start); missing values then fall back through
+baseline → EHR clinic value → documented cold-start anchors, every fallback
+reported in `imputed_fields`.
+
+## Data sources
+
+`twin` accepts any `WearableSource`: `ReplaySource` (this demo's fixed
+14-day series) or `LiveIngestSource` (append-only, rejects duplicates and
+time-travel). A future live IoT adapter implements the same interface —
+no twin/risk/Guardian changes needed.
+
+## Validation vs clinical validation
+
+`tests/test_health_*.py` validate software behavior (normalization,
+replay, baselines, bounds, determinism, Guardian rejection, endpoint
+contract, spell-vs-calm selectivity). They do **not** validate medicine.
+
+Measured backtest on the synthetic series (days 7–12, `evaluate.backtest`):
+1-day-ahead MAE — resting HR 4.98 bpm, HRV 7.71 ms, sleep 1.17 h, activity
+16.57; event agreement 4/6 (sensitivity 0.0, specificity 0.8 — the spell
+onset lags prediction by one day, visible per-day in the report, not
+averaged away); Brier 0.145; interval coverage 0.50. These are regression
+bounds for pipeline self-consistency on synthetic data, not clinical
+performance. Risk intervals are explicitly labeled `demo / not calibrated`
+in the API payload and the dashboard.
 
 ## Demo target (narrow, short-horizon)
 
@@ -71,8 +120,3 @@ python -m rift.cli serve
 Replay `t=0..13`; change the what-if selector to compare policies.
 The `/api/demo` emergency lab endpoint still exists unchanged.
 
-## Validation vs clinical validation
-
-`tests/test_health_*.py` validate software behavior (normalization,
-replay, baselines, bounds, determinism, Guardian rejection, endpoint
-contract, spell-vs-calm selectivity). They do **not** validate medicine.
