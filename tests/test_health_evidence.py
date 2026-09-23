@@ -257,6 +257,9 @@ def test_evidence_endpoint_contract():
     assert "NOT clinically validated" in payload["meta"]["dataset"]
     assert "calibration_repair" in payload
     assert payload["calibration_repair"]["test_window"] == "days 45-59 (untouched)"
+    params = payload["calibration_repair"]["params"]
+    assert set(params) >= {"a", "b", "fit_days"}
+    assert params["a"] >= 0  # order-preserving by construction, visible to clients
 
 
 def test_platt_repair_improves_ece_without_wrecking_brier():
