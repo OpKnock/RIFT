@@ -173,7 +173,11 @@ async function loadEvidence() {
         "<div>Platt repair (fit 30–44, test 45–59): ECE " +
         fmt(ev.calibration_repair.raw && ev.calibration_repair.raw.ece) + " → " +
         fmt(ev.calibration_repair.calibrated && ev.calibration_repair.calibrated.ece) +
-        " · operating threshold unchanged</div>" : "") +
+        " · operating threshold unchanged</div>" +
+        (ev.calibration_repair.params && Number(ev.calibration_repair.params.a) === 0 ?
+          "<div>fit is near-constant (A=0, " +
+          escapeHtml(String(ev.calibration_repair.params.fit_days ?? "?")) +
+          "-day fit): small calibration sample, not proof of general repair</div>" : "") : "") +
       '<div style="margin-top:8px">ROBUSTNESS STRESS</div>' + stressRows +
       "<div>" + (responds
         ? "uncertainty widens with sensor noise"
