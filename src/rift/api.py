@@ -7,8 +7,9 @@ from .counterfactual import generate_futures
 from .causal import emergency_causal_graph
 from .futures import branch_futures
 from .models import Scenario
-from .optimizer import QUBO
+from .optimizer import QUBO, exact_minimize, QuantumOptimizer
 from .robust import rank_robust_candidates
+from .robust_qubo import build_robust_qubo
 from .scenarios import emergency_building
 from .uncertainty import normalized_risk_entropy
 
@@ -18,11 +19,16 @@ def scenario_payload(scenario:Scenario):
     perturbations=[{"smoke":2.0},{"crowd":80.0},{"smoke":2.0,"crowd":80.0},{"corridor_capacity":-70.0}]
     futures=generate_futures(scenario); ranked=rank_robust_candidates(scenario,futures,perturbations)
     q=QUBO(("route_a","route_c"),{"route_a":4.0,"route_c":2.5},{("route_a","route_c"):-1.5})
+    robust_qubo=build_robust_qubo(scenario,q.variables,perturbations)
+    classical_robust=exact_minimize(robust_qubo)
+    quantum_robust=QuantumOptimizer().solve(robust_qubo)
     bench=benchmark_suite(q)
+    robust_bench={"qubo":{"variables":robust_qubo.variables,"linear":robust_qubo.linear,"quadratic":robust_qubo.quadratic,"offset":robust_qubo.offset},"classical":{"assignment":classical_robust.assignment,"energy":classical_robust.energy,"method":classical_robust.method},"qaoa":{"assignment":quantum_robust.assignment,"energy":quantum_robust.energy,"method":quantum_robust.method}}
     return {
       "scenario":{"name":scenario.name,"initial_state":scenario.initial_state,"interventions":{k:list(v) for k,v in scenario.interventions.items()}},
       "futures":[{"policy":f.policy,"state":f.state,"score":f.score,"valid":f.valid} for f in futures],
       "robust":[{"policy":a.candidate.policy,"score":a.candidate.score,"worst_case_score":a.worst_case.adversarial_score if a.worst_case else a.candidate.score,"robustness_gap":a.robustness_gap,"worst_perturbation":a.worst_case.perturbation if a.worst_case else {}} for a in ranked],
+      "robust_optimization":robust_bench,
       "benchmark":[{"method":b.method,"energy":b.energy,"assignment":b.assignment,"runtime_ms":b.runtime_ms,"note":b.note,"probability":b.probability,"expected_energy":b.expected_energy} for b in bench],\n      "causal_graph":{"nodes":emergency_causal_graph().nodes,"edges":[{"cause":e.cause,"effect":e.effect,"strength":e.strength} for e in emergency_causal_graph().edges]},\n      "uncertainty":{"risk_entropy":normalized_risk_entropy([f.score for f in futures])},
       "future_tree":[{"id":n.id,"parent_id":n.parent_id,"depth":n.depth,"policy":n.policy,"score":n.score,"valid":n.valid,"label":n.label} for n in branch_futures(scenario,2).nodes],
     }
