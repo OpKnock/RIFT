@@ -1,8 +1,30 @@
 # RIFT — one-page technical evidence sheet
 
-Research-grade patient Digital Twin prototype with FORESIGHT counterfactual
-forecasting. Synthetic data throughout. Decision support only — never
-autonomous care, never clinically validated.
+RIFT — a research-grade patient Digital Twin prototype that explores future
+trajectories, evaluates counterfactuals, stress-tests robustness, and
+applies an independent safety layer before presenting decision-support
+evidence.
+
+Not clinically validated. Designed as a reproducible research prototype.
+
+## System
+
+Patient Digital Twin + FORESIGHT future-trajectory and counterfactual
+reasoning + CHAOS robustness + Guardian display-safety + evidence contract.
+
+## Data
+
+Synthetic EHR + 14-day replayable wearable stream (dashboard/demo),
+60-day development/held-out series, independent 60-day external series,
+strict-schema CSV adapter (`PublicDatasetSource`) ready for public data.
+No real patient data anywhere in this build.
+
+## Core capabilities (all implemented, all tested)
+
+Dynamic patient state · future trajectories · counterfactual analysis ·
+robustness testing · Guardian safety checks · uncertainty + jitter
+propagation · Platt repair with split discipline · no-refit external
+validation · threshold tradeoff analysis · sample-adequacy gate.
 
 ## What it is
 
@@ -42,3 +64,8 @@ robustness/uncertainty → Guardian display-safety → clinician dashboard.
 pip install -e ".[dev]" && pytest -q && python -m rift.cli twin-demo
 python -m rift.cli serve  # http://127.0.0.1:8080 ; /api/twin/evidence
 ```
+
+## Repository
+
+OpKnock/RIFT — feature-frozen research prototype. Remaining upgrades need
+independent event volume / real-world data, not more code.
