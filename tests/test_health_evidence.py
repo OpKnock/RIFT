@@ -419,7 +419,21 @@ def test_evidence_contract_exposes_external_block():
                 "agreement_ci95", "sensitivity", "specificity",
                 "brier_raw", "brier_calibrated", "ece_raw",
                 "ece_calibrated", "slope_intercept",
-                "interval_coverage", "confusion", "warnings"):
+                "interval_coverage", "sample_adequacy",
+                "confusion", "warnings"):
         assert key in ext, f"missing external key: {key}"
     assert ext["recalibrated"] is False
     assert ext["params_used"] == payload["calibration_repair"]["params"]
+
+
+def test_sample_adequacy_verdict_caps_claims():
+    from rift.health import evaluate as EV
+
+    ehr, stream, params = _external_fixture()
+    result = EV.external_validation(
+        stream=stream, ehr=ehr, params=params,
+        source_id="synthetic-external-v1", day_start=0, day_end=59)
+    adequacy = result["sample_adequacy"]
+    assert adequacy["events"] == 5 and adequacy["non_events"] == 54
+    assert adequacy["verdict"] == "limited"
+    assert any("100-event" in w for w in result["warnings"])

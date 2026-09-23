@@ -670,7 +670,8 @@ class Handler(BaseHTTPRequestHandler):
                             "agreement_ci95", "sensitivity", "specificity",
                             "brier_raw", "brier_calibrated", "ece_raw",
                             "ece_calibrated", "slope_intercept",
-                            "interval_coverage", "confusion", "warnings",
+                            "interval_coverage", "sample_adequacy",
+                            "confusion", "warnings",
                         )
                     },
                     "stress": stress,
