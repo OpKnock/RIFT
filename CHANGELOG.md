@@ -16,6 +16,7 @@ All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system,
 - Guardian feasibility flags in CHAOS UI (`REJECTED UNDER PERTURBATION`); regression tests for Guardian rejection and blocked-exit penalty semantics.
 - Missing persistence rows now return `404 not_found` (was `502`); engine execution failures return `500 execution_error` with the experiment marked `failed`; `variant_id` must be a string.
 - Removed dead `idx` computation in the QAOA simulator.
+- Cross-user experiment/run reads verified denied-and-allowed via fake-store tests; entropy helpers documented as nats (rescaled inputs, undivided output).
 
 ## [0.6.0] — Counterfactual Laboratory release candidate
 ### Engine and science

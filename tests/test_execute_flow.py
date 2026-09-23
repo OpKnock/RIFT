@@ -16,6 +16,7 @@ from rift.runner import run_spec
 from rift.experiments import validate_spec_payload
 
 EXP_ID = "11111111-1111-4111-8111-111111111111"
+RUN_ID = "33333333-3333-4333-8333-333333333333"
 
 SUPABASE_VARS = (
     "RIFT_SUPABASE_URL", "RIFT_SUPABASE_KEY", "SUPABASE_URL",
@@ -45,6 +46,7 @@ class FakeStore:
     configured = True
     rows: dict = {}
     runs: list = []
+    run_rows: dict = {}
     get_error: Exception | None = None
 
     def __init__(self, *args, **kwargs):
@@ -54,6 +56,14 @@ class FakeStore:
         if FakeStore.get_error is not None:
             raise FakeStore.get_error
         row = FakeStore.rows.get(experiment_id)
+        if row is None:
+            raise Exception("PGRST116: JSON object requested, 0 rows returned")
+        return _Result(dict(row))
+
+    def get_run(self, run_id):
+        if FakeStore.get_error is not None:
+            raise FakeStore.get_error
+        row = FakeStore.run_rows.get(run_id)
         if row is None:
             raise Exception("PGRST116: JSON object requested, 0 rows returned")
         return _Result(dict(row))
@@ -134,6 +144,7 @@ def _get(url, headers=None):
 def _use_fake(monkeypatch):
     FakeStore.rows = {}
     FakeStore.runs = []
+    FakeStore.run_rows = {}
     FakeStore.get_error = None
     monkeypatch.setattr(api_module, "SupabaseStore", FakeStore)
 
@@ -228,6 +239,27 @@ def test_get_missing_experiment_404(monkeypatch):
         status, payload = _get(server.url(f"/api/experiments/{EXP_ID}"))
         assert status == 404
         assert payload["error"] == "not_found"
+
+
+def test_cross_user_reads_denied(monkeypatch):
+    _clear(monkeypatch)
+    _use_fake(monkeypatch)
+    FakeStore.rows[EXP_ID] = _experiment_row()
+    FakeStore.run_rows[RUN_ID] = {"id": RUN_ID, "experiment_id": EXP_ID, "user_id": "user-a"}
+    with _Server() as server:
+        status, payload = _get(server.url(f"/api/experiments/{EXP_ID}?user_id=user-b"))
+        assert status == 403
+        assert payload["error"] == "forbidden"
+        status, payload = _get(server.url(f"/api/runs/{RUN_ID}?user_id=user-b"))
+        assert status == 403
+        assert payload["error"] == "forbidden"
+        # Owners read their own objects.
+        status, payload = _get(server.url(f"/api/experiments/{EXP_ID}?user_id=user-a"))
+        assert status == 200
+        assert payload["id"] == EXP_ID
+        status, payload = _get(server.url(f"/api/runs/{RUN_ID}?user_id=user-a"))
+        assert status == 200
+        assert payload["id"] == RUN_ID
 
 
 def test_checkout_rejects_non_string_variant(monkeypatch):
