@@ -99,13 +99,13 @@ def test_threshold_tradeoff_characterizes_not_games():
     assert tradeoff["operating_threshold"] == 0.6
     assert [r["threshold"] for r in tradeoff["rows"]] == [0.4, 0.5, 0.6, 0.7, 0.8]
     # Lowering the threshold cannot rescue detection here: sensitivity is
-    # flat below the operating point, so the misses are structural (onset
-    # shocks), not threshold artifacts. This pins the honest finding.
-    low = [r for r in tradeoff["rows"] if r["threshold"] <= 0.6]
+    # flat at and below the operating point, so the misses are structural
+    # (onset shocks), not threshold artifacts. This pins the honest finding.
+    low = [r for r in tradeoff["rows"] if r["threshold"] <= 0.7]
     assert all(r["sensitivity"] == low[0]["sensitivity"] for r in low)
-    high = [r for r in tradeoff["rows"] if r["threshold"] >= 0.7]
-    assert all(r["sensitivity"] == 0.0 for r in high)
-    assert all(r["specificity"] == 1.0 for r in high)
+    specs = [r["specificity"] for r in tradeoff["rows"]]
+    assert specs == sorted(specs)  # higher bar, fewer false alarms
+    assert tradeoff["rows"][-1]["sensitivity"] == 0.0  # 0.8 strands the caught event too
 
 
 def test_calibration_label_present_and_honest():
@@ -119,6 +119,41 @@ def test_calibration_label_present_and_honest():
     assert snap["risk"]["calibration"] == "demo / not calibrated"
     assert "measurement_jitter" in snap["risk"]
     assert snap["risk"]["measurement_jitter"] >= 0.0
+
+
+def test_trend_term_rewards_deterioration_only():
+    from rift.health.baseline import personal_baseline
+    from rift.health.models import PatientState
+    from rift.health.risk import drivers
+
+    ehr = _ehr()
+    base = personal_baseline(demo_stream().observations_upto(9))
+    state = PatientState(day_index=9, resting_hr=74.0, hrv_rmssd=38.0,
+                         sleep_hours=5.0, activity_load=80.0)
+    level, _ = drivers(state, base, None)
+    worse, parts = drivers(state, base, {"hr_slope": 6.0, "sleep_delta": -2.0})
+    assert worse > level
+    assert any("trend" in p["factor"] or "deteriorating" in p["factor"] for p in parts)
+    better, _ = drivers(state, base, {"hr_slope": -6.0, "sleep_delta": 2.0})
+    assert better == level  # recoveries add nothing
+    capped, _ = drivers(state, base, {"hr_slope": 100.0, "sleep_delta": -10.0})
+    assert capped - level <= 0.15 + 1e-9  # trend cap holds
+
+
+def test_reliability_structure_and_determinism():
+    from rift.health.evaluate import backtest, reliability
+
+    ehr = _ehr()
+    report = backtest(DigitalTwin(ehr, demo_series()), 30, 59)
+    first = reliability(report)
+    assert first["days"] == 30
+    assert first["ece"] is not None and 0.0 <= first["ece"] <= 1.0
+    assert len(first["bins"]) == 5
+    assert sum(b["n"] for b in first["bins"]) == 30
+    for b in first["bins"]:
+        if b["n"]:
+            assert 0.0 <= b["observed_freq"] <= 1.0
+    assert reliability(backtest(DigitalTwin(ehr, demo_series()), 30, 59)) == first
 
 
 def test_no_overclaim_language_in_health_surface():

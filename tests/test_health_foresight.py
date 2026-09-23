@@ -25,7 +25,8 @@ def test_foresight_futures_use_generic_engine():
     out = counterfactual_futures(state, baseline, ehr)
     assert len(out["policies"]) == 4  # 2 binary interventions
     assert len(out["robust_ranking"]) == 4
-    assert out["robust_ranking"][0]["nominal_risk"] <= out["robust_ranking"][-1]["nominal_risk"] or True
+    assert {tuple(sorted(a["policy"].items())) for a in out["robust_ranking"]} == {
+        tuple(sorted(p["policy"].items())) for p in out["policies"]}
     # What-if works: extra sleep never raises nominal risk vs doing nothing.
     by_policy = {tuple(sorted(p["policy"].items())): p["risk"] for p in out["policies"]}
     assert by_policy[(("exertion_cut", 0), ("sleep_plus", 1))] <= by_policy[(("exertion_cut", 0), ("sleep_plus", 0))]

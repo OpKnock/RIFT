@@ -167,6 +167,8 @@ async function loadEvidence() {
       " · mean onset lag " + escapeHtml(String(ev.mean_onset_lag ?? "—")) + " d</div>" +
       "<div>" + escapeHtml(String(ev.days_evaluated)) + " held-out days · labels: " +
       escapeHtml(String(ev.outcome_rule || "?")) + "</div>" +
+      "<div>calibration ECE " + fmt(ev.reliability && ev.reliability.ece) +
+      " · probabilities NOT calibrated</div>" +
       '<div style="margin-top:8px">ROBUSTNESS STRESS</div>' + stressRows +
       "<div>" + (responds
         ? "uncertainty widens with sensor noise"

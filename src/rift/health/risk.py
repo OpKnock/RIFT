@@ -25,6 +25,9 @@ RISK_WEIGHTS = {
     "sleep_per_hour_debt": 0.05,
     "activity_per_point_over_60": 0.002,
     "hrv_low_reference": 40.0,
+    "hr_slope_per_bpm_per_day": 0.015,  # velocity: rising HR adds risk
+    "sleep_worsening_per_hour": 0.03,   # velocity: shrinking sleep adds risk
+    "trend_cap": 0.15,                  # total velocity contribution cap
 }
 
 
@@ -53,8 +56,18 @@ def susceptibility(ehr: EHRRecord) -> tuple[float, list[dict]]:
     return total, parts
 
 
-def drivers(state: PatientState, baseline: PersonalBaseline) -> tuple[float, list[dict]]:
-    """Dynamic wearable-derived drivers + per-factor contributions."""
+def drivers(
+    state: PatientState,
+    baseline: PersonalBaseline,
+    trend: dict[str, float | None] | None = None,
+) -> tuple[float, list[dict]]:
+    """Dynamic wearable-derived drivers + per-factor contributions.
+
+    trend (from wearable.trend_terms) adds a bounded velocity term: only
+    deterioration counts (rising HR, shrinking sleep); recoveries add
+    nothing. Callers without history pass None and get level-only drivers
+    (used by multi-day trajectory rollout — documented in foresight).
+    """
     w = RISK_WEIGHTS
     total = 0.0
     parts: list[dict] = []
@@ -79,6 +92,18 @@ def drivers(state: PatientState, baseline: PersonalBaseline) -> tuple[float, lis
         term = w["activity_per_point_over_60"] * excess
         total += term
         parts.append({"factor": f"exertion {excess:.0f} pts over reference", "value": term})
+    trend = trend or {}
+    trend_total = 0.0
+    hr_slope = trend.get("hr_slope")
+    if hr_slope is not None and hr_slope > 0:
+        trend_total += w["hr_slope_per_bpm_per_day"] * hr_slope
+    sleep_delta = trend.get("sleep_delta")
+    if sleep_delta is not None and sleep_delta < 0:
+        trend_total += w["sleep_worsening_per_hour"] * abs(sleep_delta)
+    trend_total = min(w["trend_cap"], trend_total)
+    if trend_total > 0:
+        total += trend_total
+        parts.append({"factor": "deteriorating 24h trend (HR rising / sleep shrinking)", "value": trend_total})
     return total, parts
 
 
@@ -102,15 +127,18 @@ def predict(
     baseline: PersonalBaseline,
     ehr: EHRRecord,
     measurement_jitter: float = 0.0,
+    trend: dict[str, float | None] | None = None,
 ) -> dict:
     """Risk record with horizon, contributions, quality, and uncertainty.
 
     measurement_jitter (0..1, from wearable.jitter_score) widens the
     interval: fast day-over-day fluctuation — whether sensor noise or a
     genuine shock — means the point estimate is less trustworthy.
+    trend (from wearable.trend_terms) adds a bounded velocity term so
+    deterioration in progress scores higher than a static snapshot.
     """
     base, base_parts = susceptibility(ehr)
-    drive, drive_parts = drivers(state, baseline)
+    drive, drive_parts = drivers(state, baseline, trend)
     risk = _clamp01(base + drive)
     quality = input_quality(state)
     jitter = max(0.0, min(1.0, measurement_jitter))
@@ -126,6 +154,7 @@ def predict(
         "contributions": base_parts + drive_parts,
         "input_quality": quality,
         "measurement_jitter": jitter,
+        "trend_terms": {k: v for k, v in (trend or {}).items()},
         "uncertainty": uncertainty,
         "interval": [max(0.0, risk - uncertainty), min(1.0, risk + uncertainty)],
         "calibration": "demo / not calibrated",

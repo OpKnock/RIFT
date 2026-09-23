@@ -262,3 +262,31 @@ def threshold_tradeoff(
             "agreement": (tp + tn) / total if total else None,
         })
     return {"operating_threshold": STRAIN_THRESHOLD, "rows": rows}
+
+
+def reliability(backtest_report: dict, bins: int = 5) -> dict:
+    """Empirical calibration: predicted risk vs observed event frequency.
+
+    Equal-width bins over predicted probability; per bin the mean prediction
+    and the realized frequency, plus the expected calibration error (ECE).
+    On synthetic held-out data this measures whether the probability output
+    behaves like a probability — a calibration mechanism check, not a
+    clinical calibration claim.
+    """
+    days = backtest_report.get("per_day", [])
+    edges = [i / bins for i in range(bins + 1)]
+    rows = []
+    for lo, hi in zip(edges, edges[1:]):
+        in_bin = [d for d in days if lo <= d["predicted_risk"] < hi or (hi == 1.0 and d["predicted_risk"] == 1.0)]
+        if not in_bin:
+            rows.append({"bin": [lo, hi], "n": 0, "mean_predicted": None, "observed_freq": None})
+            continue
+        mean_pred = sum(d["predicted_risk"] for d in in_bin) / len(in_bin)
+        freq = sum(1 for d in in_bin if d["realized_event"]) / len(in_bin)
+        rows.append({"bin": [lo, hi], "n": len(in_bin), "mean_predicted": mean_pred, "observed_freq": freq})
+    total = sum(r["n"] for r in rows)
+    ece = (
+        sum(r["n"] / total * abs(r["mean_predicted"] - r["observed_freq"]) for r in rows if r["n"])
+        if total else None
+    )
+    return {"bins": rows, "ece": ece, "days": total}
