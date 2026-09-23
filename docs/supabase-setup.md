@@ -14,6 +14,8 @@ experiments and runs. Nothing requires a live project to run `pytest`,
    - `backend/supabase/migrations/001_initial.sql`
    - `backend/supabase/migrations/002_production_hardening.sql`
    - `backend/supabase/migrations/003_billing.sql`
+   - `backend/supabase/migrations/004_experiment_model.sql`
+   - `backend/supabase/migrations/005_runs_owner.sql`
 
    With the Supabase CLI:
 
@@ -44,6 +46,9 @@ Security rules:
   adds experiment metadata/run timing columns.
 - `003` billing tables grant nothing to `anon`/`authenticated` — they are
   service-role-only and read through server endpoints.
+- `004` adds the experiment lifecycle (status, reproducibility, fingerprints,
+  `updated_at` triggers, webhook idempotency); `005` adds run ownership.
+  All migrations are additive and idempotent (`IF NOT EXISTS`).
 
 ## 3. Verify
 
@@ -65,8 +70,14 @@ state, not an error.
 | POST | `/api/experiments` | `503 persistence_not_configured` |
 | GET | `/api/experiments/{id}` | `503 persistence_not_configured` |
 | POST | `/api/experiments/{id}/runs` | `503 persistence_not_configured` |
+| POST | `/api/experiments/{id}/execute` | `503 persistence_not_configured` |
 | GET | `/api/experiments/{id}/runs` | `503 persistence_not_configured` |
 | GET | `/api/runs/{id}` | `503 persistence_not_configured` |
+
+`POST .../execute` runs the stored spec server-side (`rift.runner`), writes
+the run row with metrics + fingerprint, and marks the experiment
+`succeeded`/`failed` — the reproducible path. Direct `POST .../runs` remains
+for externally computed results.
 
 Example (configured server):
 

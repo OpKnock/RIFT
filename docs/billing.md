@@ -11,7 +11,10 @@ this repository.
   - reads server-side env only (see below),
   - builds Lemon Squeezy v1 `POST /checkouts` JSON:API payloads,
   - verifies webhook `X-Signature` (HMAC-SHA256 hex of raw body),
-  - validates `meta.event_name` shape without crashing on new event types.
+  - validates `meta.event_name` shape without crashing on new event types,
+  - derives idempotency keys (`event_name:provider_event_id`),
+  - maps subscription events to mirror updates and server-side entitlements
+    (`active`/`trialing`/`past_due` entitled; everything else fail-closed).
 - HTTP endpoints in `src/rift/api.py` (stdlib only):
   - `GET /api/billing/status` → `{configured, provider, ...}` (no secrets),
   - `POST /api/billing/checkout` → live Lemon Squeezy checkout creation,
@@ -19,12 +22,16 @@ this repository.
     or `400 variant_id is required` when no variant is supplied,
   - `POST /api/billing/webhook` → fail-closed HMAC verification, `401` on
     bad signature, `503 billing_webhook_not_configured` when the webhook
-    secret is absent, best-effort audit insert into `billing_events` when
-    Supabase is also configured.
+    secret is absent, duplicate replays get `{received: true, duplicate: true}`,
+    subscription events upsert `billing_subscriptions` best-effort,
+  - `GET /api/billing/entitlement?user_id=` → `{entitled, status}` derived
+    only from the server-side subscription mirror, never browser input.
 - `backend/supabase/migrations/003_billing.sql` — service-role-only
-  `billing_customers`, `billing_subscriptions`, `billing_events` tables.
-- Unit tests cover signature verification, payload validation, and the
-  not-configured paths with zero network access.
+  `billing_customers`, `billing_subscriptions`, `billing_events` tables;
+  `004` adds the webhook idempotency unique constraint.
+- Tests cover signature verification, lifecycle mapping, entitlement rules,
+  idempotent replay, and the not-configured paths with zero network access
+  (`tests/test_billing.py`, `tests/test_billing_lifecycle.py`).
 
 ## Configuration (server only, all optional)
 

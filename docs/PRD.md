@@ -27,4 +27,4 @@ Constraint violations, worst-case objective, mean objective, robustness gap, run
 No autonomous real-world control, no quantum-supremacy claims, no perfect future prediction.
 
 ## Roadmap
-Core engine → experiment API → Counterfactual Laboratory → QAOA/hardware adapters → benchmark suite → auth/usage/billing → domain adapters.
+Core engine (done) → experiment API (done: `docs/api.md`) → Counterfactual Laboratory (done) → QAOA/hardware adapters (simulator done; hardware gated, see README) → benchmark suite (done) → auth/usage/billing (boundaries done; live wiring needs credentials) → domain adapters (future).

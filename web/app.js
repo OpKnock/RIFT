@@ -145,6 +145,7 @@ function render(d, options) {
     escapeHtml(JSON.stringify(item.policy)) +
     "<br><small>perturbation " +
     escapeHtml(JSON.stringify(item.worst_perturbation)) +
+    (item.feasible_under_all ? "" : "<br><strong>REJECTED UNDER PERTURBATION</strong>") +
     "</small></span><strong>" +
     item.worst_case_score.toFixed(1) + "</strong></div>"
   ).join("");

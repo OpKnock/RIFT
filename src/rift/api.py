@@ -13,7 +13,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import __version__ as ENGINE_VERSION
-from .auth import extract_user_id, is_authorized, owner_mismatch, service_token_configured
+from .auth import (
+    extract_user_id,
+    is_authorized,
+    owner_mismatch,
+    require_user_id_enforced,
+    service_token_configured,
+)
 from .benchmark import benchmark_suite
 from .billing import (
     BillingNotConfigured,
@@ -41,6 +47,7 @@ from .observability import Timer, log_event, new_request_id
 from .optimizer import QUBO, QuantumOptimizer, exact_minimize
 from .robust import rank_robust_candidates
 from .robust_qubo import build_robust_qubo, robust_policy_cost
+from .runner import run_spec
 from .scenarios import emergency_building
 from .settings import billing_status, get_billing_config, supabase_status
 from .supabase_store import SupabaseStore
@@ -354,6 +361,18 @@ class Handler(BaseHTTPRequestHandler):
         if length <= 0:
             return b"", False
         if length > MAX_PAYLOAD_BYTES:
+            # Consume-and-discard so the HTTP/1.1 keep-alive connection stays
+            # in sync; responding without reading the body aborts the socket
+            # on some platforms and breaks subsequent requests.
+            remaining = length
+            try:
+                while remaining > 0:
+                    chunk = self.rfile.read(min(65536, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+            except Exception:
+                pass
             return b"", True
         try:
             return self.rfile.read(length), False
@@ -637,6 +656,11 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(400, json.dumps({"error": "invalid_request", "detail": str(exc)[:300]}), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 400, "validation")
                 return
+            owner = extract_user_id(body if isinstance(body, dict) else None)
+            if require_user_id_enforced() and not owner:
+                self._send(400, json.dumps({"error": "missing_user_id"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
             store = SupabaseStore()
             if not store.configured:
                 self._send(503, json.dumps({
@@ -646,7 +670,6 @@ class Handler(BaseHTTPRequestHandler):
                 self._finish(timer, request_id, "POST", path, 503, "persistence_not_configured")
                 return
             try:
-                owner = extract_user_id(body if isinstance(body, dict) else None)
                 result = store.create_experiment({
                     "name": spec.name,
                     "description": spec.description,
@@ -703,6 +726,10 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     experiment = store.get_experiment(experiment_id).data or {}
                     caller = extract_user_id(body if isinstance(body, dict) else None)
+                    if require_user_id_enforced() and not caller:
+                        self._send(400, json.dumps({"error": "missing_user_id"}), request_id=request_id)
+                        self._finish(timer, request_id, "POST", path, 400, "validation")
+                        return
                     if owner_mismatch(experiment.get("user_id"), caller):
                         self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
                         self._finish(timer, request_id, "POST", path, 403, "auth")
@@ -721,6 +748,92 @@ class Handler(BaseHTTPRequestHandler):
                     result = store.create_run(payload)
                     self._send(201, json.dumps(result.data), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 201)
+                except Exception:
+                    log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                    self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 502, "persistence_error")
+                return
+
+        if path.startswith("/api/experiments/") and path.endswith("/execute"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 4:
+                if not self._require_auth(request_id):
+                    self._finish(timer, request_id, "POST", path, 401, "auth")
+                    return
+                experiment_id = parts[2]
+                if not _is_valid_uuid(experiment_id):
+                    self._send(400, json.dumps({"error": "invalid_id"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
+                body, raw = self._read_json()
+                if body == "overflow":
+                    self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 413, "validation")
+                    return
+                if body is None:
+                    body = {}
+                store = SupabaseStore()
+                if not store.configured:
+                    self._send(503, json.dumps({"error": "persistence_not_configured"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 503, "persistence_not_configured")
+                    return
+                try:
+                    row = store.get_experiment(experiment_id).data or {}
+                    caller = extract_user_id(body if isinstance(body, dict) else None)
+                    if require_user_id_enforced() and not caller:
+                        self._send(400, json.dumps({"error": "missing_user_id"}), request_id=request_id)
+                        self._finish(timer, request_id, "POST", path, 400, "validation")
+                        return
+                    if owner_mismatch(row.get("user_id"), caller):
+                        self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                        self._finish(timer, request_id, "POST", path, 403, "auth")
+                        return
+                    stored_scenario = row.get("scenario") or {}
+                    optimizer_config = row.get("optimizer_config") or {}
+                    spec = validate_spec_payload({
+                        "name": row.get("name", "experiment"),
+                        "scenario_name": stored_scenario.get("name", "smart-building-emergency"),
+                        "initial_state": stored_scenario.get("initial_state", {}),
+                        "perturbations": row.get("perturbations", []),
+                        "policy_variables": row.get("policy_variables", []),
+                        "optimizer": optimizer_config.get("optimizer", "exact"),
+                        "backend": row.get("backend", "statevector-simulator"),
+                        "seed": row.get("seed"),
+                        "description": row.get("description", ""),
+                    })
+                    record = run_spec(spec)
+                    run_payload: dict = {
+                        "experiment_id": experiment_id,
+                        "optimizer": spec.optimizer,
+                        "backend": spec.backend,
+                        "optimizer_config": {"optimizer": spec.optimizer, "backend": spec.backend, "seed": spec.seed},
+                        "result": record,
+                        "metrics": {
+                            "robust_cost": record["robust_cost"],
+                            "nominal_cost": record["nominal_cost"],
+                            "feasible": record["feasible"],
+                            "duration_ms": record["duration_ms"],
+                        },
+                        "seed": spec.seed,
+                        "engine_version": ENGINE_VERSION,
+                        "fingerprint": spec.fingerprint(),
+                    }
+                    if caller or row.get("user_id"):
+                        run_payload["user_id"] = caller or row.get("user_id")
+                    created = store.create_run(run_payload)
+                    try:
+                        store.update_experiment(experiment_id, {"status": "succeeded"})
+                    except Exception:
+                        log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                    self._send(201, json.dumps(created.data), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 201)
+                except ValueError as exc:
+                    try:
+                        store.update_experiment(experiment_id, {"status": "failed", "error": {"message": str(exc)[:300]}})
+                    except Exception:
+                        pass
+                    self._send(422, json.dumps({"error": "invalid experiment", "detail": str(exc)[:300]}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 422, "validation")
                 except Exception:
                     log_event("dependency_failure", request_id=request_id, dependency="supabase")
                     self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)

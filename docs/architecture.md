@@ -17,6 +17,7 @@ State → World Model → Counterfactual Futures → CHAOS → Candidate Policie
 - rift.limits: computational + input bounds (never silent truncation)
 - rift.auth: optional service-token gate + server-side ownership checks
 - rift.observability: request IDs + redacted structured logs
+- rift.runner: server-side spec execution (stored experiment → run record)
 - rift.verifier: hard constraints
 - rift.engine: orchestration
 - rift.cli: local demo
@@ -51,6 +52,7 @@ POST /api/experiments
 GET /api/experiments/{id}
 POST /api/experiments/{id}/runs
 GET /api/experiments/{id}/runs
+POST /api/experiments/{id}/execute
 GET /api/runs/{id}
 GET /api/billing/status
 POST /api/billing/checkout
