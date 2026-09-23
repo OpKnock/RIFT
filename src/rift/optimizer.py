@@ -36,8 +36,8 @@ class QuantumOptimizer:
     """
     def __init__(self, backend="statevector", p=1):
         self.backend=backend; self.p=p
-    def solve(self, qubo:QUBO)->OptimizationResult:
+    def solve(self, qubo:QUBO, objective="expectation", alpha=0.25)->OptimizationResult:
         if self.backend!="statevector":
             raise NotImplementedError(f"Quantum backend '{self.backend}' is not connected.")
         from .qaoa import qaoa_minimize
-        return qaoa_minimize(qubo,p=self.p)
+        return qaoa_minimize(qubo,p=self.p,objective=objective,alpha=alpha)
