@@ -1,0 +1,20 @@
+# CodeRabbit configuration for RIFT
+# Reviews run only when the CodeRabbit GitHub App is installed on the repo.
+# This file alone does not perform a review and must never be cited as one.
+
+language: "en-US"
+tone_instructions: "Be direct and technical. Focus on facts and problem-solving."
+
+reviews:
+  profile: "assertive"
+  request_changes_workflow: true
+  high_level_summary: true
+  poem: false
+  auto_title_placeholder: "@coderabbitai summary"
+  # Do not post extra "review complete" comments; keep signal high.
+  collapse_walkthrough: false
+
+chat:
+  auto_reply: true
+
+enable_review: true

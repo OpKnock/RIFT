@@ -1,29 +1,52 @@
-"""Optional Supabase persistence adapter.
+"""Optional Supabase persistence adapter (legacy import path).
 
-RIFT remains fully runnable without Supabase. The adapter only activates when
-SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY are configured and the supabase
-Python client is installed.
+Canonical configuration lives in :mod:`rift.settings` and
+:mod:`rift.supabase_store`:
+
+- ``RIFT_SUPABASE_URL`` (fallback: ``SUPABASE_URL``)
+- ``RIFT_SUPABASE_KEY`` (fallback: ``SUPABASE_SERVICE_KEY``,
+  ``SUPABASE_PUBLISHABLE_KEY``, ``SUPABASE_ANON_KEY``)
+
+This module is kept for backward compatibility and delegates to
+``SupabaseStore``. New code should import from ``rift.supabase_store``.
 """
-import os
+from .supabase_store import SupabaseStore
+
+__all__ = ["PersistenceUnavailable", "SupabasePersistence", "SupabaseStore"]
+
 
 class PersistenceUnavailable(RuntimeError):
     pass
 
-class SupabasePersistence:
+
+class SupabasePersistence(SupabaseStore):
     def __init__(self, url=None, key=None):
-        self.url=url or os.getenv("SUPABASE_URL")
-        self.key=key or os.getenv("SUPABASE_PUBLISHABLE_KEY")
-        if not self.url or not self.key:
-            raise PersistenceUnavailable("Supabase is not configured")
         try:
-            from supabase import create_client
-        except ImportError as exc:
-            raise PersistenceUnavailable("Install the optional Supabase client to enable persistence") from exc
-        self.client=create_client(self.url,self.key)
+            super().__init__(url=url, key=key)
+        except TypeError:
+            super().__init__()
+        if not self.configured:
+            raise PersistenceUnavailable(
+                "Supabase is not configured. Set RIFT_SUPABASE_URL and "
+                "RIFT_SUPABASE_KEY in a trusted server environment."
+            )
 
-    def create_experiment(self,name,scenario,description=""):
-        return self.client.table("experiments").insert({"name":name,"description":description,"scenario":scenario,"status":"created"}).execute()
+    def create_experiment(self, name, scenario, description=""):
+        return super().create_experiment(
+            {
+                "name": name,
+                "description": description,
+                "scenario": scenario,
+                "status": "created",
+            }
+        )
 
-    def create_run(self,experiment_id,optimizer,result,metrics=None,seed=None):
-        payload={"experiment_id":experiment_id,"optimizer":optimizer,"result":result,"metrics":metrics or {},"seed":seed}
-        return self.client.table("experiment_runs").insert(payload).execute()
+    def create_run(self, experiment_id, optimizer, result, metrics=None, seed=None):
+        payload = {
+            "experiment_id": experiment_id,
+            "optimizer": optimizer,
+            "result": result,
+            "metrics": metrics or {},
+            "seed": seed,
+        }
+        return super().create_run(payload)

@@ -81,15 +81,17 @@ This is a simulation safety boundary, not a certification mechanism.
 
 ## Persistence
 
-Supabase migrations under `backend/supabase/migrations/` provide experiment/run tables, indexes, and row-level security. `src/rift/supabase_store.py` is an optional server-side adapter.
+Supabase migrations under `backend/supabase/migrations/` provide experiment/run tables (`001`), production hardening with explicit grants and metadata (`002`), and a service-role-only billing mirror (`003`). `src/rift/supabase_store.py` is the optional server-side adapter; `src/rift/settings.py` centralizes env handling.
 
-A live Supabase project is **not** hard-coded into the repository. Configure `RIFT_SUPABASE_URL` and `RIFT_SUPABASE_KEY` only in a trusted server environment. Never expose a service-role key to the browser.
+A live Supabase project is **not** hard-coded into the repository. Configure `RIFT_SUPABASE_URL` and `RIFT_SUPABASE_KEY` only in a trusted server environment (legacy `SUPABASE_*` names accepted as fallback). Never expose a service-role key to the browser. See `docs/supabase-setup.md`.
+
+When configured, the server exposes persistence endpoints (`POST /api/experiments`, `GET /api/experiments/{id}`, `POST /api/experiments/{id}/runs`, `GET /api/experiments/{id}/runs`, `GET /api/runs/{id}`); when absent they return `503 persistence_not_configured` and the engine still runs offline.
 
 ## Review and billing integrations
 
-The connected development environment does not expose a CodeRabbit execution connector, so RIFT does not claim that CodeRabbit reviewed this release. GitHub Actions provides the repository's automated test gate.
+`.coderabbit.yaml` enables CodeRabbit reviews **only if** the CodeRabbit GitHub App is installed on the repository. It does not by itself perform a review. Do not treat this release as CodeRabbit-reviewed unless a CodeRabbit check run is visible on the corresponding PR. See `docs/review.md`. GitHub Actions (`test.yml`) provides the repository's automated test gate.
 
-No Lemon Squeezy account or payment integration is connected. Billing remains outside the simulation core until a provider is intentionally configured.
+Lemon Squeezy billing is implemented as a provider boundary (`src/rift/billing.py`) with `POST /api/billing/checkout` and `POST /api/billing/webhook` (HMAC `X-Signature` verification, fail-closed without a webhook secret). It is disabled by default and requires `RIFT_LEMON_SQUEEZY_API_KEY`, `RIFT_LEMON_SQUEEZY_STORE_ID`, and `RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET` on the server. No account, credentials, or products are configured in this environment, so no live checkout or webhook delivery has been executed or claimed. See `docs/billing.md`.
 
 ## Safety boundary
 

@@ -4,6 +4,13 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from .benchmark import benchmark_suite
+from .billing import (
+    BillingNotConfigured,
+    CheckoutRequest,
+    LemonSqueezyProvider,
+    parse_webhook_event,
+    verify_webhook_signature,
+)
 from .causal import emergency_causal_graph
 from .counterfactual import generate_futures
 from .futures import branch_futures
@@ -17,6 +24,8 @@ from .optimizer import QUBO, QuantumOptimizer, exact_minimize
 from .robust import rank_robust_candidates
 from .robust_qubo import build_robust_qubo, robust_policy_cost
 from .scenarios import emergency_building
+from .settings import billing_status, get_billing_config, supabase_status
+from .supabase_store import SupabaseStore
 from .uncertainty import normalized_risk_entropy
 from .verifier import verify_under_perturbations
 
@@ -250,6 +259,24 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def _read_body(self, limit_bytes=1_000_000):
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except (TypeError, ValueError):
+            length = 0
+        if length <= 0 or length > limit_bytes:
+            return b""
+        return self.rfile.read(length)
+
+    def _read_json(self):
+        raw = self._read_body()
+        if not raw:
+            return {}, b""
+        try:
+            return json.loads(raw.decode("utf-8")), raw
+        except (ValueError, UnicodeDecodeError):
+            return None, raw
+
     def do_GET(self):
         parsed = urlparse(self.path)
         path = parsed.path
@@ -264,9 +291,15 @@ class Handler(BaseHTTPRequestHandler):
                         "engine": "rift",
                         "version": "0.6.0",
                         "quantum_backend": "statevector-simulator",
+                        "persistence": supabase_status(),
+                        "billing": billing_status(),
                     }
                 ),
             )
+        if path == "/api/persistence/status":
+            return self._send(200, json.dumps(supabase_status()))
+        if path == "/api/billing/status":
+            return self._send(200, json.dumps(billing_status()))
         if path == "/api/demo":
             try:
                 return self._send(
@@ -276,6 +309,69 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send(
                     422, json.dumps({"error": "invalid scenario", "detail": str(exc)})
                 )
+        if path.startswith("/api/experiments/") and path.endswith("/runs"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 4:
+                experiment_id = parts[2]
+                store = SupabaseStore()
+                if not store.configured:
+                    return self._send(
+                        503,
+                        json.dumps(
+                            {
+                                "error": "persistence_not_configured",
+                                "detail": "Set RIFT_SUPABASE_URL and "
+                                "RIFT_SUPABASE_KEY on the server.",
+                            }
+                        ),
+                    )
+                try:
+                    result = store.list_runs(experiment_id)
+                    return self._send(200, json.dumps(result.data))
+                except Exception as exc:  # network/supabase errors only
+                    return self._send(
+                        502, json.dumps({"error": "persistence_error", "detail": str(exc)})
+                    )
+        if path.startswith("/api/experiments/"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 3:
+                experiment_id = parts[2]
+                store = SupabaseStore()
+                if not store.configured:
+                    return self._send(
+                        503,
+                        json.dumps(
+                            {
+                                "error": "persistence_not_configured",
+                                "detail": "Set RIFT_SUPABASE_URL and "
+                                "RIFT_SUPABASE_KEY on the server.",
+                            }
+                        ),
+                    )
+                try:
+                    result = store.get_experiment(experiment_id)
+                    return self._send(200, json.dumps(result.data))
+                except Exception as exc:
+                    return self._send(
+                        502, json.dumps({"error": "persistence_error", "detail": str(exc)})
+                    )
+        if path.startswith("/api/runs/"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 3:
+                run_id = parts[2]
+                store = SupabaseStore()
+                if not store.configured:
+                    return self._send(
+                        503,
+                        json.dumps({"error": "persistence_not_configured"}),
+                    )
+                try:
+                    result = store.get_run(run_id)
+                    return self._send(200, json.dumps(result.data))
+                except Exception as exc:
+                    return self._send(
+                        502, json.dumps({"error": "persistence_error", "detail": str(exc)})
+                    )
 
         files = {
             "/": "index.html",
@@ -295,6 +391,165 @@ class Handler(BaseHTTPRequestHandler):
             if not target.is_file():
                 return self._send(404, json.dumps({"error": "asset not found"}))
             return self._send(200, target.read_bytes(), content_types[ext])
+        return self._send(404, json.dumps({"error": "not found"}))
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+
+        if path == "/api/experiments":
+            body, _ = self._read_json()
+            if body is None:
+                return self._send(400, json.dumps({"error": "invalid_json"}))
+            if not isinstance(body, dict) or not body.get("name") or not body.get("scenario"):
+                return self._send(
+                    400,
+                    json.dumps({"error": "name and scenario are required"}),
+                )
+            store = SupabaseStore()
+            if not store.configured:
+                return self._send(
+                    503,
+                    json.dumps(
+                        {
+                            "error": "persistence_not_configured",
+                            "detail": "Set RIFT_SUPABASE_URL and "
+                            "RIFT_SUPABASE_KEY on the server.",
+                        }
+                    ),
+                )
+            try:
+                result = store.create_experiment(
+                    {
+                        "name": body["name"],
+                        "description": body.get("description", ""),
+                        "scenario": body["scenario"],
+                        "status": "created",
+                    }
+                )
+                return self._send(201, json.dumps(result.data))
+            except Exception as exc:
+                return self._send(
+                    502, json.dumps({"error": "persistence_error", "detail": str(exc)})
+                )
+
+        if path.startswith("/api/experiments/") and path.endswith("/runs"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 4:
+                experiment_id = parts[2]
+                body, _ = self._read_json()
+                if body is None:
+                    return self._send(400, json.dumps({"error": "invalid_json"}))
+                if not isinstance(body, dict) or not body.get("optimizer"):
+                    return self._send(
+                        400, json.dumps({"error": "optimizer is required"})
+                    )
+                store = SupabaseStore()
+                if not store.configured:
+                    return self._send(
+                        503, json.dumps({"error": "persistence_not_configured"})
+                    )
+                try:
+                    result = store.create_run(
+                        {
+                            "experiment_id": experiment_id,
+                            "optimizer": body["optimizer"],
+                            "result": body.get("result"),
+                            "metrics": body.get("metrics") or {},
+                            "seed": body.get("seed"),
+                        }
+                    )
+                    return self._send(201, json.dumps(result.data))
+                except Exception as exc:
+                    return self._send(
+                        502, json.dumps({"error": "persistence_error", "detail": str(exc)})
+                    )
+
+        if path == "/api/billing/checkout":
+            body, _ = self._read_json()
+            if body is None:
+                return self._send(400, json.dumps({"error": "invalid_json"}))
+            provider = LemonSqueezyProvider()
+            if not provider.configured:
+                return self._send(
+                    503,
+                    json.dumps(
+                        {
+                            "error": "billing_not_configured",
+                            "provider": "lemon_squeezy",
+                            "detail": "Set RIFT_LEMON_SQUEEZY_API_KEY and "
+                            "RIFT_LEMON_SQUEEZY_STORE_ID on the server.",
+                        }
+                    ),
+                )
+            variant_id = (
+                body.get("variant_id")
+                if isinstance(body, dict)
+                else None
+            ) or (provider.config.default_variant_id if provider.config else None)
+            if not variant_id:
+                return self._send(400, json.dumps({"error": "variant_id is required"}))
+            try:
+                checkout = provider.create_checkout(
+                    CheckoutRequest(
+                        variant_id=str(variant_id),
+                        email=(body.get("email") if isinstance(body, dict) else None),
+                        user_id=(body.get("user_id") if isinstance(body, dict) else None),
+                        metadata=(body.get("metadata") if isinstance(body, dict) else None),
+                    )
+                )
+                return self._send(201, json.dumps(checkout))
+            except BillingNotConfigured as exc:
+                return self._send(
+                    503, json.dumps({"error": "billing_not_configured", "detail": str(exc)})
+                )
+            except ValueError as exc:
+                return self._send(400, json.dumps({"error": "invalid_request", "detail": str(exc)}))
+            except Exception as exc:
+                return self._send(
+                    502, json.dumps({"error": "billing_error", "detail": str(exc)})
+                )
+
+        if path == "/api/billing/webhook":
+            body, raw = self._read_json()
+            config = get_billing_config()
+            if config is None or not config.webhook_secret:
+                # Fail closed: never accept unverified webhooks.
+                return self._send(
+                    503,
+                    json.dumps(
+                        {
+                            "error": "billing_webhook_not_configured",
+                            "detail": "Set RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET "
+                            "on the server before receiving webhooks.",
+                        }
+                    ),
+                )
+            signature = self.headers.get("X-Signature")
+            if not verify_webhook_signature(raw, signature, config.webhook_secret):
+                return self._send(401, json.dumps({"error": "invalid_signature"}))
+            if body is None:
+                return self._send(400, json.dumps({"error": "invalid_json"}))
+            try:
+                event = parse_webhook_event(body)
+            except ValueError as exc:
+                return self._send(400, json.dumps({"error": "invalid_webhook", "detail": str(exc)}))
+            # Best-effort audit log; webhook acceptance must not depend on Supabase.
+            try:
+                store = SupabaseStore()
+                if store.configured:
+                    data = event.get("data") or {}
+                    store.record_billing_event(
+                        {
+                            "event_name": event["event_name"],
+                            "supported": event["supported"],
+                            "payload": body,
+                        }
+                    )
+            except Exception:
+                pass
+            return self._send(200, json.dumps({"received": True, "event": event["event_name"]}))
+
         return self._send(404, json.dumps({"error": "not found"}))
 
     def log_message(self, format, *args):
