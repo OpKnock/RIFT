@@ -144,6 +144,26 @@ function render(d) {
     "</div>";
 }
 
+async function loadEvidence() {
+  const el = $("#evidence");
+  if (!el) return;
+  try {
+    const response = await fetch("/api/twin/evidence", { headers: { Accept: "application/json" } });
+    const ev = await response.json();
+    if (!response.ok) throw new Error(ev.error || "Request failed");
+    const fmt = (v) => (v == null ? "—" : Number(v).toFixed(2));
+    el.innerHTML =
+      "<div>agreement " + fmt(ev.event_agreement) + " · Brier " + fmt(ev.brier) +
+      " · coverage " + fmt(ev.interval_coverage) + "</div>" +
+      "<div>sensitivity " + fmt(ev.sensitivity) + " · specificity " + fmt(ev.specificity) +
+      " · mean onset lag " + escapeHtml(String(ev.mean_onset_lag ?? "—")) + " d</div>" +
+      "<div>" + escapeHtml(String(ev.days_evaluated)) + " held-out days · labels: " +
+      escapeHtml(String(ev.outcome_rule || "?")) + "</div>";
+  } catch (error) {
+    el.textContent = "evidence unavailable · " + error.message;
+  }
+}
+
 async function run() {
   const button = $("#run");
   button.disabled = true;
@@ -177,4 +197,5 @@ const policyEl = $("#policy");
 if (policyEl) policyEl.onchange = run;
 
 $("#run").onclick = run;
+loadEvidence();
 run();

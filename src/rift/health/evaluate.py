@@ -1,36 +1,78 @@
-"""Phase-3 validation: backtest, trajectory accuracy, calibration, sanity.
+"""Phase-4 validation: independent outcomes, temporal splits, calibration.
 
 SOFTWARE validation on synthetic demo data — NOT clinical validation.
-The "realized" labels below come from observed demo vitals scored with the
-same transparent risk function, so these metrics measure pipeline
-self-consistency, determinism, and honest uncertainty — never medical truth.
+
+The critical Phase-4 change vs Phase 3: realized outcomes come from an
+INDEPENDENT labeling rule applied to observed vitals
+(`realized_outcome`), never from the model's own risk function. The model
+and the label can therefore disagree — and the metrics report that
+honestly, including onset lag and misses.
 """
 from __future__ import annotations
 
 from .baseline import personal_baseline
 from .ehr import EHRRecord
 from .foresight import counterfactual_futures
-from .models import PatientState
+from .models import PatientState, WearableObservation
 from .risk import STRAIN_THRESHOLD, predict
+from .robustness import degrade_noisy
 from .transition import transition
 from .twin import DigitalTwin
-from .wearable import WearableStream
 
 FIELDS = ("resting_hr", "hrv_rmssd", "sleep_hours", "activity_load")
 
+# Synthetic outcome definition v1 (independent of the risk weights and of
+# any personal baseline): a high-strain day is OBSERVED tachycardia plus an
+# OBSERVED recovery deficit. Absolute criteria, no model involved.
+OUTCOME_RULE = {
+    "description": "observed resting_hr >= 75 AND (sleep_hours <= 5.5 OR hrv_rmssd <= 35)",
+    "resting_hr_min": 75.0,
+    "sleep_max": 5.5,
+    "hrv_max": 35.0,
+}
+
+
+def realized_outcome(obs: WearableObservation) -> tuple[bool, list[str]]:
+    """Independent label from observed vitals. Returns (event, fired_criteria)."""
+    if obs is None:
+        return False, []
+    hr = obs.resting_hr
+    if hr is None or hr < OUTCOME_RULE["resting_hr_min"]:
+        return False, []
+    fired = [f"resting_hr {hr:.0f} >= {OUTCOME_RULE['resting_hr_min']:.0f}"]
+    sleep_bad = obs.sleep_hours is not None and obs.sleep_hours <= OUTCOME_RULE["sleep_max"]
+    hrv_bad = obs.hrv_rmssd is not None and obs.hrv_rmssd <= OUTCOME_RULE["hrv_max"]
+    if sleep_bad:
+        fired.append(f"sleep {obs.sleep_hours:.1f}h <= {OUTCOME_RULE['sleep_max']:.1f}h")
+    if hrv_bad:
+        fired.append(f"hrv {obs.hrv_rmssd:.0f}ms <= {OUTCOME_RULE['hrv_max']:.0f}ms")
+    if not (sleep_bad or hrv_bad):
+        return False, []
+    return True, fired
+
 
 def realized_label(state: PatientState, baseline, ehr: EHRRecord) -> tuple[bool, float]:
-    """Score OBSERVED vitals with the risk function: did a high-strain day occur?"""
+    """Legacy self-consistency label (model scored on observed vitals).
+
+    Kept for regression continuity; Phase-4 metrics use realized_outcome.
+    """
     record = predict(state, baseline, ehr)
     return record["risk"] >= STRAIN_THRESHOLD, record["risk"]
 
 
-def backtest(twin: DigitalTwin, start_day: int = 7, end_day: int = 12) -> dict:
-    """Replay days [start_day, end_day]: 1-day-ahead vitals vs actuals.
+def backtest(
+    twin: DigitalTwin,
+    start_day: int = 7,
+    end_day: int = 12,
+    *,
+    independent_labels: bool = True,
+) -> dict:
+    """Rolling-origin replay over days [start_day, end_day].
 
-    For each day t: transition(state_t) predicts vitals for t+1; compare
-    against the observed day-(t+1) sample. Also compares the predicted event
-    against the realized label, Brier score, and interval coverage.
+    For each day t: the twin predicts from state_t (baseline strictly
+    before t); labels come from the INDEPENDENT outcome rule on day-(t+1)
+    observations when independent_labels=True. Reports MAE, event metrics,
+    Brier, interval coverage, onset lead/lag, and a per-day table.
     """
     stream = twin.stream
     ehr = twin.ehr
@@ -39,14 +81,13 @@ def backtest(twin: DigitalTwin, start_day: int = 7, end_day: int = 12) -> dict:
     brier_terms: list[float] = []
     covered = 0
     evaluated = 0
+    lags: list[int] = []
     per_day: list[dict] = []
     for day in range(start_day, end_day + 1):
         snap = twin.update(day)
         state = twin.synchronize(day)
-        baseline = personal_baseline(stream.observations_upto(day))
-        predicted = transition(
-            {f: getattr(state, f) for f in FIELDS}, ehr, {}
-        )
+        baseline = personal_baseline([o for o in stream.observations_upto(day) if o.day_index < day])
+        predicted = transition({f: getattr(state, f) for f in FIELDS}, ehr, {})
         actual_obs = stream.latest_at(day + 1)
         if actual_obs is None:
             continue
@@ -56,14 +97,26 @@ def backtest(twin: DigitalTwin, start_day: int = 7, end_day: int = 12) -> dict:
             if pred is not None and actual is not None:
                 mae[field].append(abs(pred - actual))
                 day_mae[field] = abs(pred - actual)
-        actual_state = PatientState(
-            day_index=day + 1,
-            resting_hr=actual_obs.resting_hr,
-            hrv_rmssd=actual_obs.hrv_rmssd,
-            sleep_hours=actual_obs.sleep_hours,
-            activity_load=actual_obs.activity_load,
-        )
-        realized_event, realized_risk = realized_label(actual_state, baseline, ehr)
+        if independent_labels:
+            realized_event, criteria = realized_outcome(actual_obs)
+            actual_state = PatientState(
+                day_index=day + 1,
+                resting_hr=actual_obs.resting_hr,
+                hrv_rmssd=actual_obs.hrv_rmssd,
+                sleep_hours=actual_obs.sleep_hours,
+                activity_load=actual_obs.activity_load,
+            )
+            _, realized_risk = realized_label(actual_state, baseline, ehr)
+        else:
+            actual_state = PatientState(
+                day_index=day + 1,
+                resting_hr=actual_obs.resting_hr,
+                hrv_rmssd=actual_obs.hrv_rmssd,
+                sleep_hours=actual_obs.sleep_hours,
+                activity_load=actual_obs.activity_load,
+            )
+            realized_event, realized_risk = realized_label(actual_state, baseline, ehr)
+            criteria = ["legacy self-consistency label"]
         predicted_event = snap["risk"]["event_predicted"]
         predicted_risk = snap["risk"]["risk"]
         if predicted_event and realized_event:
@@ -84,19 +137,77 @@ def backtest(twin: DigitalTwin, start_day: int = 7, end_day: int = 12) -> dict:
             "realized_risk": realized_risk,
             "predicted_event": predicted_event,
             "realized_event": realized_event,
+            "realized_criteria": criteria,
             "mae": day_mae,
         })
+    # Onset lead/lag: for each realized event, offset of the first predicted
+    # event within the two preceding days (negative = prediction came late).
+    pred_days = {d["day"] for d in per_day if d["predicted_event"]}
+    for d in per_day:
+        if d["realized_event"]:
+            earlier = [p for p in pred_days if d["day"] - 2 <= p <= d["day"]]
+            lags.append(min(earlier) - d["day"] if earlier else -99)
     total = hits["tp"] + hits["tn"] + hits["fp"] + hits["fn"]
     return {
         "days_evaluated": evaluated,
+        "labels": "independent-outcome-v1" if independent_labels else "legacy-self-consistency",
+        "outcome_rule": OUTCOME_RULE["description"],
         "mae": {f: (sum(v) / len(v) if v else None) for f, v in mae.items()},
         "event_agreement": (hits["tp"] + hits["tn"]) / total if total else None,
         "sensitivity": hits["tp"] / (hits["tp"] + hits["fn"]) if (hits["tp"] + hits["fn"]) else None,
         "specificity": hits["tn"] / (hits["tn"] + hits["fp"]) if (hits["tn"] + hits["fp"]) else None,
         "brier": sum(brier_terms) / len(brier_terms) if brier_terms else None,
         "interval_coverage": covered / evaluated if evaluated else None,
+        "onset_lags": lags,
+        "mean_onset_lag": sum(lags) / len(lags) if lags else None,
         "confusion": hits,
         "per_day": per_day,
+    }
+
+
+def stress_sweep(
+    stream,
+    ehr: EHRRecord,
+    days: list[int],
+    magnitudes: tuple[float, ...] = (0.0, 0.05, 0.15),
+    seed: int = 7,
+) -> dict:
+    """Robustness stress test: rising sensor noise vs agreement + uncertainty.
+
+    Replays each day with noisy inputs; agreement must degrade gracefully
+    (no crashes, no wild swings) while mean uncertainty is non-decreasing.
+    """
+    from .twin import DigitalTwin as _Twin
+
+    rows = []
+    for magnitude in magnitudes:
+        agreements: list[bool] = []
+        uncertainties: list[float] = []
+        for day in days:
+            twin = _Twin(ehr, stream)
+            snap = twin.update(day)
+            noisy_state = degrade_noisy(twin.synchronize(day), seed=seed, magnitude=magnitude)
+            baseline = personal_baseline(
+                [o for o in stream.observations_upto(day) if o.day_index < day]
+            )
+            record = predict(noisy_state, baseline, ehr)
+            actual = stream.latest_at(day + 1)
+            if actual is None:
+                continue
+            realized, _ = realized_outcome(actual)
+            agreements.append((record["risk"] >= STRAIN_THRESHOLD) == realized)
+            uncertainties.append(record["uncertainty"])
+        rows.append({
+            "noise_magnitude": magnitude,
+            "days": len(agreements),
+            "agreement": sum(agreements) / len(agreements) if agreements else None,
+            "mean_uncertainty": sum(uncertainties) / len(uncertainties) if uncertainties else None,
+        })
+    mean_u = [r["mean_uncertainty"] for r in rows if r["mean_uncertainty"] is not None]
+    return {
+        "rows": rows,
+        "uncertainty_non_decreasing": all(b >= a for a, b in zip(mean_u, mean_u[1:])),
+        "severities": list(magnitudes),
     }
 
 

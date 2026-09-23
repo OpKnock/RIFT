@@ -81,6 +81,23 @@ bounds for pipeline self-consistency on synthetic data, not clinical
 performance. Risk intervals are explicitly labeled `demo / not calibrated`
 in the API payload and the dashboard.
 
+## Phase-4 evidence (independent outcomes, held-out timeline)
+
+Phase-3 labels were circular (observed vitals scored by the same risk
+function). Phase 4 replaces them with outcome definition v1
+(`evaluate.OUTCOME_RULE`): an event is **observed** resting HR ≥ 75 **and**
+(sleep ≤ 5.5 h **or** HRV ≤ 35 ms) — no model weights, no baselines. The
+model can now genuinely miss, and it does.
+
+60-day series, calibration days 0–29, held-out days 30–59
+(`GET /api/twin/evidence`): event agreement 0.87, sensitivity 0.33,
+specificity 0.93, Brier 0.120, interval coverage 0.87, onset lags
+`[-99, -99, 0]` (−99 = realized event with no prediction within ±2 days).
+Sensor-noise stress (0/5/15%): agreement stays ≥ 0.87 with no crashes;
+mean uncertainty is flat because amplitude noise is not currently sensed —
+documented limitation, not calibration. Public datasets plug in through
+`PublicDatasetSource` (strict CSV schema, same normalized pipeline).
+
 ## Demo target (narrow, short-horizon)
 
 **Next-24h high-strain day** (risk ≥ 0.60) for demo-patient-01 (58, M,
