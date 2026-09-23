@@ -58,3 +58,14 @@ Point at: `imputed_fields`, `guardian`, `calibration_repair.params`,
 - "Is it clinically validated?" → "No. Synthetic weights, synthetic data. The validation story is software self-consistency + honest uncertainty, documented in `docs/patient-twin.md`."
 - "Why is sensitivity 0.33?" → "Sudden-onset shocks; the threshold table in Evidence proves it's structural, not tuning. That's the next research step with real data."
 - "Where does it run in production?" → "Nowhere yet — needs a Supabase project, Lemon Squeezy account, and host. The code paths are ready; `docs/deployment.md` lists the exact env vars."
+- "Why does the demo say day 9–10 but the backtest differs?" → "Different measurements on purpose: the replay narrative shows the velocity signal firing on onset days 9–10, while the backtest pairs each day-t prediction against the independent day-(t+1) outcome. Model behavior vs evaluation methodology — keep them distinct."
+
+## 5. Demo backup plan (if anything live fails)
+
+Everything below works with zero network beyond localhost, and the
+terminal path needs no server at all:
+
+1. Server won't start → `python -m rift.cli twin-demo` (full twin story in terminal) + `pytest -q` (146 green) + `docs/evidence-sheet.md` (frozen numbers).
+2. Dashboard won't load → same as above, plus `curl` the two JSON endpoints if the server runs but the browser fails.
+3. Judge wants proof without running anything → `docs/evidence-sheet.md` (one page) + CI badge history on GitHub (test + validate + security green on HEAD).
+4. Record a screen capture of sections 1–2 beforehand; the numbers are deterministic (seeded), so the recording always matches live output.
