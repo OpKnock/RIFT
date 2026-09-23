@@ -8,3 +8,9 @@ def test_qaoa_returns_valid_assignment():
     assert set(result.assignment)=={"a","b"}
     assert result.expected_energy >= exact.energy
     assert 0.0 <= result.probability <= 1.0
+
+
+def test_qaoa_cvar_mode_returns_valid_assignment():
+    result=simulate_qaoa(QUBO(("a","b"),{"a":-2,"b":-1},{("a","b"):3}),objective="cvar",alpha=0.25)
+    assert set(result.assignment)=={"a","b"}
+    assert result.energy <= 0
