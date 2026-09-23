@@ -459,6 +459,7 @@ def external_validation(
             "events": None,
             "params_used": params,
             "recalibrated": False,
+            "sample_adequacy": None,
             "warnings": warnings,
         }
     twin = DigitalTwin(ehr, stream)
@@ -505,10 +506,28 @@ def external_validation(
     total = hits["tp"] + hits["tn"] + hits["fp"] + hits["fn"]
     agreement = (hits["tp"] + hits["tn"]) / total if total else None
     events = hits["tp"] + hits["fn"]
+    non_events = hits["tn"] + hits["fp"]
     if events < MIN_EVENTS_FOR_RATES:
         warnings.append(
             f"only {events} positive events (< {MIN_EVENTS_FOR_RATES}): "
             "sensitivity/specificity are unstable"
+        )
+    # Sample-adequacy verdict against the commonly cited external-validation
+    # rule of thumb (~100 events and ~100 non-events for stable calibration
+    # estimates). Below it, calibration claims stay capped at strong partial
+    # no matter how good the point metrics look.
+    adequacy = {
+        "events": events,
+        "non_events": non_events,
+        "events_required": 100,
+        "non_events_required": 100,
+        "verdict": "adequate" if events >= 100 and non_events >= 100 else "limited",
+    }
+    if adequacy["verdict"] != "adequate":
+        warnings.append(
+            f"external sample below the 100-event/100-non-event adequacy bar "
+            f"({events} events, {non_events} non-events): calibration remains "
+            "strong partial, not complete"
         )
     cal_report_like = {"per_day": [
         {"predicted_risk": d["calibrated_risk"], "realized_event": d["realized_event"]} for d in per_day
@@ -534,6 +553,7 @@ def external_validation(
         "ece_calibrated": reliability(cal_report_like)["ece"],
         "slope_intercept": slope,
         "interval_coverage": covered / len(per_day) if per_day else None,
+        "sample_adequacy": adequacy,
         "confusion": hits,
         "warnings": warnings,
         "per_day": per_day,

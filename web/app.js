@@ -193,6 +193,12 @@ async function loadEvidence() {
         " · slope " + fmt(ev.external_validation.slope_intercept && ev.external_validation.slope_intercept.slope) +
         " · intercept " + fmt(ev.external_validation.slope_intercept && ev.external_validation.slope_intercept.intercept) + "</div>" +
         "<div>No recalibration performed on external set</div>" +
+        (ev.external_validation.sample_adequacy ?
+          "<div>sample adequacy: " +
+          escapeHtml(String(ev.external_validation.sample_adequacy.verdict)) +
+          " (" + escapeHtml(String(ev.external_validation.sample_adequacy.events)) +
+          " events / " + escapeHtml(String(ev.external_validation.sample_adequacy.non_events)) +
+          " non-events; bar is 100/100)</div>" : "") +
         ((ev.external_validation.warnings || []).map((w) =>
           "<div>warning: " + escapeHtml(String(w)) + "</div>").join("")) : "");
   } catch (error) {
