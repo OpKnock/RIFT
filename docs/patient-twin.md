@@ -172,8 +172,9 @@ whether uncertainty responded.
 
 **Next-24h high-strain day** (risk ≥ 0.60) for demo-patient-01 (58, M,
 hypertension + hyperlipidemia). The 14-day synthetic series is calm, spikes
-on days 9–10 (poor sleep + exertion), and recovers — the event fires on day
-10 only. Weights in `risk.py`/`transition.py` are transparent demo constants.
+on days 9–10 (poor sleep + exertion), and recovers — the event fires on
+days 9–10 (velocity term catches the onset day). Weights in
+`risk.py`/`transition.py` are transparent demo constants.
 
 ## Module map (`src/rift/health/`)
 
