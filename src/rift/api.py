@@ -404,7 +404,7 @@ class Handler(BaseHTTPRequestHandler):
                     if not chunk:
                         break
                     remaining -= len(chunk)
-            except Exception:
+            except Exception:  # nosec B110 -- discard is best-effort; a broken socket fails the request anyway
                 pass
             return b"", True
         try:
@@ -906,7 +906,7 @@ class Handler(BaseHTTPRequestHandler):
                     try:
                         store.update_experiment(experiment_id, {"status": "failed", "error": {"message": str(exc)[:300]}})
                     except Exception:
-                        pass
+                        log_event("dependency_failure", request_id=request_id, dependency="supabase")
                     self._send(422, json.dumps({"error": "invalid experiment", "detail": str(exc)[:300]}), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 422, "validation")
                     return
@@ -916,7 +916,7 @@ class Handler(BaseHTTPRequestHandler):
                     try:
                         store.update_experiment(experiment_id, {"status": "failed", "error": {"message": str(exc)[:300]}})
                     except Exception:
-                        pass
+                        log_event("dependency_failure", request_id=request_id, dependency="supabase")
                     self._send(422, json.dumps({"error": "invalid experiment", "detail": str(exc)[:300]}), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 422, "validation")
                     return
@@ -924,7 +924,7 @@ class Handler(BaseHTTPRequestHandler):
                     try:
                         store.update_experiment(experiment_id, {"status": "failed", "error": {"message": "execution failed"}})
                     except Exception:
-                        pass
+                        log_event("dependency_failure", request_id=request_id, dependency="supabase")
                     log_event("internal_error", request_id=request_id, route="execute")
                     self._send(500, json.dumps({"error": "execution_error", "request_id": request_id}), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 500, "internal")
@@ -1064,7 +1064,7 @@ class Handler(BaseHTTPRequestHandler):
                                 self._finish(timer, request_id, "POST", path, 200)
                                 return
                         except Exception:
-                            pass
+                            log_event("dependency_failure", request_id=request_id, dependency="supabase")
                     custom = event.get("custom_data") or {}
                     store.record_billing_event({
                         "event_name": event["event_name"],
@@ -1084,7 +1084,9 @@ class Handler(BaseHTTPRequestHandler):
                         except Exception:
                             log_event("dependency_failure", request_id=request_id, dependency="supabase")
             except Exception:
-                pass
+                # Best-effort audit log by design: webhook acceptance must not
+                # depend on Supabase, and the 200 below stays truthful.
+                log_event("dependency_failure", request_id=request_id, dependency="supabase")
             self._send(200, json.dumps({"received": True, "event": event["event_name"]}), request_id=request_id)
             self._finish(timer, request_id, "POST", path, 200)
             return
@@ -1113,6 +1115,6 @@ def serve(host="127.0.0.1", port=8080):
     server.daemon_threads = True
     try:
         server.socket.settimeout(30)
-    except Exception:
+    except Exception:  # nosec B110 -- without a timeout the socket just blocks longer; serve proceeds either way
         pass
     server.serve_forever()

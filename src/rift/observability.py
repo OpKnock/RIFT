@@ -38,7 +38,7 @@ def log_event(event: str, **fields: Any) -> None:
     try:
         sys.stderr.write(json.dumps(record, sort_keys=True) + "\n")
         sys.stderr.flush()
-    except Exception:
+    except Exception:  # nosec B110 -- logging must never raise; loss is acceptable
         pass
 
 

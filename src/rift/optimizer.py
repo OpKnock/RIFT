@@ -25,7 +25,8 @@ def exact_minimize(qubo:QUBO)->OptimizationResult:
     for bits in product((0,1),repeat=len(qubo.variables)):
         assignment=dict(zip(qubo.variables,bits)); result=OptimizationResult(assignment,qubo.energy(assignment),"exact-enumeration")
         if best is None or result.energy<best.energy: best=result
-    assert best is not None
+    if best is None:  # product() over repeat=0 still yields one case; guard anyway
+        raise ValueError("QUBO has no assignments to minimize")
     return best
 
 class QuantumOptimizer:
