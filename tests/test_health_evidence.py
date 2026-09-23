@@ -11,7 +11,7 @@ from http.server import ThreadingHTTPServer
 from rift.api import Handler
 from rift.health import ehr as E
 from rift.health.demo_data import demo_series, demo_stream
-from rift.health.evaluate import OUTCOME_RULE, backtest, realized_outcome, stress_sweep
+from rift.health.evaluate import OUTCOME_RULE, backtest, calibration_report, fit_platt_scaling, realized_outcome, stress_sweep
 from rift.health.models import PatientState, WearableObservation
 from rift.health.sources import PublicDatasetSource
 from rift.health.twin import DigitalTwin
@@ -284,3 +284,142 @@ def test_platt_repair_improves_ece_without_wrecking_brier():
     assert result["calibrated"]["brier"] <= result["raw"]["brier"] + 0.02
     # Operating behavior untouched: raw risks in the report are unmodified.
     assert all(d["predicted_risk"] <= 1.0 for d in test_days)
+
+
+def _external_fixture():
+    from rift.health.evaluate import EXTERNAL_SERIES_CONFIG
+
+    ehr = _ehr()
+    stream = demo_series(
+        seed=EXTERNAL_SERIES_CONFIG["seed"],
+        days=EXTERNAL_SERIES_CONFIG["days"],
+        spells=EXTERNAL_SERIES_CONFIG["spells"],
+    )
+    report = backtest(DigitalTwin(ehr, demo_series()), 30, 59)
+    params = fit_platt_scaling(
+        [d for d in report["per_day"] if d["day"] < 45])
+    return ehr, stream, params
+
+
+def test_external_validation_never_fits():
+    import rift.health.evaluate as EV
+
+    ehr, stream, params = _external_fixture()
+    real_fit = EV.fit_platt_scaling
+
+    def _forbidden_fit(*args, **kwargs):
+        raise AssertionError("external validation must never fit parameters")
+
+    EV.fit_platt_scaling = _forbidden_fit
+    try:
+        result = EV.external_validation(
+            stream=stream, ehr=ehr, params=params,
+            source_id="synthetic-external-v1", day_start=0, day_end=59)
+    finally:
+        EV.fit_platt_scaling = real_fit
+    assert result["status"] == "complete"
+    assert result["params_used"] == params
+    assert result["recalibrated"] is False
+
+
+def test_external_validation_leaves_model_untouched():
+    import copy
+
+    from rift.health import risk as RISK
+
+    ehr, stream, params = _external_fixture()
+    weights_before = copy.deepcopy(RISK.RISK_WEIGHTS)
+    threshold_before = RISK.STRAIN_THRESHOLD
+    from rift.health import evaluate as EV
+
+    EV.external_validation(
+        stream=stream, ehr=ehr, params=params,
+        source_id="synthetic-external-v1", day_start=0, day_end=59)
+    assert RISK.RISK_WEIGHTS == weights_before
+    assert RISK.STRAIN_THRESHOLD == threshold_before
+
+
+def test_external_splits_are_disjoint_and_identified():
+    from rift.health.demo_data import demo_series as _series
+    from rift.health.evaluate import EXTERNAL_SERIES_CONFIG
+
+    assert EXTERNAL_SERIES_CONFIG["seed"] != 7  # development series seed
+    assert EXTERNAL_SERIES_CONFIG["source_id"] == "synthetic-external-v1"
+    internal = _series()
+    external = _series(
+        seed=EXTERNAL_SERIES_CONFIG["seed"],
+        days=EXTERNAL_SERIES_CONFIG["days"],
+        spells=EXTERNAL_SERIES_CONFIG["spells"],
+    )
+    assert internal is not external
+    assert external.end_day == 59
+
+
+def test_external_insufficient_sample_warns_without_fake_metrics():
+    from rift.health import evaluate as EV
+    from rift.health.sources import ReplaySource
+
+    ehr = _ehr()
+    tiny = ReplaySource(demo_series().observations_upto(4))
+    result = EV.external_validation(
+        stream=tiny, ehr=ehr, params={"a": 0.0, "b": -2.5, "fit_days": 15, "fit_logloss": 0.0},
+        source_id="tiny-probe", day_start=0, day_end=4)
+    assert result["status"] == "insufficient"
+    assert result["events"] is None
+    assert result["warnings"]
+    assert result["recalibrated"] is False
+
+
+def test_empty_bins_and_slope_warnings_are_safe():
+    from rift.health.evaluate import calibration_slope_intercept, reliability
+
+    empty = reliability({"per_day": []})
+    assert empty["ece"] is None
+    assert all(b["n"] == 0 for b in empty["bins"])
+    single = calibration_slope_intercept([
+        {"predicted_risk": 0.3, "realized_event": False},
+        {"predicted_risk": 0.35, "realized_event": False},
+    ])
+    assert single["slope"] is None and "warning" in single
+
+
+def test_external_metrics_honest_bounds():
+    from rift.health import evaluate as EV
+
+    ehr, stream, params = _external_fixture()
+    result = EV.external_validation(
+        stream=stream, ehr=ehr, params=params,
+        source_id="synthetic-external-v1", day_start=0, day_end=59)
+    assert result["status"] == "complete"
+    assert result["days_evaluated"] == 59
+    assert result["events"] == 5
+    assert result["event_agreement"] >= 0.8
+    assert result["specificity"] >= 0.85
+    assert result["brier_calibrated"] <= result["brier_raw"] + 0.02
+    assert result["ece_calibrated"] < result["ece_raw"]
+    assert result["slope_intercept"]["bins_used"] >= 1
+    assert result["interval_coverage"] is not None
+    assert result["agreement_ci95"] is not None  # n=59 supports Wilson
+    # Deterministic rerun.
+    again = EV.external_validation(
+        stream=stream, ehr=ehr, params=params,
+        source_id="synthetic-external-v1", day_start=0, day_end=59)
+    assert again["confusion"] == result["confusion"]
+
+
+def test_evidence_contract_exposes_external_block():
+    with _Server() as server:
+        with urllib.request.urlopen(server.url("/api/twin/evidence"), timeout=120) as response:
+            assert response.status == 200
+            payload = json.loads(response.read().decode())
+    ext = payload.get("external_validation")
+    assert ext is not None
+    for key in ("source_id", "status", "days_evaluated", "events",
+                "params_used", "recalibrated", "event_agreement",
+                "agreement_ci95", "sensitivity", "specificity",
+                "brier_raw", "brier_calibrated", "ece_raw",
+                "ece_calibrated", "slope_intercept",
+                "interval_coverage", "confusion", "warnings"):
+        assert key in ext, f"missing external key: {key}"
+    assert ext["recalibrated"] is False
+    assert ext["params_used"] == payload["calibration_repair"]["params"]

@@ -98,6 +98,20 @@ mean uncertainty now rises with noise (0.085 → 0.09 → 0.11) via the
 jitter path below. Public datasets plug in through
 `PublicDatasetSource` (strict CSV schema, same normalized pipeline).
 
+## Phase-7 external validation (separate synthetic series, no refit)
+
+`evaluate.external_validation` replays an independent 60-day series
+(seed 123, different spell days 15–16/33–34/50 — never used for model
+development, calibration fitting, threshold selection, or reporting) with
+the model, threshold, and Platt params all frozen. Measured:
+agreement 0.90 (95% CI 0.80–0.95), sensitivity 0.40, specificity 0.94,
+Brier raw 0.119 → calibrated 0.078, ECE raw 0.225 → calibrated 0.009,
+coverage 0.90. Slope/intercept correctly refused (1 populated bin —
+reported with warning, not hidden). This is synthetic-to-synthetic
+generalization evidence, NOT external real-world validation: a real
+public dataset through `PublicDatasetSource` remains the next credibility
+jump, and the seam is ready for it.
+
 ## Sensitivity and thresholds (reported, not gamed)
 
 Held-out threshold sweep (threshold → sensitivity / specificity):
