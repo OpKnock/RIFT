@@ -14,6 +14,7 @@ class ExperimentResult:
     robust_candidates: tuple = ()
     robust_qubo: QUBO | None = None
     quantum_policy: OptimizationResult | None = None
+    cvar_quantum_policy: OptimizationResult | None = None
 
 def run_experiment(scenario: Scenario, qubo: QUBO, perturbations: list[dict[str,float]] | None = None) -> ExperimentResult:
     candidates=tuple(generate_futures(scenario))
@@ -23,8 +24,10 @@ def run_experiment(scenario: Scenario, qubo: QUBO, perturbations: list[dict[str,
     if robust_qubo:
         best=exact_minimize(robust_qubo)
         quantum=QuantumOptimizer().solve(robust_qubo)
+        cvar_quantum=QuantumOptimizer().solve(robust_qubo,objective="cvar",alpha=0.25)
     else:
         best=exact_minimize(qubo)
         quantum=QuantumOptimizer().solve(qubo)
+        cvar_quantum=QuantumOptimizer().solve(qubo,objective="cvar",alpha=0.25)
     state=scenario.transition(dict(scenario.initial_state),best.assignment)
-    return ExperimentResult(candidates,best,verify(state,list(scenario.constraints)),ranked,robust_qubo,quantum)
+    return ExperimentResult(candidates,best,verify(state,list(scenario.constraints)),ranked,robust_qubo,quantum,cvar_quantum)
