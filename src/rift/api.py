@@ -605,6 +605,47 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
                 self._finish(timer, request_id, "GET", path, 500, "internal")
             return
+        if path == "/api/twin/evidence":
+            try:
+                from .health.demo_data import demo_series
+                from .health.ehr import demo_ehr, normalize_ehr
+                from .health.evaluate import OUTCOME_RULE, backtest, stress_sweep
+                from .health.twin import DigitalTwin
+
+                ehr, _ = normalize_ehr(demo_ehr())
+                long_twin = DigitalTwin(ehr, demo_series())
+                held_out = backtest(long_twin, 30, 59)
+                stress = stress_sweep(demo_series(), ehr, list(range(30, 45)))
+                payload = {
+                    "labels": held_out["labels"],
+                    "outcome_rule": OUTCOME_RULE["description"],
+                    "calibration_window": "days 0-29",
+                    "held_out_window": "days 30-59",
+                    "days_evaluated": held_out["days_evaluated"],
+                    "mae": held_out["mae"],
+                    "event_agreement": held_out["event_agreement"],
+                    "sensitivity": held_out["sensitivity"],
+                    "specificity": held_out["specificity"],
+                    "brier": held_out["brier"],
+                    "interval_coverage": held_out["interval_coverage"],
+                    "onset_lags": held_out["onset_lags"],
+                    "mean_onset_lag": held_out["mean_onset_lag"],
+                    "confusion": held_out["confusion"],
+                    "stress": stress,
+                    "meta": {
+                        "engine": "rift",
+                        "engine_version": ENGINE_VERSION,
+                        "dataset": "synthetic 60-day series (seed 7); NOT clinically validated",
+                        "calibration": "demo / not calibrated",
+                    },
+                }
+                self._send(200, json.dumps(payload), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
+            except Exception:
+                log_event("internal_error", request_id=request_id, route="twin-evidence")
+                self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
+            return
         if path.startswith("/api/experiments/") and path.endswith("/runs"):
             parts = path.strip("/").split("/")
             if len(parts) == 4:

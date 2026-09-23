@@ -56,6 +56,7 @@ GET /api/experiments/{id}/runs
 POST /api/experiments/{id}/execute
 GET /api/runs/{id}
 GET /api/twin/demo
+GET /api/twin/evidence
 GET /api/billing/status
 POST /api/billing/checkout
 POST /api/billing/webhook
