@@ -26,3 +26,12 @@ jobs:
         run: python scripts/secret_scan.py
       - name: Version consistency (pyproject, package, health)
         run: python scripts/check_versions.py
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Bandit SAST (fail on any finding)
+        run: pip install "bandit>=1.9,<2" && bandit -r src -q

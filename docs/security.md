@@ -9,6 +9,9 @@
 - In-process fixed-window limiter (`src/rift/ratelimit.py`), enabled with `RIFT_RATE_LIMIT_ENABLED=true`; separate lower budget for the expensive `.../execute` endpoint; `429 + Retry-After` on excess. Defense-in-depth behind edge rules (see `docs/deployment.md`); static assets uncounted; client IP from direct peer unless `RIFT_TRUST_PROXY=true`.
 
 ## Checked and passing (evidence in repo/tests)
+- Static analysis: `bandit -r src` reports **zero issues** (triaged 2026-09-23: one medium `urlopen` hardened with an endpoint allowlist; low `try/except/pass` sites converted to redacted `log_event` diagnostics except three justified `nosec` best-effort paths; `assert` replaced with an explicit raise). Enforced in CI (`security` job).
+- Supply chain: RIFT's runtime dependencies are `[]`; auditing the full declared closure (`pytest`, `supabase`, `qiskit`, `qiskit-ibm-runtime`) with pip-audit found **no known vulnerabilities**. (The host machine's global environment has unrelated CVEs in packages RIFT never imports — not a repo finding.)
+- Semgrep could not execute in this environment (missing `pysemgrep` engine binary); bandit + test gates provide the automated SAST coverage instead.
 - Webhook HMAC verification fail-closed; forged signatures get 401 (`tests/test_api_boundaries.py`, `tests/test_api_hardening.py`).
 - Webhook replay returns `duplicate: true` via in-memory + DB idempotency keys.
 - Upstream errors return generic 502 + request ID; no tracebacks (`test_upstream_errors_do_not_leak`).

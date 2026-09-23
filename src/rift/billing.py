@@ -210,8 +210,11 @@ class LemonSqueezyProvider:
         """
         config = self._require_config()
         body = json.dumps(self.checkout_payload(request)).encode("utf-8")
+        url = f"{LEMON_SQUEEZY_API_BASE}/checkouts"
+        if not url.startswith("https://api.lemonsqueezy.com/"):
+            raise RuntimeError("refusing to call an unexpected billing endpoint")
         http_request = urllib.request.Request(
-            f"{LEMON_SQUEEZY_API_BASE}/checkouts",
+            url,
             data=body,
             method="POST",
             headers={
@@ -220,7 +223,7 @@ class LemonSqueezyProvider:
                 "Authorization": f"Bearer {config.api_key}",
             },
         )
-        with urllib.request.urlopen(http_request, timeout=timeout_s) as response:
+        with urllib.request.urlopen(http_request, timeout=timeout_s) as response:  # nosec B310 -- URL is a module constant, never user input
             payload = json.loads(response.read().decode("utf-8"))
         data = payload.get("data") or {}
         attributes = data.get("attributes") or {}

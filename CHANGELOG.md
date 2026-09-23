@@ -4,6 +4,7 @@ All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system,
 
 ## [Unreleased]
 ### Added
+- Bandit SAST gate in CI (`security` job, zero-findings baseline); supply-chain audit of the declared dependency closure clean.
 - Verified JWT identity (`rift.auth_jwt`, HS256 via `RIFT_SUPABASE_JWT_SECRET`): gated endpoints authenticate `Bearer` tokens and derive `user_id` from `sub`; spoofed `user_id` values are ignored; `none`/foreign algorithms, bad signatures, and expired tokens fail closed with 401.
 - In-process rate limiting (`rift.ratelimit`, `RIFT_RATE_LIMIT_ENABLED=true`): fixed-window budgets with a stricter `.../execute` scope, `429 + Retry-After`; static assets uncounted.
 - Frontend access-token field (SETTINGS) auto-attached to save/execute calls.
@@ -16,6 +17,7 @@ All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system,
 - Removed dead `idx` computation in the QAOA simulator.
 - Cross-user experiment/run reads verified denied-and-allowed via fake-store tests; entropy helpers documented as nats (rescaled inputs, undivided output).
 ### Fixed
+- Bandit triage: billing checkout URL pinned to an allowlist; best-effort `except: pass` paths now emit diagnostics (three justified `nosec` cases documented); optimizer `assert` replaced with an explicit raise.
 - `/api/demo` no longer crashes on tuple-keyed QUBO JSON (quadratic terms serialize as `"a,b"` strings).
 - Oversized request bodies are consumed-and-discarded before the 413 response, keeping HTTP/1.1 keep-alive connections in sync (previously aborted sockets on some platforms).
 - `experiment_runs.user_id` column added (migration 005); the API already wrote it, which would have failed live inserts.
