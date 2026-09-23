@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rift-engine"
+version = "0.4.0"
+description = "Robust Intervention & Future Testing — counterfactual decision intelligence"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+supabase = ["supabase>=2.0.0"]
+qiskit = ["qiskit>=2.0.0", "qiskit-ibm-runtime>=0.30.0"]
+
+[project.scripts]
+rift = "rift.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
