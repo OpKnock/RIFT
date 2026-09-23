@@ -7,6 +7,7 @@ a deterministic coordinate/grid search for variational parameters.
 from dataclasses import dataclass
 from math import cos, exp, pi, sin
 from .optimizer import QUBO, OptimizationResult
+from .cvar import cvar_from_distribution
 
 @dataclass(frozen=True)
 class QAOAResult:
@@ -46,13 +47,20 @@ def _state(energies: list[float], n: int, betas: tuple[float,...], gammas: tuple
 def _expectation(state:list[complex], energies:list[float])->float:
     return sum((abs(a)**2)*e for a,e in zip(state,energies))
 
-def simulate_qaoa(qubo: QUBO, p:int=1, grid_steps:int=5, iterations:int=3) -> QAOAResult:
+def _cvar(state:list[complex], energies:list[float], alpha:float)->float:
+    return cvar_from_distribution(energies,[abs(a)**2 for a in state],alpha)
+
+def simulate_qaoa(qubo: QUBO, p:int=1, grid_steps:int=5, iterations:int=3, objective:str="expectation", alpha:float=0.25) -> QAOAResult:
     if not qubo.variables: raise ValueError("QUBO must contain at least one variable")
     if len(qubo.variables)>12: raise ValueError("Statevector simulator is limited to 12 qubits")
     if p<1 or grid_steps<2 or iterations<1: raise ValueError("Invalid QAOA configuration")
+    if objective not in ("expectation","cvar"): raise ValueError("objective must be expectation or cvar")
+    if not 0 < alpha <= 1: raise ValueError("alpha must be in (0,1]")
     energies=_energies(qubo); n=len(qubo.variables)
     betas=[pi/4]*p; gammas=[0.1]*p
-    def score(bs,gs): return _expectation(_state(energies,n,tuple(bs),tuple(gs)),energies)
+    def score(bs,gs):
+        state=_state(energies,n,tuple(bs),tuple(gs))
+        return _expectation(state,energies) if objective=="expectation" else _cvar(state,energies,alpha)
     best=score(betas,gammas); evaluations=1
     for _ in range(iterations):
         for layer in range(p):
@@ -75,6 +83,6 @@ def simulate_qaoa(qubo: QUBO, p:int=1, grid_steps:int=5, iterations:int=3) -> QA
     assignment=dict(zip(qubo.variables,((measured>>j)&1 for j in range(n))))
     return QAOAResult(assignment,energies[measured],best,probabilities[measured],p,evaluations,"qaoa-statevector-simulator",tuple(betas+gammas))
 
-def qaoa_minimize(qubo:QUBO, p:int=1, grid_steps:int=5, iterations:int=3)->OptimizationResult:
-    r=simulate_qaoa(qubo,p,grid_steps,iterations)
+def qaoa_minimize(qubo:QUBO, p:int=1, grid_steps:int=5, iterations:int=3, objective:str="expectation", alpha:float=0.25)->OptimizationResult:
+    r=simulate_qaoa(qubo,p,grid_steps,iterations,objective,alpha)
     return OptimizationResult(r.assignment,r.energy,r.method)
