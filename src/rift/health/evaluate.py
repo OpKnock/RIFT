@@ -512,15 +512,19 @@ def external_validation(
             f"only {events} positive events (< {MIN_EVENTS_FOR_RATES}): "
             "sensitivity/specificity are unstable"
         )
-    # Sample-adequacy verdict against the commonly cited external-validation
-    # rule of thumb (~100 events and ~100 non-events for stable calibration
-    # estimates). Below it, calibration claims stay capped at strong partial
-    # no matter how good the point metrics look.
+    # Sample-adequacy verdict against a CONSERVATIVE bar (not a law):
+    # >=100 events and >=100 non-events. Required size truly depends on
+    # precision targets, event prevalence, expected calibration, and risk
+    # distribution — published guidance notes substantially more is
+    # sometimes needed. Below the bar, calibration claims stay capped at
+    # strong partial no matter how good the point metrics look.
     adequacy = {
         "events": events,
         "non_events": non_events,
         "events_required": 100,
         "non_events_required": 100,
+        "bar": "conservative bar: >=100 events and >=100 non-events; "
+               "larger samples may be needed depending on precision targets",
         "verdict": "adequate" if events >= 100 and non_events >= 100 else "limited",
     }
     if adequacy["verdict"] != "adequate":

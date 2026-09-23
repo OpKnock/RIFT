@@ -436,4 +436,5 @@ def test_sample_adequacy_verdict_caps_claims():
     adequacy = result["sample_adequacy"]
     assert adequacy["events"] == 5 and adequacy["non_events"] == 54
     assert adequacy["verdict"] == "limited"
+    assert "conservative bar" in adequacy["bar"]
     assert any("100-event" in w for w in result["warnings"])

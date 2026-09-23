@@ -198,7 +198,9 @@ async function loadEvidence() {
           escapeHtml(String(ev.external_validation.sample_adequacy.verdict)) +
           " (" + escapeHtml(String(ev.external_validation.sample_adequacy.events)) +
           " events / " + escapeHtml(String(ev.external_validation.sample_adequacy.non_events)) +
-          " non-events; bar is 100/100)</div>" : "") +
+          " non-events; " +
+          escapeHtml(String(ev.external_validation.sample_adequacy.bar ||
+            "bar is 100/100")) + ")</div>" : "") +
         ((ev.external_validation.warnings || []).map((w) =>
           "<div>warning: " + escapeHtml(String(w)) + "</div>").join("")) : "");
   } catch (error) {
