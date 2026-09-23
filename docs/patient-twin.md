@@ -117,6 +117,18 @@ realized frequencies: ECE 0.22 (mid bin overconfident 0.28 vs 0.07, high
 bin 0.71 vs 0.33 on n=3). The probabilities are therefore NOT calibrated —
 the dashboard says so, and this number is the receipt.
 
+## Calibration repair (Platt, fit/test split, operating point untouched)
+
+`evaluate.calibration_report` fits p_cal = sigmoid(A·p + B) on calibration
+days 30–44 only (grid search, A ≥ 0 so the map can never invert risk
+ordering) and scores untouched test days 45–59: ECE 0.198 → 0.058, Brier
+0.116 → 0.119. The fit chose a near-constant map — i.e. the data supports
+"predict near base rate" more than the raw spread — which is itself an
+honest finding about a 15-day fit window. The event threshold and all
+model weights stay fixed; calibrated probabilities are reported
+alongside, never swapped in silently. Small-sample caveat applies
+throughout.
+
 ## Measurement jitter → uncertainty
 
 Day-over-day jumps are compared against typical fluctuation (MAD): only

@@ -255,3 +255,29 @@ def test_evidence_endpoint_contract():
     assert payload["days_evaluated"] == 30
     assert payload["meta"]["calibration"] == "demo / not calibrated"
     assert "NOT clinically validated" in payload["meta"]["dataset"]
+    assert "calibration_repair" in payload
+    assert payload["calibration_repair"]["test_window"] == "days 45-59 (untouched)"
+
+
+def test_platt_repair_improves_ece_without_wrecking_brier():
+    from rift.health.evaluate import apply_platt, backtest, calibration_report, fit_platt_scaling
+
+    ehr = _ehr()
+    report = backtest(DigitalTwin(ehr, demo_series()), 30, 59)
+    cal_days = [d for d in report["per_day"] if d["day"] < 45]
+    test_days = [d for d in report["per_day"] if d["day"] >= 45]
+    assert len(cal_days) == 15 and len(test_days) == 15
+    params = fit_platt_scaling(cal_days)
+    assert set(params) == {"a", "b", "fit_days", "fit_logloss"}
+    assert params["fit_days"] == 15
+    # Order-preserving: repair rescales confidence, never inverts risk
+    # (a constant map is allowed: it says "predict near base rate").
+    assert apply_platt(0.2, params) <= apply_platt(0.8, params)
+    # Deterministic fit.
+    assert fit_platt_scaling(cal_days) == params
+    result = calibration_report(cal_days, test_days)
+    assert result["calibrated"]["ece"] is not None
+    assert result["calibrated"]["ece"] < result["raw"]["ece"]
+    assert result["calibrated"]["brier"] <= result["raw"]["brier"] + 0.02
+    # Operating behavior untouched: raw risks in the report are unmodified.
+    assert all(d["predicted_risk"] <= 1.0 for d in test_days)

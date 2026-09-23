@@ -609,13 +609,17 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 from .health.demo_data import demo_series
                 from .health.ehr import demo_ehr, normalize_ehr
-                from .health.evaluate import OUTCOME_RULE, backtest, reliability, stress_sweep
+                from .health.evaluate import OUTCOME_RULE, backtest, calibration_report, reliability, stress_sweep
                 from .health.twin import DigitalTwin
 
                 ehr, _ = normalize_ehr(demo_ehr())
                 long_twin = DigitalTwin(ehr, demo_series())
                 held_out = backtest(long_twin, 30, 59)
                 stress = stress_sweep(demo_series(), ehr, list(range(30, 45)))
+                calibration = calibration_report(
+                    [d for d in held_out["per_day"] if d["day"] < 45],
+                    [d for d in held_out["per_day"] if d["day"] >= 45],
+                )
                 payload = {
                     "labels": held_out["labels"],
                     "outcome_rule": OUTCOME_RULE["description"],
@@ -632,6 +636,13 @@ class Handler(BaseHTTPRequestHandler):
                     "mean_onset_lag": held_out["mean_onset_lag"],
                     "confusion": held_out["confusion"],
                     "reliability": reliability(held_out),
+                    "calibration_repair": {
+                        "method": "platt-scaling fit on days 30-44 only",
+                        "params": calibration["params"],
+                        "test_window": "days 45-59 (untouched)",
+                        "raw": {k: calibration["raw"][k] for k in ("brier", "ece")},
+                        "calibrated": {k: calibration["calibrated"][k] for k in ("brier", "ece")},
+                    },
                     "stress": stress,
                     "meta": {
                         "engine": "rift",
