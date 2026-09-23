@@ -26,7 +26,7 @@ GUARDIAN — independent constraint verification
 ROBUST POLICY
 ```
 
-The current product ships with a runnable **Counterfactual Laboratory** using a smart-building emergency scenario. v0.3 adds interactive state controls and a dependency-free QAOA statevector simulator for small QUBOs. The browser visualizes the world state, future branches, adversarial findings, policy-energy landscape, and Guardian result.
+The current product ships with a runnable **Counterfactual Laboratory** using a smart-building emergency scenario. v0.5 adds interactive state controls and a dependency-free QAOA statevector simulator for small QUBOs. The browser visualizes the world state, future branches, adversarial findings, policy-energy landscape, and Guardian result.
 
 ## Run it
 
@@ -82,3 +82,9 @@ RIFT is a research and simulation system. It does not autonomously control real 
 **v0.3.0 — interactive QAOA laboratory prototype.**
 
 The core engine is deterministic and testable. Supabase, real quantum hardware, billing, and automated code-review integrations are provider-ready but are not falsely represented as connected services.
+
+
+## Robust-QAOA phase
+RIFT now constructs an adversarial robust QUBO from the declared perturbation set, then solves that same objective with exact classical enumeration and the dependency-free QAOA statevector simulator. The comparison reports whether both methods reach the same binary policy and objective. This is a benchmark workflow, not a claim of quantum advantage.
+
+The robust QUBO is exact for the current two-variable emergency-routing formulation. Higher-dimensional robust objectives require a higher-order binary optimization representation or a deliberate approximation, rather than silently fitting a quadratic model.
