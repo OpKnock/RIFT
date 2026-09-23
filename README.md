@@ -70,6 +70,23 @@ Guardian independently verifies the selected policy against the nominal state **
 
 This is a simulation safety boundary, not a certification mechanism.
 
+## Patient Digital Twin demo
+
+RIFT's engine now also drives a healthcare demo: EHR + replayable wearable
+data → synchronized patient twin → FORESIGHT trajectories → counterfactuals
+→ robustness/uncertainty → Guardian → doctor dashboard. See
+`docs/patient-twin.md`.
+
+```bash
+rift serve
+# open http://127.0.0.1:8080
+```
+
+Target: next-24h cardiac-strain risk for one synthetic demo patient.
+Synthetic data, transparent demo weights, decision support only — never
+autonomous care, never clinically validated. The emergency-lab `/api/demo`
+endpoint is unchanged.
+
 ## Product surfaces
 
 - **Counterfactual Laboratory** — branch the present into candidate futures.

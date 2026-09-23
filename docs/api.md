@@ -18,6 +18,7 @@ Enabled with `RIFT_RATE_LIMIT_ENABLED=true`: `429 {"error": "rate_limited", "ret
 - `GET /api/meta` → engine capabilities, optimizers, backends, limits, auth mode
 - `GET /api/persistence/status`, `GET /api/billing/status`
 - `GET /api/demo?crowd=&smoke=&corridor_capacity=&block_b=` → lab payload (422 on out-of-range input)
+- `GET /api/twin/demo?t=` → patient-twin snapshot for replay day 0–13 (422 outside range); public demo endpoint, no auth required
 - `POST /api/billing/webhook` → HMAC `X-Signature` required; 503 without webhook secret, 401 bad signature, duplicate replays get `{received: true, duplicate: true}`
 
 ## Gated (require `Authorization: Bearer $RIFT_API_TOKEN` when configured)

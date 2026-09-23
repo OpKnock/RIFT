@@ -567,6 +567,44 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
                 self._finish(timer, request_id, "GET", path, 500, "internal")
             return
+        if path == "/api/twin/demo":
+            try:
+                from .health.demo_data import demo_stream
+                from .health.ehr import demo_ehr, normalize_ehr
+                from .health.twin import DigitalTwin
+
+                raw_t = (query.get("t") or ["13"])[0]
+                try:
+                    day = int(raw_t)
+                except (TypeError, ValueError):
+                    raise ValueError(f"invalid replay day: {raw_t!r}")
+                if not 0 <= day <= 13:
+                    raise ValueError(f"replay day {day} out of range [0, 13]")
+                ehr, ehr_issues = normalize_ehr(demo_ehr())
+                twin = DigitalTwin(ehr, demo_stream())
+                snapshot = twin.update(day)
+                payload = {
+                    **snapshot,
+                    "meta": {
+                        "engine": "rift",
+                        "engine_version": ENGINE_VERSION,
+                        "capability": "patient-digital-twin",
+                        "dataset": "synthetic 14-day demo series (seed 42); NOT clinically validated",
+                        "ehr_issues": ehr_issues,
+                        "safety": "decision support only; human-in-the-loop required",
+                    },
+                }
+                self._send(200, json.dumps(payload), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
+            except (ValueError, KeyError, TypeError) as exc:
+                log_event("validation_failure", request_id=request_id, detail=str(exc)[:200])
+                self._send(422, json.dumps({"error": "invalid twin request", "detail": str(exc)[:300]}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 422, "validation")
+            except Exception:
+                log_event("internal_error", request_id=request_id, route="twin-demo")
+                self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
+            return
         if path.startswith("/api/experiments/") and path.endswith("/runs"):
             parts = path.strip("/").split("/")
             if len(parts) == 4:
