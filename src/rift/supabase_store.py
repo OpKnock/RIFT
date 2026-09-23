@@ -84,5 +84,34 @@ class SupabaseStore:
         )
 
     def record_billing_event(self, payload: dict[str, Any]):
-        """Best-effort billing webhook audit log (migration 003)."""
+        """Best-effort billing webhook audit log (migration 003/004)."""
         return self.client().table("billing_events").insert(payload).execute()
+
+    def find_billing_event(self, idempotency_key: str):
+        return (
+            self.client()
+            .table("billing_events")
+            .select("id,event_name")
+            .eq("idempotency_key", idempotency_key)
+            .limit(1)
+            .execute()
+        )
+
+    def upsert_subscription(self, payload: dict[str, Any]):
+        return (
+            self.client()
+            .table("billing_subscriptions")
+            .upsert(payload, on_conflict="lemon_subscription_id")
+            .execute()
+        )
+
+    def latest_subscription_for_user(self, user_id: str):
+        return (
+            self.client()
+            .table("billing_subscriptions")
+            .select("status,lemon_subscription_id,variant_id,renews_at,ends_at")
+            .eq("user_id", user_id)
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )

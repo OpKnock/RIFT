@@ -12,7 +12,11 @@ State → World Model → Counterfactual Futures → CHAOS → Candidate Policie
 - rift.multivariable: exact binary policy enumeration and transparent quadratic projection
 - rift.supabase_store: optional persistence adapter
 - rift.settings: server-side env configuration (no secret leakage)
-- rift.billing: Lemon Squeezy provider boundary (checkout + webhook verify)
+- rift.billing: Lemon Squeezy provider boundary (checkout + webhook verify + entitlements)
+- rift.experiments: serializable spec/fingerprint layer above non-serializable Scenario
+- rift.limits: computational + input bounds (never silent truncation)
+- rift.auth: optional service-token gate + server-side ownership checks
+- rift.observability: request IDs + redacted structured logs
 - rift.verifier: hard constraints
 - rift.engine: orchestration
 - rift.cli: local demo
@@ -51,6 +55,8 @@ GET /api/runs/{id}
 GET /api/billing/status
 POST /api/billing/checkout
 POST /api/billing/webhook
+GET /api/billing/entitlement
+GET /api/meta
 
 ## Multi-variable optimization boundary
 For small policy spaces, exact robust enumeration is the reference implementation. When a robust Boolean objective contains higher-order interactions, RIFT may project it to linear/quadratic terms so QAOA can operate on a QUBO. The projection is explicitly approximate and is never presented as an exact reformulation.

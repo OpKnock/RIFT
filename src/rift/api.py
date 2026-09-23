@@ -1,25 +1,43 @@
+"""RIFT HTTP boundary (stdlib only): lab demo + persistence + billing.
+
+Security posture (see docs/security.md):
+- Optional service-token gate (RIFT_API_TOKEN) on persistence/checkout/entitlement.
+- Webhooks authenticate via HMAC X-Signature, never bearer tokens.
+- Upstream exception details are logged server-side and never echoed to clients.
+- Every response carries request ID + baseline security headers.
+"""
 import json
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
+from . import __version__ as ENGINE_VERSION
+from .auth import extract_user_id, is_authorized, owner_mismatch, service_token_configured
 from .benchmark import benchmark_suite
 from .billing import (
     BillingNotConfigured,
     CheckoutRequest,
     LemonSqueezyProvider,
+    idempotency_key as billing_idempotency_key,
+    is_entitled,
     parse_webhook_event,
+    subscription_update_from_event,
     verify_webhook_signature,
+    webhook_event_id,
 )
 from .causal import emergency_causal_graph
 from .counterfactual import generate_futures
+from .experiments import validate_run_payload, validate_spec_payload
 from .futures import branch_futures
+from .limits import MAX_PAYLOAD_BYTES, SCENARIO_BOUNDS, describe_limits
 from .models import Scenario
 from .multivariable import (
     build_robust_qubo_projection,
     exact_multivariable_robust_minimize,
     optimize_policy_space,
 )
+from .observability import Timer, log_event, new_request_id
 from .optimizer import QUBO, QuantumOptimizer, exact_minimize
 from .robust import rank_robust_candidates
 from .robust_qubo import build_robust_qubo, robust_policy_cost
@@ -37,6 +55,21 @@ PERTURBATIONS = [
     {"corridor_capacity": -70.0},
 ]
 POLICY_VARIABLES = ("route_a", "route_c", "stairwell_b")
+
+# In-memory webhook dedup for offline mode (bounded; DB is authoritative).
+_SEEN_WEBHOOK_KEYS: list[str] = []
+
+
+def _remember_webhook_key(key: str | None) -> bool:
+    """Return True when this key was already seen (duplicate)."""
+    if not key:
+        return False
+    if key in _SEEN_WEBHOOK_KEYS:
+        return True
+    _SEEN_WEBHOOK_KEYS.append(key)
+    if len(_SEEN_WEBHOOK_KEYS) > 1000:
+        del _SEEN_WEBHOOK_KEYS[:500]
+    return False
 
 
 def scenario_payload(scenario: Scenario):
@@ -83,7 +116,10 @@ def scenario_payload(scenario: Scenario):
         "qubo": {
             "variables": robust_qubo.variables,
             "linear": robust_qubo.linear,
-            "quadratic": robust_qubo.quadratic,
+            "quadratic": {
+                f"{left},{right}": value
+                for (left, right), value in (robust_qubo.quadratic or {}).items()
+            },
             "offset": robust_qubo.offset,
         },
         "classical": {
@@ -233,145 +269,298 @@ def scenario_payload(scenario: Scenario):
             }
             for node in branch_futures(scenario, 2).nodes
         ],
+        "reproducibility": {
+            "engine_version": ENGINE_VERSION,
+            "backend": "statevector-simulator",
+            "perturbations": PERTURBATIONS,
+            "policy_variables": list(POLICY_VARIABLES),
+            "note": "deterministic demo configuration; no hidden sampling",
+        },
     }
+
+
+def _bounded_float(raw: str, key: str) -> float:
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        raise ValueError(f"invalid numeric value for {key!r}")
+    bounds = SCENARIO_BOUNDS.get(key)
+    if bounds is not None:
+        lo, hi = bounds
+        if not (lo <= value <= hi):
+            raise ValueError(f"{key!r}={value} out of range [{lo}, {hi}]")
+    return value
 
 
 def configured_scenario(query):
     scenario = emergency_building()
     for key in ("crowd", "smoke", "corridor_capacity"):
         if key in query:
-            try:
-                scenario.initial_state[key] = float(query[key][0])
-            except (ValueError, TypeError):
-                pass
+            scenario.initial_state[key] = _bounded_float(query[key][0], key)
     if query.get("block_b", ["0"])[0].lower() in ("1", "true", "yes"):
         scenario.initial_state["blocked_b_penalty"] = 35.0
     return scenario
 
 
+def _is_valid_uuid(value: str) -> bool:
+    try:
+        parsed = uuid.UUID(str(value))
+    except (ValueError, AttributeError, TypeError):
+        return False
+    return str(parsed) == str(value).lower()
+
+
 class Handler(BaseHTTPRequestHandler):
-    def _send(self, status, data, content_type="application/json"):
+    server_version = "RIFT/0.6"
+    protocol_version = "HTTP/1.1"
+
+    def _send(self, status, data, content_type="application/json", request_id=None):
         raw = data if isinstance(data, bytes) else data.encode()
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        if request_id:
+            self.send_header("X-Request-ID", request_id)
+        # Same-origin lab: no cross-origin auto-allow. Fronted deployments
+        # should set explicit ACAO at the edge, not here.
         self.end_headers()
-        self.wfile.write(raw)
+        try:
+            self.wfile.write(raw)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
 
-    def _read_body(self, limit_bytes=1_000_000):
+    def _finish(self, timer: Timer, request_id: str, method: str, path: str,
+                status: int, error_category: str | None = None, **extra):
+        log_event(
+            "http_request",
+            request_id=request_id,
+            method=method,
+            path=path.split("?")[0][:200],
+            status=status,
+            duration_ms=round(timer.elapsed_ms(), 2),
+            error_category=error_category,
+            **extra,
+        )
+
+    def _read_body(self):
         try:
             length = int(self.headers.get("Content-Length") or 0)
         except (TypeError, ValueError):
             length = 0
-        if length <= 0 or length > limit_bytes:
-            return b""
-        return self.rfile.read(length)
+        if length <= 0:
+            return b"", False
+        if length > MAX_PAYLOAD_BYTES:
+            return b"", True
+        try:
+            return self.rfile.read(length), False
+        except Exception:
+            return b"", False
 
     def _read_json(self):
-        raw = self._read_body()
+        raw, overflow = self._read_body()
+        if overflow:
+            return "overflow", raw
         if not raw:
-            return {}, b""
+            return {}, raw
         try:
             return json.loads(raw.decode("utf-8")), raw
         except (ValueError, UnicodeDecodeError):
             return None, raw
 
+    def _require_auth(self, request_id):
+        if not is_authorized(self.headers):
+            self._send(401, json.dumps({"error": "unauthorized"}), request_id=request_id)
+            return False
+        return True
+
+    def do_OPTIONS(self):
+        request_id = new_request_id()
+        timer = Timer()
+        self._send(204, b"", content_type="text/plain", request_id=request_id)
+        self._finish(timer, request_id, "OPTIONS", self.path, 204)
+
     def do_GET(self):
+        request_id = new_request_id()
+        timer = Timer()
         parsed = urlparse(self.path)
         path = parsed.path
         query = parse_qs(parsed.query)
 
         if path == "/api/health":
-            return self._send(
-                200,
-                json.dumps(
-                    {
-                        "status": "ok",
-                        "engine": "rift",
-                        "version": "0.6.0",
-                        "quantum_backend": "statevector-simulator",
-                        "persistence": supabase_status(),
-                        "billing": billing_status(),
-                    }
-                ),
-            )
+            payload = {
+                "status": "ok",
+                "engine": "rift",
+                "version": ENGINE_VERSION,
+                "quantum_backend": "statevector-simulator",
+                "persistence": supabase_status(),
+                "billing": billing_status(),
+            }
+            self._send(200, json.dumps(payload), request_id=request_id)
+            self._finish(timer, request_id, "GET", path, 200)
+            return
+        if path == "/api/meta":
+            self._send(200, json.dumps({
+                "engine": "rift",
+                "engine_version": ENGINE_VERSION,
+                "quantum_backend": "statevector-simulator",
+                "capabilities": ["demo", "experiments", "runs", "billing", "guardian"],
+                "optimizers": ["exact", "qaoa-expectation", "qaoa-cvar"],
+                "backends": ["statevector-simulator"],
+                "limits": describe_limits(),
+                "auth": {"service_token_configured": service_token_configured() is not None},
+            }), request_id=request_id)
+            self._finish(timer, request_id, "GET", path, 200)
+            return
         if path == "/api/persistence/status":
-            return self._send(200, json.dumps(supabase_status()))
+            self._send(200, json.dumps(supabase_status()), request_id=request_id)
+            self._finish(timer, request_id, "GET", path, 200)
+            return
         if path == "/api/billing/status":
-            return self._send(200, json.dumps(billing_status()))
+            self._send(200, json.dumps(billing_status()), request_id=request_id)
+            self._finish(timer, request_id, "GET", path, 200)
+            return
+        if path == "/api/billing/entitlement":
+            if not self._require_auth(request_id):
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
+            store = SupabaseStore()
+            if not store.configured:
+                self._send(503, json.dumps({"error": "persistence_not_configured"}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 503, "persistence_not_configured")
+                return
+            caller = (query.get("user_id") or [""])[0] or None
+            if not caller:
+                self._send(400, json.dumps({"error": "user_id is required"}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 400, "validation")
+                return
+            try:
+                result = store.latest_subscription_for_user(caller)
+                rows = result.data or []
+                status = rows[0].get("status") if rows else "none"
+                entitled = is_entitled(status) if rows else False
+                self._send(200, json.dumps({"entitled": entitled, "status": status}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
+            except Exception:
+                log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 502, "persistence_error")
+            return
         if path == "/api/demo":
             try:
-                return self._send(
-                    200, json.dumps(scenario_payload(configured_scenario(query)))
-                )
+                self._send(200, json.dumps(scenario_payload(configured_scenario(query))), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
             except (ValueError, KeyError, TypeError) as exc:
-                return self._send(
-                    422, json.dumps({"error": "invalid scenario", "detail": str(exc)})
-                )
+                log_event("validation_failure", request_id=request_id, detail=str(exc)[:200])
+                self._send(422, json.dumps({"error": "invalid scenario", "detail": str(exc)[:300]}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 422, "validation")
+            except Exception:
+                log_event("internal_error", request_id=request_id, route="demo")
+                self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
+            return
         if path.startswith("/api/experiments/") and path.endswith("/runs"):
             parts = path.strip("/").split("/")
             if len(parts) == 4:
+                if not self._require_auth(request_id):
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
+                    return
                 experiment_id = parts[2]
+                if not _is_valid_uuid(experiment_id):
+                    self._send(400, json.dumps({"error": "invalid_id"}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 400, "validation")
+                    return
                 store = SupabaseStore()
                 if not store.configured:
-                    return self._send(
-                        503,
-                        json.dumps(
-                            {
-                                "error": "persistence_not_configured",
-                                "detail": "Set RIFT_SUPABASE_URL and "
-                                "RIFT_SUPABASE_KEY on the server.",
-                            }
-                        ),
-                    )
+                    self._send(503, json.dumps({
+                        "error": "persistence_not_configured",
+                        "detail": "Set RIFT_SUPABASE_URL and RIFT_SUPABASE_KEY on the server.",
+                    }), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 503, "persistence_not_configured")
+                    return
                 try:
+                    experiment = store.get_experiment(experiment_id).data or {}
+                    caller = (query.get("user_id") or [None])[0]
+                    if owner_mismatch(experiment.get("user_id"), caller):
+                        self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 403, "auth")
+                        return
                     result = store.list_runs(experiment_id)
-                    return self._send(200, json.dumps(result.data))
-                except Exception as exc:  # network/supabase errors only
-                    return self._send(
-                        502, json.dumps({"error": "persistence_error", "detail": str(exc)})
-                    )
+                    self._send(200, json.dumps(result.data), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 200)
+                except Exception:
+                    log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                    self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 502, "persistence_error")
+                return
         if path.startswith("/api/experiments/"):
             parts = path.strip("/").split("/")
             if len(parts) == 3:
+                if not self._require_auth(request_id):
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
+                    return
                 experiment_id = parts[2]
+                if not _is_valid_uuid(experiment_id):
+                    self._send(400, json.dumps({"error": "invalid_id"}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 400, "validation")
+                    return
                 store = SupabaseStore()
                 if not store.configured:
-                    return self._send(
-                        503,
-                        json.dumps(
-                            {
-                                "error": "persistence_not_configured",
-                                "detail": "Set RIFT_SUPABASE_URL and "
-                                "RIFT_SUPABASE_KEY on the server.",
-                            }
-                        ),
-                    )
+                    self._send(503, json.dumps({
+                        "error": "persistence_not_configured",
+                        "detail": "Set RIFT_SUPABASE_URL and RIFT_SUPABASE_KEY on the server.",
+                    }), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 503, "persistence_not_configured")
+                    return
                 try:
                     result = store.get_experiment(experiment_id)
-                    return self._send(200, json.dumps(result.data))
-                except Exception as exc:
-                    return self._send(
-                        502, json.dumps({"error": "persistence_error", "detail": str(exc)})
-                    )
+                    row = result.data or {}
+                    caller = (query.get("user_id") or [None])[0]
+                    if owner_mismatch(row.get("user_id"), caller):
+                        self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 403, "auth")
+                        return
+                    self._send(200, json.dumps(result.data), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 200)
+                except Exception:
+                    log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                    self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 502, "persistence_error")
+                return
         if path.startswith("/api/runs/"):
             parts = path.strip("/").split("/")
             if len(parts) == 3:
+                if not self._require_auth(request_id):
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
+                    return
                 run_id = parts[2]
+                if not _is_valid_uuid(run_id):
+                    self._send(400, json.dumps({"error": "invalid_id"}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 400, "validation")
+                    return
                 store = SupabaseStore()
                 if not store.configured:
-                    return self._send(
-                        503,
-                        json.dumps({"error": "persistence_not_configured"}),
-                    )
+                    self._send(503, json.dumps({"error": "persistence_not_configured"}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 503, "persistence_not_configured")
+                    return
                 try:
                     result = store.get_run(run_id)
-                    return self._send(200, json.dumps(result.data))
-                except Exception as exc:
-                    return self._send(
-                        502, json.dumps({"error": "persistence_error", "detail": str(exc)})
-                    )
+                    row = result.data or {}
+                    caller = (query.get("user_id") or [None])[0]
+                    if owner_mismatch(row.get("user_id"), caller):
+                        self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 403, "auth")
+                        return
+                    self._send(200, json.dumps(result.data), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 200)
+                except Exception:
+                    log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                    self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 502, "persistence_error")
+                return
 
         files = {
             "/": "index.html",
@@ -387,174 +576,305 @@ class Handler(BaseHTTPRequestHandler):
                 ".js": "text/javascript; charset=utf-8",
                 ".css": "text/css; charset=utf-8",
             }
-            target = ROOT / filename
+            target = (ROOT / filename).resolve()
+            if ROOT.resolve() not in target.parents and target != ROOT.resolve():
+                self._send(404, json.dumps({"error": "not found"}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 404, "validation")
+                return
             if not target.is_file():
-                return self._send(404, json.dumps({"error": "asset not found"}))
-            return self._send(200, target.read_bytes(), content_types[ext])
-        return self._send(404, json.dumps({"error": "not found"}))
+                self._send(404, json.dumps({"error": "asset not found"}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 404, "not_found")
+                return
+            ctype = content_types[ext]
+            if ext == ".html":
+                # Tighten document framing for the served lab page.
+                raw = target.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(raw)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("X-Frame-Options", "DENY")
+                self.send_header("Referrer-Policy", "no-referrer")
+                self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'")
+                self.send_header("X-Request-ID", request_id)
+                self.end_headers()
+                try:
+                    self.wfile.write(raw)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                self._finish(timer, request_id, "GET", path, 200)
+                return
+            self._send(200, target.read_bytes(), ctype, request_id=request_id)
+            self._finish(timer, request_id, "GET", path, 200)
+            return
+        self._send(404, json.dumps({"error": "not found"}), request_id=request_id)
+        self._finish(timer, request_id, "GET", path, 404, "not_found")
 
+    # -- POST -----------------------------------------------------------
     def do_POST(self):
+        request_id = new_request_id()
+        timer = Timer()
         parsed = urlparse(self.path)
         path = parsed.path
 
         if path == "/api/experiments":
-            body, _ = self._read_json()
+            if not self._require_auth(request_id):
+                self._finish(timer, request_id, "POST", path, 401, "auth")
+                return
+            body, raw = self._read_json()
+            if body == "overflow":
+                self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 413, "validation")
+                return
             if body is None:
-                return self._send(400, json.dumps({"error": "invalid_json"}))
-            if not isinstance(body, dict) or not body.get("name") or not body.get("scenario"):
-                return self._send(
-                    400,
-                    json.dumps({"error": "name and scenario are required"}),
-                )
+                self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
+            try:
+                spec = validate_spec_payload(body if isinstance(body, dict) else {})
+            except ValueError as exc:
+                self._send(400, json.dumps({"error": "invalid_request", "detail": str(exc)[:300]}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
             store = SupabaseStore()
             if not store.configured:
-                return self._send(
-                    503,
-                    json.dumps(
-                        {
-                            "error": "persistence_not_configured",
-                            "detail": "Set RIFT_SUPABASE_URL and "
-                            "RIFT_SUPABASE_KEY on the server.",
-                        }
-                    ),
-                )
+                self._send(503, json.dumps({
+                    "error": "persistence_not_configured",
+                    "detail": "Set RIFT_SUPABASE_URL and RIFT_SUPABASE_KEY on the server.",
+                }), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 503, "persistence_not_configured")
+                return
             try:
-                result = store.create_experiment(
-                    {
-                        "name": body["name"],
-                        "description": body.get("description", ""),
-                        "scenario": body["scenario"],
-                        "status": "created",
-                    }
-                )
-                return self._send(201, json.dumps(result.data))
-            except Exception as exc:
-                return self._send(
-                    502, json.dumps({"error": "persistence_error", "detail": str(exc)})
-                )
+                owner = extract_user_id(body if isinstance(body, dict) else None)
+                result = store.create_experiment({
+                    "name": spec.name,
+                    "description": spec.description,
+                    "scenario": {"name": spec.scenario_name, "initial_state": spec.initial_state},
+                    "perturbations": list(spec.perturbations),
+                    "policy_variables": list(spec.policy_variables),
+                    "optimizer_config": {"optimizer": spec.optimizer, "backend": spec.backend, "seed": spec.seed},
+                    "backend": spec.backend,
+                    "seed": spec.seed,
+                    "engine_version": spec.engine_version,
+                    "fingerprint": spec.fingerprint(),
+                    "status": "created",
+                    **({"user_id": owner} if owner else {}),
+                })
+                self._send(201, json.dumps(result.data), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 201, extra_experiment="created")
+            except Exception:
+                log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 502, "persistence_error")
+            return
 
-        if path.startswith("/api/experiments/") and path.endswith("/runs"):
+        if (path.startswith("/api/experiments/") and (path.endswith("/runs") or path.endswith("/run"))):
             parts = path.strip("/").split("/")
             if len(parts) == 4:
+                if not self._require_auth(request_id):
+                    self._finish(timer, request_id, "POST", path, 401, "auth")
+                    return
                 experiment_id = parts[2]
-                body, _ = self._read_json()
+                if not _is_valid_uuid(experiment_id):
+                    self._send(400, json.dumps({"error": "invalid_id"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
+                body, raw = self._read_json()
+                if body == "overflow":
+                    self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 413, "validation")
+                    return
                 if body is None:
-                    return self._send(400, json.dumps({"error": "invalid_json"}))
-                if not isinstance(body, dict) or not body.get("optimizer"):
-                    return self._send(
-                        400, json.dumps({"error": "optimizer is required"})
-                    )
+                    self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
+                try:
+                    run = validate_run_payload(body if isinstance(body, dict) else {})
+                except ValueError as exc:
+                    self._send(400, json.dumps({"error": "invalid_request", "detail": str(exc)[:300]}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
                 store = SupabaseStore()
                 if not store.configured:
-                    return self._send(
-                        503, json.dumps({"error": "persistence_not_configured"})
-                    )
+                    self._send(503, json.dumps({"error": "persistence_not_configured"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 503, "persistence_not_configured")
+                    return
                 try:
-                    result = store.create_run(
-                        {
-                            "experiment_id": experiment_id,
-                            "optimizer": body["optimizer"],
-                            "result": body.get("result"),
-                            "metrics": body.get("metrics") or {},
-                            "seed": body.get("seed"),
-                        }
-                    )
-                    return self._send(201, json.dumps(result.data))
-                except Exception as exc:
-                    return self._send(
-                        502, json.dumps({"error": "persistence_error", "detail": str(exc)})
-                    )
+                    experiment = store.get_experiment(experiment_id).data or {}
+                    caller = extract_user_id(body if isinstance(body, dict) else None)
+                    if owner_mismatch(experiment.get("user_id"), caller):
+                        self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                        self._finish(timer, request_id, "POST", path, 403, "auth")
+                        return
+                    payload = {
+                        "experiment_id": experiment_id,
+                        "optimizer": run["optimizer"],
+                        "result": run["result"],
+                        "metrics": run["metrics"],
+                        "seed": run["seed"],
+                        "backend": "statevector-simulator",
+                        "engine_version": ENGINE_VERSION,
+                    }
+                    if caller:
+                        payload["user_id"] = caller
+                    result = store.create_run(payload)
+                    self._send(201, json.dumps(result.data), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 201)
+                except Exception:
+                    log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                    self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 502, "persistence_error")
+                return
 
         if path == "/api/billing/checkout":
-            body, _ = self._read_json()
+            if not self._require_auth(request_id):
+                self._finish(timer, request_id, "POST", path, 401, "auth")
+                return
+            body, raw = self._read_json()
+            if body == "overflow":
+                self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 413, "validation")
+                return
             if body is None:
-                return self._send(400, json.dumps({"error": "invalid_json"}))
+                self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
             provider = LemonSqueezyProvider()
             if not provider.configured:
-                return self._send(
-                    503,
-                    json.dumps(
-                        {
-                            "error": "billing_not_configured",
-                            "provider": "lemon_squeezy",
-                            "detail": "Set RIFT_LEMON_SQUEEZY_API_KEY and "
-                            "RIFT_LEMON_SQUEEZY_STORE_ID on the server.",
-                        }
-                    ),
-                )
-            variant_id = (
-                body.get("variant_id")
-                if isinstance(body, dict)
-                else None
-            ) or (provider.config.default_variant_id if provider.config else None)
+                self._send(503, json.dumps({
+                    "error": "billing_not_configured",
+                    "provider": "lemon_squeezy",
+                    "detail": "Set RIFT_LEMON_SQUEEZY_API_KEY and RIFT_LEMON_SQUEEZY_STORE_ID on the server.",
+                }), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 503, "billing_not_configured")
+                return
+            variant_id = (body.get("variant_id") if isinstance(body, dict) else None) or (
+                provider.config.default_variant_id if provider.config else None)
             if not variant_id:
-                return self._send(400, json.dumps({"error": "variant_id is required"}))
+                self._send(400, json.dumps({"error": "variant_id is required"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
+            email = body.get("email") if isinstance(body, dict) else None
+            if email is not None and (not isinstance(email, str) or len(email) > 320 or "@" not in email):
+                self._send(400, json.dumps({"error": "invalid email"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
             try:
-                checkout = provider.create_checkout(
-                    CheckoutRequest(
-                        variant_id=str(variant_id),
-                        email=(body.get("email") if isinstance(body, dict) else None),
-                        user_id=(body.get("user_id") if isinstance(body, dict) else None),
-                        metadata=(body.get("metadata") if isinstance(body, dict) else None),
-                    )
-                )
-                return self._send(201, json.dumps(checkout))
-            except BillingNotConfigured as exc:
-                return self._send(
-                    503, json.dumps({"error": "billing_not_configured", "detail": str(exc)})
-                )
+                checkout = provider.create_checkout(CheckoutRequest(
+                    variant_id=str(variant_id),
+                    email=email,
+                    user_id=(body.get("user_id") if isinstance(body, dict) else None),
+                    metadata=(body.get("metadata") if isinstance(body, dict) else None),
+                ))
+                self._send(201, json.dumps(checkout), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 201)
+            except BillingNotConfigured:
+                self._send(503, json.dumps({"error": "billing_not_configured"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 503, "billing_not_configured")
             except ValueError as exc:
-                return self._send(400, json.dumps({"error": "invalid_request", "detail": str(exc)}))
-            except Exception as exc:
-                return self._send(
-                    502, json.dumps({"error": "billing_error", "detail": str(exc)})
-                )
+                self._send(400, json.dumps({"error": "invalid_request", "detail": str(exc)[:300]}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+            except Exception:
+                log_event("dependency_failure", request_id=request_id, dependency="lemon_squeezy")
+                self._send(502, json.dumps({"error": "billing_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 502, "billing_error")
+            return
 
         if path == "/api/billing/webhook":
             body, raw = self._read_json()
             config = get_billing_config()
             if config is None or not config.webhook_secret:
-                # Fail closed: never accept unverified webhooks.
-                return self._send(
-                    503,
-                    json.dumps(
-                        {
-                            "error": "billing_webhook_not_configured",
-                            "detail": "Set RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET "
-                            "on the server before receiving webhooks.",
-                        }
-                    ),
-                )
+                self._send(503, json.dumps({
+                    "error": "billing_webhook_not_configured",
+                    "detail": "Set RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET on the server before receiving webhooks.",
+                }), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 503, "billing_not_configured")
+                return
+            if body == "overflow":
+                self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 413, "validation")
+                return
             signature = self.headers.get("X-Signature")
             if not verify_webhook_signature(raw, signature, config.webhook_secret):
-                return self._send(401, json.dumps({"error": "invalid_signature"}))
+                self._send(401, json.dumps({"error": "invalid_signature"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 401, "auth")
+                return
             if body is None:
-                return self._send(400, json.dumps({"error": "invalid_json"}))
+                self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
             try:
                 event = parse_webhook_event(body)
             except ValueError as exc:
-                return self._send(400, json.dumps({"error": "invalid_webhook", "detail": str(exc)}))
-            # Best-effort audit log; webhook acceptance must not depend on Supabase.
+                self._send(400, json.dumps({"error": "invalid_webhook", "detail": str(exc)[:300]}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
+            key = billing_idempotency_key(body) or event.get("idempotency_key")
+            if _remember_webhook_key(key):
+                self._send(200, json.dumps({"received": True, "event": event["event_name"], "duplicate": True}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 200)
+                return
             try:
                 store = SupabaseStore()
                 if store.configured:
-                    data = event.get("data") or {}
-                    store.record_billing_event(
-                        {
-                            "event_name": event["event_name"],
-                            "supported": event["supported"],
-                            "payload": body,
-                        }
-                    )
+                    if key:
+                        try:
+                            existing = store.find_billing_event(key).data or []
+                            if existing:
+                                self._send(200, json.dumps({"received": True, "event": event["event_name"], "duplicate": True}), request_id=request_id)
+                                self._finish(timer, request_id, "POST", path, 200)
+                                return
+                        except Exception:
+                            pass
+                    custom = event.get("custom_data") or {}
+                    store.record_billing_event({
+                        "event_name": event["event_name"],
+                        "supported": event["supported"],
+                        "provider_event_id": webhook_event_id(body),
+                        "idempotency_key": key,
+                        "lemon_customer_id": (event.get("data") or {}).get("id") if event["event_name"].startswith("order_") else None,
+                        "payload": body,
+                    })
+                    update = subscription_update_from_event(event)
+                    if update is not None:
+                        try:
+                            row = dict(update)
+                            if custom.get("user_id"):
+                                row["user_id"] = custom["user_id"]
+                            store.upsert_subscription(row)
+                        except Exception:
+                            log_event("dependency_failure", request_id=request_id, dependency="supabase")
             except Exception:
                 pass
-            return self._send(200, json.dumps({"received": True, "event": event["event_name"]}))
+            self._send(200, json.dumps({"received": True, "event": event["event_name"]}), request_id=request_id)
+            self._finish(timer, request_id, "POST", path, 200)
+            return
 
-        return self._send(404, json.dumps({"error": "not found"}))
+        self._send(404, json.dumps({"error": "not found"}), request_id=request_id)
+        self._finish(timer, request_id, "POST", path, 404, "not_found")
+
+    def do_PUT(self):
+        request_id = new_request_id()
+        self._send(405, json.dumps({"error": "method_not_allowed"}), request_id=request_id)
+
+    def do_DELETE(self):
+        request_id = new_request_id()
+        self._send(405, json.dumps({"error": "method_not_allowed"}), request_id=request_id)
+
+    def do_PATCH(self):
+        request_id = new_request_id()
+        self._send(405, json.dumps({"error": "method_not_allowed"}), request_id=request_id)
 
     def log_message(self, format, *args):
         return
 
 
 def serve(host="127.0.0.1", port=8080):
-    ThreadingHTTPServer((host, port), Handler).serve_forever()
+    server = ThreadingHTTPServer((host, port), Handler)
+    server.daemon_threads = True
+    try:
+        server.socket.settimeout(30)
+    except Exception:
+        pass
+    server.serve_forever()
