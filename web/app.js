@@ -1,14 +1,5 @@
 const $ = (selector) => document.querySelector(selector);
 
-function query() {
-  return new URLSearchParams({
-    crowd: $("#crowd").value,
-    smoke: $("#smoke").value,
-    corridor_capacity: $("#capacity").value,
-    block_b: $("#blockB").checked ? "1" : "0",
-  });
-}
-
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -22,39 +13,6 @@ function showError(message) {
   banner.textContent = message;
 }
 
-function authHeaders(extra) {
-  const headers = { ...(extra || {}) };
-  let token = "";
-  try {
-    token = ($("#accessToken") && $("#accessToken").value) ||
-      localStorage.getItem("rift-access-token") || "";
-  } catch (error) {
-    token = ($("#accessToken") && $("#accessToken").value) || "";
-  }
-  if (token.trim()) headers.Authorization = "Bearer " + token.trim();
-  return headers;
-}
-
-function persistAccessToken() {
-  try {
-    const input = $("#accessToken");
-    if (!input) return;
-    if (input.value) localStorage.setItem("rift-access-token", input.value);
-  } catch (error) {
-    /* private mode: token stays in memory for this page */
-  }
-}
-
-function restoreAccessToken() {
-  try {
-    const input = $("#accessToken");
-    const saved = localStorage.getItem("rift-access-token");
-    if (input && saved) input.value = saved;
-  } catch (error) {
-    /* unavailable: leave empty */
-  }
-}
-
 function clearError() {
   const banner = $("#errorBanner");
   if (!banner) return;
@@ -62,360 +20,156 @@ function clearError() {
   banner.textContent = "";
 }
 
-function statusLine(label, info) {
-  if (!info) return label + ": unknown";
-  if (info.configured) return label + ": configured";
-  return label + ": not configured (offline mode)";
+function finding(label, value) {
+  return '<div class="finding"><span>' + escapeHtml(label) +
+    "</span><b>" + escapeHtml(value) + "</b></div>";
 }
 
-async function refreshSystemStatus() {
-  const sysEl = $("#sysStatus");
-  const settingsEl = $("#settingsPanel");
-  try {
-    const [healthRes, metaRes] = await Promise.all([
-      fetch("/api/health", { headers: { Accept: "application/json" } }),
-      fetch("/api/meta", { headers: { Accept: "application/json" } }),
-    ]);
-    const health = await healthRes.json();
-    const meta = metaRes.ok ? await metaRes.json() : null;
-    const persist = health.persistence || {};
-    const billing = health.billing || {};
-    if (sysEl) {
-      sysEl.innerHTML =
-        "<div>engine v" + escapeHtml(health.version || "?") + " · " +
-        escapeHtml(health.quantum_backend || "statevector") + "</div>" +
-        "<div>" + escapeHtml(statusLine("persistence", persist)) + "</div>" +
-        "<div>" + escapeHtml(statusLine("billing", billing)) + "</div>";
-    }
-    refreshPersistPanel(persist);
-    const engine = $("#engineStatus");
-    if (engine) engine.textContent = "ENGINE ONLINE · " + String(health.version || "") + " · STATEVECTOR QAOA";
-    if (settingsEl) {
-      if (meta) {
-        settingsEl.innerHTML =
-          "<div>optimizers: " + escapeHtml((meta.optimizers || []).join(", ")) + "</div>" +
-          "<div>backends: " + escapeHtml((meta.backends || []).join(", ")) + "</div>" +
-          "<div>max policy vars: " + escapeHtml(String(meta.limits?.max_policy_variables ?? "?")) +
-          " · max perturbations: " + escapeHtml(String(meta.limits?.max_perturbations ?? "?")) + "</div>" +
-          "<div>service token: " + escapeHtml(meta.auth?.service_token_configured ? "required" : "open (dev mode)") + "</div>";
-      } else {
-        settingsEl.textContent = "backend capabilities unavailable";
-      }
-    }
-  } catch (error) {
-    if (sysEl) sysEl.textContent = "backend status unavailable · " + error.message;
-    if (settingsEl) settingsEl.textContent = "backend capabilities unavailable";
-    refreshPersistPanel(null);
-  }
+function policyKey(policy) {
+  const parts = [];
+  if (policy.sleep_plus) parts.push("sleep");
+  if (policy.exertion_cut) parts.push("cut");
+  return parts.length ? parts.join("+") : "none";
 }
 
-let savedExperimentId = null;
-
-function currentSpecBody() {
-  return {
-    name: ($("#expName") && $("#expName").value.trim()) || "lab-run",
-    scenario_name: "smart-building-emergency",
-    initial_state: {
-      crowd: Number($("#crowd").value),
-      smoke: Number($("#smoke").value),
-      corridor_capacity: Number($("#capacity").value),
-      blocked_b_penalty: $("#blockB").checked ? 35.0 : 0.0,
-    },
-    perturbations: [{ smoke: 2.0 }, { crowd: 80.0 }, { smoke: 2.0, crowd: 80.0 }, { corridor_capacity: -70.0 }],
-    policy_variables: ["route_a", "route_c", "stairwell_b"],
-    optimizer: ($("#expOpt") && $("#expOpt").value) || "exact",
-    backend: "statevector-simulator",
-  };
+function selectedPolicyPath(data) {
+  const want = ($("#policy") && $("#policy").value) || "none";
+  const match = (data.trajectories || []).find((t) => policyKey(t.policy) === want)
+    || (data.trajectories || [])[0];
+  return match;
 }
 
-function refreshPersistPanel(persist) {
-  const statusEl = $("#persistStatus");
-  const saveBtn = $("#saveExp");
-  const execBtn = $("#execExp");
-  const online = Boolean(persist && persist.configured);
-  if (statusEl) {
-    statusEl.textContent = online
-      ? "persistence: configured — experiments save server-side"
-      : "persistence: not configured — saving is disabled until Supabase is set up on the server";
-  }
-  if (saveBtn) {
-    saveBtn.disabled = !online;
-    saveBtn.title = online ? "" : "Requires server-side Supabase configuration";
-  }
-  if (execBtn) {
-    execBtn.disabled = !online || !savedExperimentId;
-    execBtn.title = !online
-      ? "Requires server-side Supabase configuration"
-      : (!savedExperimentId ? "Save an experiment first" : "");
-  }
-}
-
-async function saveExperiment() {
-  clearError();
-  const resultEl = $("#expResult");
-  try {
-    const response = await fetch("/api/experiments", {
-      method: "POST",
-      headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
-      body: JSON.stringify(currentSpecBody()),
+function renderTrajectories(data) {
+  const el = $("#trajectories");
+  const trajs = data.trajectories || [];
+  if (!trajs.length) { el.innerHTML = '<span class="muted">No trajectories.</span>'; return; }
+  const W = 640, H = 180, PAD = 28;
+  const maxRisk = 1.0;
+  const x = (day) => PAD + (day / 3) * (W - 2 * PAD);
+  const y = (risk) => H - PAD - (risk / maxRisk) * (H - 2 * PAD);
+  const colors = { none: "#b8ff5a", sleep: "#7dd7ff", cut: "#ffbd55", "sleep+cut": "#c792ff" };
+  let svg = '<svg viewBox="0 0 ' + W + " " + H + '" style="width:100%;height:auto" role="img" aria-label="Future risk trajectories per policy">';
+  svg += '<line x1="' + PAD + '" y1="' + y(0.6) + '" x2="' + (W - PAD) + '" y2="' + y(0.6) + '" stroke="#ff6472" stroke-dasharray="5,4" stroke-width="1"/>';
+  svg += '<text x="' + (W - PAD) + '" y="' + (y(0.6) - 5) + '" fill="#ff6472" font-size="10" text-anchor="end">high-strain 0.60</text>';
+  trajs.forEach((t) => {
+    const key = policyKey(t.policy);
+    const color = colors[key] || "#f2f4f7";
+    const pts = t.path.map((p) => x(p.day).toFixed(1) + "," + y(p.risk).toFixed(1)).join(" ");
+    const active = (($("#policy") && $("#policy").value) || "none") === key;
+    svg += '<polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="' + (active ? 3 : 1.5) + '" opacity="' + (active ? 1 : 0.75) + '"/>';
+    t.path.forEach((p) => {
+      const hot = p.risk >= 0.6;
+      svg += '<circle cx="' + x(p.day).toFixed(1) + '" cy="' + y(p.risk).toFixed(1) + '" r="' + (hot ? 4.5 : 3) + '" fill="' + (hot ? "#ff6472" : color) + '"/>';
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "save failed");
-    const row = Array.isArray(data) ? data[0] : data;
-    savedExperimentId = (row && row.id) || null;
-    if (resultEl) {
-      resultEl.textContent = savedExperimentId
-        ? "saved " + savedExperimentId + " · fingerprint " + String((row && row.fingerprint) || "?").slice(0, 12) + "…"
-        : "saved (no id returned)";
-    }
-    refreshPersistPanel({ configured: true });
-  } catch (error) {
-    showError("SAVE FAILED · " + error.message);
-  }
-}
-
-async function executeSaved() {
-  clearError();
-  const resultEl = $("#expResult");
-  if (!savedExperimentId) {
-    showError("NOTHING TO EXECUTE · save an experiment first");
-    return;
-  }
-  try {
-    const response = await fetch("/api/experiments/" + encodeURIComponent(savedExperimentId) + "/execute", {
-      method: "POST",
-      headers: authHeaders({ "Content-Type": "application/json", Accept: "application/json" }),
-      body: "{}",
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "execute failed");
-    const record = data.result || {};
-    const guardian = record.guardian || {};
-    if (resultEl) {
-      resultEl.textContent =
-        "run " + String(data.id || "?") + " · policy " + JSON.stringify(record.assignment || {}) +
-        " · robust " + Number(record.robust_cost ?? NaN).toFixed(1) +
-        " · " + (record.feasible ? "feasible" : "infeasible") +
-        " · guardian " + (guardian.passed ? "PASS" : "REJECT");
-    }
-  } catch (error) {
-    showError("EXECUTE FAILED · " + error.message);
-  }
-}
-
-function loadHistory() {
-  try {
-    return JSON.parse(localStorage.getItem("rift-history") || "[]");
-  } catch (error) {
-    return [];
-  }
-}
-
-function saveHistoryEntry(entry) {
-  try {
-    const history = loadHistory();
-    history.unshift(entry);
-    localStorage.setItem("rift-history", JSON.stringify(history.slice(0, 10)));
-  } catch (error) {
-    /* storage full or unavailable: history is best-effort */
-  }
-  renderHistory();
-}
-
-function renderHistory() {
-  const el = $("#historyList");
-  if (!el) return;
-  const history = loadHistory();
-  if (!history.length) {
-    el.innerHTML = '<span class="muted">No runs yet. Each successful experiment is stored locally for reopen.</span>';
-    return;
-  }
-  el.innerHTML = history.map((item, index) =>
-    '<div class="branch"><b>RUN ' + String(history.length - index).padStart(2, "0") +
-    "</b><small>" + escapeHtml(item.when) + " · best " + escapeHtml(String(item.best)) +
-    '</small><small><button data-history="' + index + '" type="button">REOPEN</button></small></div>'
-  ).join("");
-  el.querySelectorAll("[data-history]").forEach((button) => {
-    button.onclick = () => {
-      const item = loadHistory()[Number(button.getAttribute("data-history"))];
-      if (item && item.snapshot) render(item.snapshot, { fromHistory: true });
-    };
+    const last = t.path[t.path.length - 1];
+    svg += '<text x="' + (x(last.day) + 6) + '" y="' + (y(last.risk) + 3) + '" fill="' + color + '" font-size="10">' + escapeHtml(key) + " " + last.risk.toFixed(2) + "</text>";
   });
+  svg += "</svg>";
+  el.innerHTML = svg;
 }
 
-function render(d, options) {
+function render(d) {
   clearError();
-  $("#state").innerHTML = Object.entries(d.scenario.initial_state)
-    .map(([key, value]) =>
-      '<div class="finding"><span>' +
-      escapeHtml(key.replaceAll("_", " ")) +
-      "</span><b>" + Number(value).toFixed(1) + "</b></div>"
-    ).join("");
+  const ehr = d.ehr || {};
+  $("#patientLine").textContent =
+    "Demo patient " + (ehr.patient_id || "?") + " · age " + (ehr.age ?? "?") +
+    " · " + (ehr.conditions || []).join(", ") + " · meds: " + (ehr.medications || []).join(", ");
+  $("#engineStatus").textContent = "TWIN SYNCED · DAY " + d.day_index + " · ENGINE v" + ((d.meta && d.meta.engine_version) || "?");
+  $("#engineMeta").textContent = "engine v" + ((d.meta && d.meta.engine_version) || "?");
 
-  $("#futureCount").textContent = d.futures.length;
-  $("#robustCount").textContent = d.robust.length;
-  $("#bestScore").textContent = d.robust.length
-    ? d.robust[0].score.toFixed(1) : "-";
-  $("#latticeState").textContent =
-    "EXPLORED · H=" + Number(d.uncertainty?.risk_entropy || 0).toFixed(2);
+  $("#patient").innerHTML =
+    finding("patient", ehr.patient_id || "?") +
+    finding("age", String(ehr.age ?? "?")) +
+    finding("conditions", (ehr.conditions || []).join(", ") || "—") +
+    finding("medications", (ehr.medications || []).join(", ") || "—") +
+    finding("clinic resting HR", String(ehr.resting_hr_clinic ?? "?")) +
+    finding("systolic BP", String(ehr.systolic_bp ?? "?"));
 
-  $("#branches").innerHTML = d.future_tree.map((future, index) =>
-    '<div class="branch"><b>BRANCH ' +
-    String(index + 1).padStart(2, "0") +
-    "</b><small>" + escapeHtml(JSON.stringify(future.policy)) +
-    '</small><small>objective <strong>' + future.score.toFixed(1) +
-    '</strong> · <span class="' + (future.valid ? "valid" : "invalid") +
-    '">' + (future.valid ? "GUARDIAN PASS" : "GUARDIAN REJECT") +
-    "</span></small></div>"
+  const risk = d.risk || {};
+  $("#riskValue").textContent = Number(risk.risk ?? NaN).toFixed(2);
+  $("#riskValue").style.color = risk.event_predicted ? "var(--danger)" : "var(--accent)";
+  $("#riskLabel").textContent = "high-strain-day risk · 24h" + (risk.event_predicted ? " · EVENT PREDICTED" : "");
+  const iv = risk.interval || [0, 0];
+  $("#riskInterval").textContent = Number(iv[0]).toFixed(2) + "–" + Number(iv[1]).toFixed(2);
+  $("#riskQuality").textContent = Number(risk.input_quality ?? 0).toFixed(2);
+
+  const st = d.state || {};
+  $("#twinDay").textContent = "DAY " + d.day_index;
+  $("#twinState").innerHTML =
+    finding("resting HR", st.resting_hr == null ? "missing" : Number(st.resting_hr).toFixed(0) + " bpm") +
+    finding("HRV", st.hrv_rmssd == null ? "missing" : Number(st.hrv_rmssd).toFixed(0) + " ms") +
+    finding("sleep", st.sleep_hours == null ? "missing" : Number(st.sleep_hours).toFixed(1) + " h") +
+    finding("activity", st.activity_load == null ? "missing" : Number(st.activity_load).toFixed(0)) +
+    finding("data quality", Number(st.data_quality ?? 0).toFixed(2)) +
+    finding("stale", String(st.stale_days ?? 0) + " d");
+
+  $("#baseline").innerHTML = (d.deviations || []).map((v) =>
+    '<div class="finding"><span>' + escapeHtml(String(v.field).replaceAll("_", " ")) +
+    "<br><small>baseline " + escapeHtml(String(v.baseline ?? "?")) +
+    "</small></span><strong>" + (v.delta == null ? "unknown" : (v.delta > 0 ? "+" : "") + Number(v.delta).toFixed(1) + " " + v.direction) +
+    "</strong></div>"
   ).join("");
 
-  $("#chaos").innerHTML = d.robust.slice(0, 4).map((item) =>
-    '<div class="finding"><span>' +
-    escapeHtml(JSON.stringify(item.policy)) +
-    "<br><small>perturbation " +
-    escapeHtml(JSON.stringify(item.worst_perturbation)) +
-    (item.feasible_under_all ? "" : "<br><strong>REJECTED UNDER PERTURBATION</strong>") +
-    "</small></span><strong>" +
-    item.worst_case_score.toFixed(1) + "</strong></div>"
+  renderTrajectories(d);
+
+  $("#reasons").innerHTML = (d.reasons || []).map((r) =>
+    '<div class="branch"><small>' + escapeHtml(r) + "</small></div>"
   ).join("");
 
-  $("#causal").innerHTML = d.causal_graph.edges.map((edge) =>
-    '<div class="branch"><b>' + escapeHtml(edge.cause) +
-    "</b><small>-> " + escapeHtml(edge.effect) +
-    '</small><small>strength ' + Number(edge.strength).toFixed(2) +
-    "</small></div>"
-  ).join("");
+  const sel = selectedPolicyPath(d);
+  const fut = (d.futures && d.futures.robust_ranking) || [];
+  $("#whatif").innerHTML = fut.map((f) =>
+    '<div class="finding"><span>' + escapeHtml(policyKey(f.policy)) +
+    "<br><small>worst " + Number(f.worst_case_risk).toFixed(2) +
+    (f.feasible_under_all ? "" : " · REJECTED UNDER VARIATION") +
+    "</small></span><strong>" + Number(f.nominal_risk).toFixed(2) + "</strong></div>"
+  ).join("") + (sel ? '<div class="formula">selected path ends at risk ' +
+    Number(sel.path[sel.path.length - 1].risk).toFixed(2) + "</div>" : "");
 
-  const values = d.futures.map((item) => item.score);
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  $("#bars").innerHTML = values.map((value) =>
-    '<div class="bar" style="height:' +
-    (30 + 70 * (max - value) / Math.max(max - min, 1)) +
-    '%"><span>' + value.toFixed(0) + "</span></div>"
-  ).join("");
+  const rob = d.robustness || {};
+  $("#robustness").innerHTML =
+    finding("worst-case spread", Number(rob.worst_case_spread ?? 0).toFixed(3)) +
+    '<div class="formula">perturbations: sensor noise, stale/missing data, parameter variation</div>';
 
-  const robust = d.robust_optimization;
-  $("#robustQubo").innerHTML = robust
-    ? '<div class="finding"><span>CLASSICAL ROBUST</span><strong>' +
-      robust.classical.energy.toFixed(2) +
-      '</strong></div><div class="finding"><span>QAOA EXPECTATION</span><strong>' +
-      robust.qaoa.energy.toFixed(2) +
-      '</strong></div><div class="finding"><span>QAOA CVaR a=0.25</span><strong>' +
-      robust.cvar_qaoa.energy.toFixed(2) +
-      '</strong></div><div class="finding"><span>ASSIGNMENTS</span><small>' +
-      escapeHtml(JSON.stringify(robust.classical.assignment)) + " | " +
-      escapeHtml(JSON.stringify(robust.qaoa.assignment)) + " | " +
-      escapeHtml(JSON.stringify(robust.cvar_qaoa.assignment)) +
-      "</small></div>"
-    : "";
-
-  $("#benchmark").innerHTML = d.benchmark.map((item) =>
-    '<div class="finding"><span>' + escapeHtml(item.method) +
-    "<br><small>" + escapeHtml(item.note) +
-    '</small></span><strong>' + item.energy.toFixed(2) +
-    " · " + item.runtime_ms.toFixed(2) + "ms</strong></div>"
-  ).join("");
-
-  const qaoa = d.benchmark.find(
-    (item) => item.method === "qaoa-statevector-simulator"
-  );
-  $("#qaoaMeta").textContent = qaoa
-    ? "p=1 · expected energy " + qaoa.expected_energy.toFixed(2) +
-      " · probability " + (qaoa.probability * 100).toFixed(1) + "%"
-    : "";
-
-  if (d.multivariable) {
-    const multi = d.multivariable;
-    $("#multiPolicy").innerHTML =
-      '<div class="finding"><span>EXACT ROBUST</span><strong>' +
-      multi.exact.energy.toFixed(2) +
-      '</strong></div><div class="finding"><span>CVaR-QAOA / QUADRATIC PROJECTION</span><strong>' +
-      multi.qaoa_projection.energy.toFixed(2) +
-      '</strong></div><div class="finding"><span>PROJECTION MAX GAP</span><strong>' +
-      multi.projection_error.max_absolute_gap.toFixed(2) +
-      '</strong></div><div class="finding"><span>SEARCH SPACE</span><small>' +
-      multi.policy_count + " binary policies · " +
-      escapeHtml(multi.variables.join(", ")) +
-      "</small></div>" +
-      multi.top_policies.map((policy, index) =>
-        '<div class="branch"><b>#' + (index + 1) +
-        "</b><small>" + escapeHtml(JSON.stringify(policy.assignment)) +
-        " · robust " + policy.robust_cost.toFixed(1) +
-        " · nominal " + policy.nominal_cost.toFixed(1) +
-        " · " + (policy.feasible ? "feasible" : "rejected") +
-        "</small></div>"
-      ).join("");
-  }
-
-  const guardian = d.guardian;
-  if (guardian) {
-    const passed = guardian.passed;
-    const failedChecks = guardian.checks.filter((check) => !check.passed).length;
-    $("#guardian").innerHTML =
-      '<span class="' + (passed ? "valid" : "invalid") + '">' +
-      (passed ? "PASS" : "REJECT") + "</span> · " +
-      escapeHtml(JSON.stringify(guardian.policy)) +
-      '<div style="font-size:11px;margin-top:8px">' +
-      escapeHtml(guardian.scope) + " · " +
-      guardian.checks.length + " checks · " + failedChecks +
-      " failed</div>";
-  } else {
-    $("#guardian").textContent = "NO VERIFICATION DATA";
-  }
-
-  const repro = d.reproducibility;
-  const reproEl = $("#reproMeta");
-  if (reproEl && repro) {
-    reproEl.textContent =
-      "engine v" + repro.engine_version + " · " + repro.backend +
-      " · " + repro.policy_variables.length + " policy vars · deterministic demo";
-  }
-
-  if (!options?.fromHistory) {
-    saveHistoryEntry({
-      when: new Date().toISOString(),
-      best: d.robust.length ? Number(d.robust[0].score.toFixed(1)) : null,
-      snapshot: d,
-    });
-  }
+  const g = d.guardian || {};
+  const passed = g.display_allowed;
+  $("#guardian").innerHTML =
+    '<span class="' + (passed ? "valid" : "invalid") + '">' +
+    (passed ? "DISPLAYABLE" : "WITHHELD") + "</span>" +
+    '<div style="font-size:11px;margin-top:8px">' +
+    ((g.flags || []).map(escapeHtml).join("<br>") || "no warnings") +
+    ((g.rejections || []).length ? "<br>" + (g.rejections || []).map(escapeHtml).join("<br>") : "") +
+    "</div>";
 }
 
 async function run() {
   const button = $("#run");
   button.disabled = true;
-  button.textContent = "RUNNING...";
+  button.textContent = "SYNCING…";
   try {
-    const response = await fetch("/api/demo?" + query(), {
+    const day = ($("#day") && $("#day").value) || "13";
+    const response = await fetch("/api/twin/demo?t=" + encodeURIComponent(day), {
       headers: { Accept: "application/json" },
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || data.error || "Request failed");
     render(data);
   } catch (error) {
-    showError("ENGINE ERROR · " + error.message);
+    showError("TWIN ERROR · " + error.message);
     const guardian = $("#guardian");
-    if (guardian) guardian.textContent = "ENGINE ERROR · " + error.message;
+    if (guardian) guardian.textContent = "TWIN ERROR · " + error.message;
   } finally {
     button.disabled = false;
-    button.textContent = "RUN EXPERIMENT";
+    button.textContent = "SYNC TWIN";
   }
 }
 
-["crowd", "smoke", "capacity"].forEach((id) => {
-  $("#" + id).oninput = () => {
-    $("#" + id + "Out").value = $("#" + id).value;
-  };
+["day"].forEach((id) => {
+  const el = $("#" + id);
+  if (el) el.oninput = () => { $("#" + id + "Out").value = el.value; };
 });
+const policyEl = $("#policy");
+if (policyEl) policyEl.onchange = run;
 
 $("#run").onclick = run;
-const saveBtn = $("#saveExp");
-if (saveBtn) saveBtn.onclick = () => { persistAccessToken(); saveExperiment(); };
-const execBtn = $("#execExp");
-if (execBtn) execBtn.onclick = () => { persistAccessToken(); executeSaved(); };
-const tokenInput = $("#accessToken");
-if (tokenInput) tokenInput.onchange = persistAccessToken;
-restoreAccessToken();
-refreshSystemStatus();
-renderHistory();
 run();
