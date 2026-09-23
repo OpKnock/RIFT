@@ -18,6 +18,7 @@ from .risk import STRAIN_THRESHOLD, predict
 from .robustness import degrade_noisy
 from .transition import transition
 from .twin import DigitalTwin
+from .wearable import jitter_score
 
 FIELDS = ("resting_hr", "hrv_rmssd", "sleep_hours", "activity_load")
 
@@ -183,25 +184,29 @@ def stress_sweep(
     for magnitude in magnitudes:
         agreements: list[bool] = []
         uncertainties: list[float] = []
+        jitters: list[float] = []
         for day in days:
             twin = _Twin(ehr, stream)
             snap = twin.update(day)
             noisy_state = degrade_noisy(twin.synchronize(day), seed=seed, magnitude=magnitude)
-            baseline = personal_baseline(
-                [o for o in stream.observations_upto(day) if o.day_index < day]
-            )
-            record = predict(noisy_state, baseline, ehr)
+            yesterday = stream.latest_at(day - 1) if day > 0 else None
+            prior = [o for o in stream.observations_upto(day) if o.day_index < day]
+            jitter = jitter_score(noisy_state, yesterday, prior)
+            baseline = personal_baseline(prior)
+            record = predict(noisy_state, baseline, ehr, measurement_jitter=jitter)
             actual = stream.latest_at(day + 1)
             if actual is None:
                 continue
             realized, _ = realized_outcome(actual)
             agreements.append((record["risk"] >= STRAIN_THRESHOLD) == realized)
             uncertainties.append(record["uncertainty"])
+            jitters.append(jitter)
         rows.append({
             "noise_magnitude": magnitude,
             "days": len(agreements),
             "agreement": sum(agreements) / len(agreements) if agreements else None,
             "mean_uncertainty": sum(uncertainties) / len(uncertainties) if uncertainties else None,
+            "mean_jitter": sum(jitters) / len(jitters) if jitters else None,
         })
     mean_u = [r["mean_uncertainty"] for r in rows if r["mean_uncertainty"] is not None]
     return {
@@ -222,3 +227,38 @@ def counterfactual_sanity(state: PatientState, baseline, ehr: EHRRecord) -> dict
             continue
         checks["-".join(f"{k}={v}" for k, v in key)] = risk <= risks[none_key] + 1e-9
     return {"nominal_risks": {str(k): v for k, v in risks.items()}, "all_improve_or_equal": all(checks.values()), "checks": checks}
+
+
+def threshold_tradeoff(
+    backtest_report: dict,
+    thresholds: tuple[float, ...] = (0.4, 0.5, 0.6, 0.7, 0.8),
+) -> dict:
+    """Sensitivity/specificity across operating thresholds from one backtest.
+
+    Characterization, NOT tuning: the deployed threshold stays
+    STRAIN_THRESHOLD. Lowering it to chase sensitivity would trade certain
+    specificity for uncertain gains — this table makes that tradeoff
+    explicit instead of hiding it behind a single operating point.
+    """
+    rows = []
+    for threshold in thresholds:
+        tp = tn = fp = fn = 0
+        for day in backtest_report.get("per_day", []):
+            predicted = day["predicted_risk"] >= threshold
+            realized = day["realized_event"]
+            if predicted and realized:
+                tp += 1
+            elif not predicted and not realized:
+                tn += 1
+            elif predicted and not realized:
+                fp += 1
+            else:
+                fn += 1
+        total = tp + tn + fp + fn
+        rows.append({
+            "threshold": threshold,
+            "sensitivity": tp / (tp + fn) if (tp + fn) else None,
+            "specificity": tn / (tn + fp) if (tn + fp) else None,
+            "agreement": (tp + tn) / total if total else None,
+        })
+    return {"operating_threshold": STRAIN_THRESHOLD, "rows": rows}

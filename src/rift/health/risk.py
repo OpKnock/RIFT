@@ -94,15 +94,29 @@ def input_quality(state: PatientState) -> float:
     return max(0.0, min(1.0, (present / 4.0) * freshness))
 
 
-def predict(state: PatientState, baseline: PersonalBaseline, ehr: EHRRecord) -> dict:
-    """Risk record with horizon, contributions, quality, and uncertainty."""
+JITTER_WEIGHT = 0.15  # synthetic: uncertainty added per unit of measured jitter
+
+
+def predict(
+    state: PatientState,
+    baseline: PersonalBaseline,
+    ehr: EHRRecord,
+    measurement_jitter: float = 0.0,
+) -> dict:
+    """Risk record with horizon, contributions, quality, and uncertainty.
+
+    measurement_jitter (0..1, from wearable.jitter_score) widens the
+    interval: fast day-over-day fluctuation — whether sensor noise or a
+    genuine shock — means the point estimate is less trustworthy.
+    """
     base, base_parts = susceptibility(ehr)
     drive, drive_parts = drivers(state, baseline)
     risk = _clamp01(base + drive)
     quality = input_quality(state)
+    jitter = max(0.0, min(1.0, measurement_jitter))
     # Uncertainty widens as inputs degrade; spread from robustness is added
     # later by the twin (see robustness.spread_uncertainty).
-    uncertainty = max(0.0, min(0.45, 0.05 + 0.30 * (1.0 - quality)))
+    uncertainty = max(0.0, min(0.45, 0.05 + 0.30 * (1.0 - quality) + JITTER_WEIGHT * jitter))
     return {
         "target": "high cardiac-strain day",
         "horizon": HORIZON_LABEL,
@@ -111,6 +125,7 @@ def predict(state: PatientState, baseline: PersonalBaseline, ehr: EHRRecord) -> 
         "threshold": STRAIN_THRESHOLD,
         "contributions": base_parts + drive_parts,
         "input_quality": quality,
+        "measurement_jitter": jitter,
         "uncertainty": uncertainty,
         "interval": [max(0.0, risk - uncertainty), min(1.0, risk + uncertainty)],
         "calibration": "demo / not calibrated",

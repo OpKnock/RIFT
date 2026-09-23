@@ -40,6 +40,9 @@ def build_reasons(
     quality = risk_record.get("input_quality", 1.0)
     uncertainty = risk_record.get("uncertainty", 0.0)
     reasons.append(f"Input quality {quality:.2f}; uncertainty ±{uncertainty:.2f} (interval shown, not certainty).")
+    jitter = risk_record.get("measurement_jitter", 0.0) or 0.0
+    if jitter >= 0.5:
+        reasons.append(f"Elevated day-over-day fluctuation (jitter {jitter:.2f}): widened uncertainty; confirm whether sensor noise or a genuine shift.")
     for flag in guardian_verdict.get("flags", []):
         reasons.append(f"Guardian note: {flag}")
     for rejection in guardian_verdict.get("rejections", []):

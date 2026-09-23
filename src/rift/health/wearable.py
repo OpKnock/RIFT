@@ -1,9 +1,20 @@
 """Replayable wearable time series. New observations update the twin."""
 from __future__ import annotations
 
+from statistics import median
+
 from .models import WearableObservation
 
 FIELDS = ("resting_hr", "hrv_rmssd", "sleep_hours", "activity_load")
+
+# Per-field floors for jitter normalization (units of each field).
+# A day-over-day jump smaller than the floor counts as no evidence of noise.
+JITTER_FLOORS = {
+    "resting_hr": 1.0,
+    "hrv_rmssd": 1.0,
+    "sleep_hours": 0.2,
+    "activity_load": 2.0,
+}
 
 
 class WearableStream:
@@ -48,3 +59,48 @@ class WearableStream:
             return 0.0
         present = sum(1 for f in FIELDS if getattr(latest, f) is not None)
         return present / len(FIELDS)
+
+
+def field_mads(prior: list[WearableObservation]) -> dict[str, float | None]:
+    """Median absolute day-over-day change per field over prior history.
+
+    Returns None per field when fewer than two usable deltas exist. This is
+    a spread measure of typical fluctuation, not a physiological claim.
+    """
+    mads: dict[str, float | None] = {}
+    for field in FIELDS:
+        values = [getattr(o, field) for o in prior if getattr(o, field) is not None]
+        deltas = [abs(b - a) for a, b in zip(values, values[1:])]
+        mads[field] = float(median(deltas)) if len(deltas) >= 1 else None
+    return mads
+
+
+def jitter_score(
+    today: WearableObservation | None,
+    yesterday: WearableObservation | None,
+    prior: list[WearableObservation],
+) -> float:
+    """0..1 measurement-jitter score for today's observation.
+
+    Only the EXCESS of today's day-over-day jump beyond typical fluctuation
+    (MAD) counts: ordinary day-to-day wobble scores near 0, while jumps
+    several times typical score toward 1. Missing fields contribute 0 —
+    absence is handled by the missing-data path, not the noise path.
+    Deterministic.
+    """
+    if today is None or yesterday is None:
+        return 0.0
+    mads = field_mads(prior)
+    scores: list[float] = []
+    for field in FIELDS:
+        cur, prev = getattr(today, field), getattr(yesterday, field)
+        if cur is None or prev is None:
+            continue
+        typical = mads[field]
+        if typical is None or typical < JITTER_FLOORS[field]:
+            typical = JITTER_FLOORS[field]
+        excess = max(0.0, abs(cur - prev) - typical)
+        scores.append(min(1.0, excess / (3.0 * typical)))
+    if not scores:
+        return 0.0
+    return sum(scores) / len(scores)
