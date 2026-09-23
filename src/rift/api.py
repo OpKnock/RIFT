@@ -4,6 +4,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from .benchmark import benchmark_suite
 from .counterfactual import generate_futures
+from .causal import emergency_causal_graph
+from .futures import branch_futures
 from .models import Scenario
 from .optimizer import QUBO
 from .robust import rank_robust_candidates
@@ -20,7 +22,7 @@ def scenario_payload(scenario:Scenario):
       "scenario":{"name":scenario.name,"initial_state":scenario.initial_state,"interventions":{k:list(v) for k,v in scenario.interventions.items()}},
       "futures":[{"policy":f.policy,"state":f.state,"score":f.score,"valid":f.valid} for f in futures],
       "robust":[{"policy":a.candidate.policy,"score":a.candidate.score,"worst_case_score":a.worst_case.adversarial_score if a.worst_case else a.candidate.score,"robustness_gap":a.robustness_gap,"worst_perturbation":a.worst_case.perturbation if a.worst_case else {}} for a in ranked],
-      "benchmark":[{"method":b.method,"energy":b.energy,"assignment":b.assignment,"runtime_ms":b.runtime_ms,"note":b.note,"probability":b.probability,"expected_energy":b.expected_energy} for b in bench],
+      "benchmark":[{"method":b.method,"energy":b.energy,"assignment":b.assignment,"runtime_ms":b.runtime_ms,"note":b.note,"probability":b.probability,"expected_energy":b.expected_energy} for b in bench],\n      "causal_graph":{"nodes":emergency_causal_graph().nodes,"edges":[{"cause":e.cause,"effect":e.effect,"strength":e.strength} for e in emergency_causal_graph().edges]},\n      "future_tree":[{"id":n.id,"parent_id":n.parent_id,"depth":n.depth,"policy":n.policy,"score":n.score,"valid":n.valid,"label":n.label} for n in branch_futures(scenario,2).nodes],
     }
 
 def configured_scenario(query):
