@@ -8,6 +8,7 @@ from .causal import emergency_causal_graph
 from .futures import branch_futures
 from .models import Scenario
 from .optimizer import QUBO, exact_minimize, QuantumOptimizer
+from .multivariable import optimize_policy_space, build_robust_qubo_projection, exact_multivariable_robust_minimize
 from .robust import rank_robust_candidates
 from .robust_qubo import build_robust_qubo
 from .scenarios import emergency_building
@@ -19,6 +20,11 @@ def scenario_payload(scenario:Scenario):
     perturbations=[{"smoke":2.0},{"crowd":80.0},{"smoke":2.0,"crowd":80.0},{"corridor_capacity":-70.0}]
     futures=generate_futures(scenario); ranked=rank_robust_candidates(scenario,futures,perturbations)
     q=QUBO(("route_a","route_c"),{"route_a":4.0,"route_c":2.5},{("route_a","route_c"):-1.5})
+    policy_variables=("route_a","route_c","stairwell_b")
+    multi_ranked=optimize_policy_space(scenario,policy_variables,perturbations)
+    multi_exact=exact_multivariable_robust_minimize(scenario,policy_variables,perturbations)
+    multi_projection=build_robust_qubo_projection(scenario,policy_variables,perturbations)
+    multi_qaoa=QuantumOptimizer().solve(multi_projection,objective="cvar",alpha=0.25)
     robust_qubo=build_robust_qubo(scenario,q.variables,perturbations)
     classical_robust=exact_minimize(robust_qubo)
     quantum_robust=QuantumOptimizer().solve(robust_qubo)
@@ -30,6 +36,7 @@ def scenario_payload(scenario:Scenario):
       "futures":[{"policy":f.policy,"state":f.state,"score":f.score,"valid":f.valid} for f in futures],
       "robust":[{"policy":a.candidate.policy,"score":a.candidate.score,"worst_case_score":a.worst_case.adversarial_score if a.worst_case else a.candidate.score,"robustness_gap":a.robustness_gap,"worst_perturbation":a.worst_case.perturbation if a.worst_case else {}} for a in ranked],
       "robust_optimization":robust_bench,
+      "multivariable":{"variables":list(policy_variables),"policy_count":2**len(policy_variables),"exact":{"assignment":multi_exact.assignment,"energy":multi_exact.energy,"method":multi_exact.method},"qaoa_projection":{"assignment":multi_qaoa.assignment,"energy":multi_qaoa.energy,"method":multi_qaoa.method,"approximation":True,"objective":"cvar","alpha":0.25},"projection_qubo":{"linear":multi_projection.linear,"quadratic":multi_projection.quadratic,"offset":multi_projection.offset},"top_policies":[{"assignment":x.assignment,"nominal_cost":x.nominal_cost,"robust_cost":x.robust_cost,"feasible":x.feasible,"worst_perturbation":x.worst_perturbation} for x in multi_ranked[:6]]},
       "benchmark":[{"method":b.method,"energy":b.energy,"assignment":b.assignment,"runtime_ms":b.runtime_ms,"note":b.note,"probability":b.probability,"expected_energy":b.expected_energy} for b in bench],\n      "causal_graph":{"nodes":emergency_causal_graph().nodes,"edges":[{"cause":e.cause,"effect":e.effect,"strength":e.strength} for e in emergency_causal_graph().edges]},\n      "uncertainty":{"risk_entropy":normalized_risk_entropy([f.score for f in futures])},
       "future_tree":[{"id":n.id,"parent_id":n.parent_id,"depth":n.depth,"policy":n.policy,"score":n.score,"valid":n.valid,"label":n.label} for n in branch_futures(scenario,2).nodes],
     }
