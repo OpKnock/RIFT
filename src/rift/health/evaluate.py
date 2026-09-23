@@ -10,6 +10,8 @@ honestly, including onset lag and misses.
 """
 from __future__ import annotations
 
+import math
+
 from .baseline import personal_baseline
 from .ehr import EHRRecord
 from .foresight import counterfactual_futures
@@ -290,3 +292,82 @@ def reliability(backtest_report: dict, bins: int = 5) -> dict:
         if total else None
     )
     return {"bins": rows, "ece": ece, "days": total}
+
+
+def _sigmoid(x: float) -> float:
+    clamped = max(-500.0, min(500.0, x))
+    return 1.0 / (1.0 + math.exp(-clamped))
+
+
+def fit_platt_scaling(calibration_days: list[dict]) -> dict:
+    """Fit p_cal = sigmoid(A * p_raw + B) on CALIBRATION days only.
+
+    Coarse deterministic grid search minimizing log-loss (stdlib only, no
+    optimizer dependency). Tie-breaks go to the first grid point in fixed
+    order, so the fit is reproducible. Never fit on the test window —
+    doing so would turn calibration repair into metric gaming.
+    """
+    a_grid = [i * 0.5 for i in range(0, 11)]  # A >= 0 only: the map must be
+    b_grid = [i * 0.5 for i in range(-10, 11)]  # order-preserving, never invert risk
+    best = None
+    for a in a_grid:
+        for b in b_grid:
+            loss = 0.0
+            for day in calibration_days:
+                p = max(1e-6, min(1 - 1e-6, _sigmoid(a * day["predicted_risk"] + b)))
+                y = 1.0 if day["realized_event"] else 0.0
+                loss += -(y * math.log(p) + (1 - y) * math.log(1 - p))
+            mean_loss = loss / len(calibration_days) if calibration_days else float("inf")
+            if best is None or mean_loss < best[0]:
+                best = (mean_loss, a, b)
+    if best is None:  # unreachable with a non-empty grid; explicit instead of assert
+        raise ValueError("calibration grid produced no candidate")
+    return {"a": best[1], "b": best[2], "fit_days": len(calibration_days), "fit_logloss": best[0]}
+
+
+def apply_platt(p_raw: float, params: dict) -> float:
+    """Apply fitted Platt parameters to one raw probability."""
+    return _sigmoid(params["a"] * p_raw + params["b"])
+
+
+def _brier_of(per_day: list[dict], key: str = "predicted_risk") -> float | None:
+    if not per_day:
+        return None
+    return sum((d[key] - (1.0 if d["realized_event"] else 0.0)) ** 2 for d in per_day) / len(per_day)
+
+
+def calibration_report(
+    calibration_days: list[dict],
+    test_days: list[dict],
+    bins: int = 5,
+) -> dict:
+    """Repair check: fit Platt scaling on calibration days, score untouched test days.
+
+    Returns raw vs calibrated Brier/ECE/agreement on the TEST window only,
+    plus the fitted parameters and both windows' sizes. The operating
+    threshold and all model weights stay fixed — only the reported
+    probability mapping is adjusted, and only from calibration data.
+    """
+    params = fit_platt_scaling(calibration_days)
+    calibrated_test = [
+        {**d, "predicted_risk": apply_platt(d["predicted_risk"], params)} for d in test_days
+    ]
+    raw_report = {"per_day": test_days}
+    cal_report = {"per_day": calibrated_test}
+    raw_rel = reliability(raw_report, bins)
+    cal_rel = reliability(cal_report, bins)
+    return {
+        "params": params,
+        "calibration_days": len(calibration_days),
+        "test_days": len(test_days),
+        "raw": {
+            "brier": _brier_of(test_days),
+            "ece": raw_rel["ece"],
+            "reliability": raw_rel,
+        },
+        "calibrated": {
+            "brier": _brier_of(calibrated_test),
+            "ece": cal_rel["ece"],
+            "reliability": cal_rel,
+        },
+    }

@@ -169,6 +169,11 @@ async function loadEvidence() {
       escapeHtml(String(ev.outcome_rule || "?")) + "</div>" +
       "<div>calibration ECE " + fmt(ev.reliability && ev.reliability.ece) +
       " · probabilities NOT calibrated</div>" +
+      (ev.calibration_repair ?
+        "<div>Platt repair (fit 30–44, test 45–59): ECE " +
+        fmt(ev.calibration_repair.raw && ev.calibration_repair.raw.ece) + " → " +
+        fmt(ev.calibration_repair.calibrated && ev.calibration_repair.calibrated.ece) +
+        " · operating threshold unchanged</div>" : "") +
       '<div style="margin-top:8px">ROBUSTNESS STRESS</div>' + stressRows +
       "<div>" + (responds
         ? "uncertainty widens with sensor noise"
