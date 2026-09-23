@@ -88,3 +88,6 @@ The core engine is deterministic and testable. Supabase, real quantum hardware, 
 RIFT now constructs an adversarial robust QUBO from the declared perturbation set, then solves that same objective with exact classical enumeration and the dependency-free QAOA statevector simulator. The comparison reports whether both methods reach the same binary policy and objective. This is a benchmark workflow, not a claim of quantum advantage.
 
 The robust QUBO is exact for the current two-variable emergency-routing formulation. Higher-dimensional robust objectives require a higher-order binary optimization representation or a deliberate approximation, rather than silently fitting a quadratic model.
+
+## v0.6 risk-tail optimization
+The QAOA simulator now supports a CVaR objective in addition to the standard expected-energy objective. CVaR focuses optimization on the lower-cost tail of sampled solutions for minimization, allowing RIFT to compare expectation-QAOA and risk-tail QAOA on the same robust QUBO. IBM's current QAOA documentation describes CVaR as an advanced cost-function technique for emphasizing the best portion of measured samples; RIFT uses the same conceptual risk-tail objective in its dependency-free simulator. This is an experimental comparison, not evidence of quantum advantage.
