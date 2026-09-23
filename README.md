@@ -91,3 +91,11 @@ The robust QUBO is exact for the current two-variable emergency-routing formulat
 
 ## v0.6 risk-tail optimization
 The QAOA simulator now supports a CVaR objective in addition to the standard expected-energy objective. CVaR focuses optimization on the lower-cost tail of sampled solutions for minimization, allowing RIFT to compare expectation-QAOA and risk-tail QAOA on the same robust QUBO. IBM's current QAOA documentation describes CVaR as an advanced cost-function technique for emphasizing the best portion of measured samples; RIFT uses the same conceptual risk-tail objective in its dependency-free simulator. This is an experimental comparison, not evidence of quantum advantage.
+
+## Production integrations
+- **Supabase:** migration-backed persistence and RLS policies are included. A live project is intentionally not hard-coded; configure `RIFT_SUPABASE_URL` and `RIFT_SUPABASE_KEY` to enable the optional adapter.
+- **Code review:** this repository includes CI tests and a review-oriented configuration placeholder; the connected ChatGPT environment does not expose a CodeRabbit execution connector, so no CodeRabbit run is claimed.
+- **Billing:** payment-provider secrets are not used by the engine. Billing remains an adapter boundary until a provider is explicitly connected.
+
+## Multi-variable policy laboratory
+RIFT now evaluates three binary controls in the emergency scenario (8 policies) using exact robust enumeration. For larger policy spaces, RIFT can construct a transparent quadratic projection and send that approximation to QAOA. The UI labels this projection as approximate; the exact enumerator remains the reference result.
