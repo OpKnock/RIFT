@@ -15,7 +15,107 @@ function escapeHtml(value) {
   }[char]));
 }
 
-function render(d) {
+function showError(message) {
+  const banner = $("#errorBanner");
+  if (!banner) return;
+  banner.hidden = false;
+  banner.textContent = message;
+}
+
+function clearError() {
+  const banner = $("#errorBanner");
+  if (!banner) return;
+  banner.hidden = true;
+  banner.textContent = "";
+}
+
+function statusLine(label, info) {
+  if (!info) return label + ": unknown";
+  if (info.configured) return label + ": configured";
+  return label + ": not configured (offline mode)";
+}
+
+async function refreshSystemStatus() {
+  const sysEl = $("#sysStatus");
+  const settingsEl = $("#settingsPanel");
+  try {
+    const [healthRes, metaRes] = await Promise.all([
+      fetch("/api/health", { headers: { Accept: "application/json" } }),
+      fetch("/api/meta", { headers: { Accept: "application/json" } }),
+    ]);
+    const health = await healthRes.json();
+    const meta = metaRes.ok ? await metaRes.json() : null;
+    const persist = health.persistence || {};
+    const billing = health.billing || {};
+    if (sysEl) {
+      sysEl.innerHTML =
+        "<div>engine v" + escapeHtml(health.version || "?") + " · " +
+        escapeHtml(health.quantum_backend || "statevector") + "</div>" +
+        "<div>" + escapeHtml(statusLine("persistence", persist)) + "</div>" +
+        "<div>" + escapeHtml(statusLine("billing", billing)) + "</div>";
+    }
+    const engine = $("#engineStatus");
+    if (engine) engine.textContent = "ENGINE ONLINE · " + String(health.version || "") + " · STATEVECTOR QAOA";
+    if (settingsEl) {
+      if (meta) {
+        settingsEl.innerHTML =
+          "<div>optimizers: " + escapeHtml((meta.optimizers || []).join(", ")) + "</div>" +
+          "<div>backends: " + escapeHtml((meta.backends || []).join(", ")) + "</div>" +
+          "<div>max policy vars: " + escapeHtml(String(meta.limits?.max_policy_variables ?? "?")) +
+          " · max perturbations: " + escapeHtml(String(meta.limits?.max_perturbations ?? "?")) + "</div>" +
+          "<div>service token: " + escapeHtml(meta.auth?.service_token_configured ? "required" : "open (dev mode)") + "</div>";
+      } else {
+        settingsEl.textContent = "backend capabilities unavailable";
+      }
+    }
+  } catch (error) {
+    if (sysEl) sysEl.textContent = "backend status unavailable · " + error.message;
+    if (settingsEl) settingsEl.textContent = "backend capabilities unavailable";
+  }
+}
+
+function loadHistory() {
+  try {
+    return JSON.parse(localStorage.getItem("rift-history") || "[]");
+  } catch (error) {
+    return [];
+  }
+}
+
+function saveHistoryEntry(entry) {
+  try {
+    const history = loadHistory();
+    history.unshift(entry);
+    localStorage.setItem("rift-history", JSON.stringify(history.slice(0, 10)));
+  } catch (error) {
+    /* storage full or unavailable: history is best-effort */
+  }
+  renderHistory();
+}
+
+function renderHistory() {
+  const el = $("#historyList");
+  if (!el) return;
+  const history = loadHistory();
+  if (!history.length) {
+    el.innerHTML = '<span class="muted">No runs yet. Each successful experiment is stored locally for reopen.</span>';
+    return;
+  }
+  el.innerHTML = history.map((item, index) =>
+    '<div class="branch"><b>RUN ' + String(history.length - index).padStart(2, "0") +
+    "</b><small>" + escapeHtml(item.when) + " · best " + escapeHtml(String(item.best)) +
+    '</small><small><button data-history="' + index + '" type="button">REOPEN</button></small></div>'
+  ).join("");
+  el.querySelectorAll("[data-history]").forEach((button) => {
+    button.onclick = () => {
+      const item = loadHistory()[Number(button.getAttribute("data-history"))];
+      if (item && item.snapshot) render(item.snapshot, { fromHistory: true });
+    };
+  });
+}
+
+function render(d, options) {
+  clearError();
   $("#state").innerHTML = Object.entries(d.scenario.initial_state)
     .map(([key, value]) =>
       '<div class="finding"><span>' +
@@ -26,7 +126,7 @@ function render(d) {
   $("#futureCount").textContent = d.futures.length;
   $("#robustCount").textContent = d.robust.length;
   $("#bestScore").textContent = d.robust.length
-    ? d.robust[0].score.toFixed(1) : "—";
+    ? d.robust[0].score.toFixed(1) : "-";
   $("#latticeState").textContent =
     "EXPLORED · H=" + Number(d.uncertainty?.risk_entropy || 0).toFixed(2);
 
@@ -51,7 +151,7 @@ function render(d) {
 
   $("#causal").innerHTML = d.causal_graph.edges.map((edge) =>
     '<div class="branch"><b>' + escapeHtml(edge.cause) +
-    "</b><small>→ " + escapeHtml(edge.effect) +
+    "</b><small>-> " + escapeHtml(edge.effect) +
     '</small><small>strength ' + Number(edge.strength).toFixed(2) +
     "</small></div>"
   ).join("");
@@ -71,11 +171,11 @@ function render(d) {
       robust.classical.energy.toFixed(2) +
       '</strong></div><div class="finding"><span>QAOA EXPECTATION</span><strong>' +
       robust.qaoa.energy.toFixed(2) +
-      '</strong></div><div class="finding"><span>QAOA CVaR α=0.25</span><strong>' +
+      '</strong></div><div class="finding"><span>QAOA CVaR a=0.25</span><strong>' +
       robust.cvar_qaoa.energy.toFixed(2) +
       '</strong></div><div class="finding"><span>ASSIGNMENTS</span><small>' +
-      escapeHtml(JSON.stringify(robust.classical.assignment)) + " ↔ " +
-      escapeHtml(JSON.stringify(robust.qaoa.assignment)) + " ↔ " +
+      escapeHtml(JSON.stringify(robust.classical.assignment)) + " | " +
+      escapeHtml(JSON.stringify(robust.qaoa.assignment)) + " | " +
       escapeHtml(JSON.stringify(robust.cvar_qaoa.assignment)) +
       "</small></div>"
     : "";
@@ -126,31 +226,49 @@ function render(d) {
       '<span class="' + (passed ? "valid" : "invalid") + '">' +
       (passed ? "PASS" : "REJECT") + "</span> · " +
       escapeHtml(JSON.stringify(guardian.policy)) +
-      '<div style="font-size:11px;color:var(--muted);margin-top:8px">' +
+      '<div style="font-size:11px;margin-top:8px">' +
       escapeHtml(guardian.scope) + " · " +
       guardian.checks.length + " checks · " + failedChecks +
       " failed</div>";
   } else {
     $("#guardian").textContent = "NO VERIFICATION DATA";
   }
+
+  const repro = d.reproducibility;
+  const reproEl = $("#reproMeta");
+  if (reproEl && repro) {
+    reproEl.textContent =
+      "engine v" + repro.engine_version + " · " + repro.backend +
+      " · " + repro.policy_variables.length + " policy vars · deterministic demo";
+  }
+
+  if (!options?.fromHistory) {
+    saveHistoryEntry({
+      when: new Date().toISOString(),
+      best: d.robust.length ? Number(d.robust[0].score.toFixed(1)) : null,
+      snapshot: d,
+    });
+  }
 }
 
 async function run() {
   const button = $("#run");
   button.disabled = true;
-  button.textContent = "RUNNING…";
+  button.textContent = "RUNNING...";
   try {
     const response = await fetch("/api/demo?" + query(), {
       headers: { Accept: "application/json" },
     });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Request failed");
+    if (!response.ok) throw new Error(data.detail || data.error || "Request failed");
     render(data);
   } catch (error) {
-    $("#guardian").textContent = "ENGINE ERROR · " + error.message;
+    showError("ENGINE ERROR · " + error.message);
+    const guardian = $("#guardian");
+    if (guardian) guardian.textContent = "ENGINE ERROR · " + error.message;
   } finally {
     button.disabled = false;
-    button.textContent = "RUN EXPERIMENT ↗";
+    button.textContent = "RUN EXPERIMENT";
   }
 }
 
@@ -161,4 +279,6 @@ async function run() {
 });
 
 $("#run").onclick = run;
+refreshSystemStatus();
+renderHistory();
 run();

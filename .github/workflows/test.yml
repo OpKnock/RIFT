@@ -13,3 +13,16 @@ jobs:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
       - run: pytest
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate migrations are additive and idempotent
+        run: python scripts/validate_migrations.py
+      - name: Secret scan (fail on committed credentials)
+        run: python scripts/secret_scan.py
+      - name: Version consistency (pyproject, package, health)
+        run: python scripts/check_versions.py

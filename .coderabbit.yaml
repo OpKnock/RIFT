@@ -11,10 +11,32 @@ reviews:
   high_level_summary: true
   poem: false
   auto_title_placeholder: "@coderabbitai summary"
-  # Do not post extra "review complete" comments; keep signal high.
   collapse_walkthrough: false
 
 chat:
   auto_reply: true
 
 enable_review: true
+
+# RIFT-specific review scope: every finding must cite one of these rules.
+reviews_rules:
+  - "Scientific honesty: reject infinite-futures, quantum-speedup, exactness, or hardware claims unless backed by benchmark code in this diff."
+  - "CVaR terminology: the implementation uses the lowest-cost tail for minimization; flag any comment/doc calling it worst-loss CVaR."
+  - "Approximations must be measured: quadratic projections require max/mean gap reporting; flag unmeasured approximations."
+  - "Guardian boundary: optimization results must never bypass verifier constraints; flag any path that skips verification."
+  - "Secrets: flag any Supabase service-role key, Lemon Squeezy API key, or webhook secret in code, frontend, logs, or docs."
+  - "Auth: flag persistence reads/writes without server-side ownership checks (owner_mismatch) and any frontend-only access control."
+  - "Migrations: flag destructive DDL, missing IF NOT EXISTS, grant widening, or RLS disabling without justification."
+  - "Billing: flag unverified webhook acceptance, missing idempotency keys, or entitlement derived from browser input."
+  - "API: flag unvalidated inputs, unbounded payloads, leaked stack traces, or missing request-ID logging."
+  - "Frontend: flag unescaped innerHTML sinks (must use escapeHtml), claims the backend cannot substantiate, or dead controls."
+
+path_instructions:
+  - path: "src/rift/*.py"
+    instructions: "Check numerical correctness, deterministic behavior, input validation via limits.py, and honest method labels (exact vs simulator vs hardware)."
+  - path: "backend/supabase/migrations/*"
+    instructions: "Require additive, idempotent migrations; verify RLS policies, least-privilege grants, and updated_at triggers."
+  - path: "web/*"
+    instructions: "Verify XSS-safe rendering (escapeHtml on all dynamic strings), working error states for 401/403/503/413, and no embedded secrets."
+  - path: ".github/workflows/*"
+    instructions: "CI must keep pytest green; do not approve disabling checks to land a change."
