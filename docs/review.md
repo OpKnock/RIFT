@@ -3,7 +3,8 @@
 ## Automated test gate (active)
 
 GitHub Actions (`.github/workflows/test.yml`) installs `.[dev]` on Python 3.11
-and runs `pytest` on every push to `main` and every pull request. This is the
+and runs `pytest` plus validation gates (migrations, secret scan, version
+consistency) on every push to `main` and every pull request. This is the
 repository's enforced verification gate.
 
 ## CodeRabbit (optional, not yet executed)

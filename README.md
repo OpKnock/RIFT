@@ -85,7 +85,7 @@ Supabase migrations under `backend/supabase/migrations/` provide experiment/run 
 
 A live Supabase project is **not** hard-coded into the repository. Configure `RIFT_SUPABASE_URL` and `RIFT_SUPABASE_KEY` only in a trusted server environment (legacy `SUPABASE_*` names accepted as fallback). Never expose a service-role key to the browser. See `docs/supabase-setup.md`.
 
-When configured, the server exposes persistence endpoints (`POST /api/experiments`, `GET /api/experiments/{id}`, `POST /api/experiments/{id}/runs`, `GET /api/experiments/{id}/runs`, `GET /api/runs/{id}`); when absent they return `503 persistence_not_configured` and the engine still runs offline.
+When configured, the server exposes persistence endpoints (`POST /api/experiments`, `GET /api/experiments/{id}`, `POST /api/experiments/{id}/runs`, `POST /api/experiments/{id}/execute` for server-side reproducible runs, `GET /api/experiments/{id}/runs`, `GET /api/runs/{id}`); when absent they return `503 persistence_not_configured` and the engine still runs offline.
 
 ## Review and billing integrations
 

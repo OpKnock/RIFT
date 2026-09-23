@@ -187,3 +187,24 @@ def test_demo_endpoint_serializes(monkeypatch):
         assert len(payload["futures"]) == 8
         quadratic = payload["robust_optimization"]["qubo"]["quadratic"]
         assert all(isinstance(key, str) for key in quadratic)
+
+
+def test_execute_503_when_unconfigured(monkeypatch):
+    _clear(monkeypatch)
+    with _Server() as server:
+        status, _, raw = _post(
+            server.url("/api/experiments/00000000-0000-4000-8000-000000000000/execute"), {}
+        )
+        assert status == 503
+        assert json.loads(raw)["error"] == "persistence_not_configured"
+
+
+def test_require_user_id_gate(monkeypatch):
+    _clear(monkeypatch)
+    monkeypatch.setenv("RIFT_REQUIRE_USER_ID", "true")
+    with _Server() as server:
+        status, _, raw = _post(
+            server.url("/api/experiments"), {"name": "x", "scenario": {"crowd": 10}}
+        )
+        assert status == 400
+        assert json.loads(raw)["error"] == "missing_user_id"

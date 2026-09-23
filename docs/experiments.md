@@ -19,3 +19,19 @@ An experiment is a reproducible, fingerprintable spec — not a pile of callable
 
 ## Lifecycle endpoints
 Create (`POST /api/experiments`) → run records (`POST /api/experiments/{id}/runs`) → inspect (`GET ...`) → compare (fingerprints) → reproduce (re-POST the stored spec).
+
+## Server-side execution
+`POST /api/experiments/{id}/execute` loads the stored spec, runs it via
+`rift.runner.run_spec` (optimizer/backend from the row), writes an
+`experiment_runs` row with metrics + fingerprint, and marks the experiment
+`succeeded` (or `failed` with error info on invalid specs). The returned
+`result` echoes `effective_policy_variables`, `effective_perturbations`,
+`spec_fingerprint`, `duration_ms`, and the full Guardian verdict, so any
+stored run can be re-executed and compared byte-for-byte on policy, costs,
+and fingerprint.
+
+## Blocked-exit semantics
+`stairwell_b` means "route via stairwell B"; `blocked_b_penalty` is a risk
+penalty added when B is marked blocked. It does not reduce corridor
+capacity — a penalty model, not a physical closure. Pinned by
+`tests/test_scenario_semantics.py`.

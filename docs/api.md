@@ -15,9 +15,12 @@ are generic `502` with a `request_id` for log correlation — no stack traces.
 - `POST /api/experiments` — body validated by `rift.experiments.validate_spec_payload`; 201 with stored row, 400 validation, 503 offline
 - `GET /api/experiments/{uuid}` — optional `?user_id=` ownership check (403 on mismatch)
 - `POST /api/experiments/{uuid}/runs` (alias `.../run`) — body validated by `validate_run_payload`
+- `POST /api/experiments/{uuid}/execute` — server-side run: loads the stored spec, executes `rift.runner.run_spec`, writes a run row with metrics + fingerprint, marks the experiment `succeeded`/`failed`; 422 on invalid stored specs, 503 offline
 - `GET /api/experiments/{uuid}/runs`, `GET /api/runs/{uuid}`
 - `POST /api/billing/checkout` — `{variant_id, email?, user_id?, metadata?}` → 201 `{checkout_url, checkout_id}`, 400/503/502
 - `GET /api/billing/entitlement?user_id=` → `{entitled, status}` derived from server-side subscription mirror
+
+When `RIFT_REQUIRE_USER_ID=true`, persistence POSTs require an asserted `user_id` (400 `missing_user_id`); reads scope by `?user_id=` with 403 on owner mismatch.
 
 ## Limits
 `GET /api/meta` → `limits` (policy vars, perturbations, payload bytes, scenario bounds). Exceeding returns 400/413 with a clear message — never silent truncation.

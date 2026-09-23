@@ -63,6 +63,15 @@ class SupabaseStore:
             .execute()
         )
 
+    def update_experiment(self, experiment_id: str, patch: dict[str, Any]):
+        return (
+            self.client()
+            .table("experiments")
+            .update(patch)
+            .eq("id", experiment_id)
+            .execute()
+        )
+
     def get_run(self, run_id: str):
         return (
             self.client()

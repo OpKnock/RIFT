@@ -1,6 +1,13 @@
 from .models import Constraint, Scenario
 
 def emergency_building() -> Scenario:
+    """Smart-building emergency scenario.
+
+    Blocked-exit semantics: ``stairwell_b`` is a policy choice to route via
+    stairwell B, and ``blocked_b_penalty`` is a risk penalty applied when B
+    is marked blocked. This is a penalty model, NOT a physical closure: it
+    does not reduce ``corridor_capacity``. See tests/test_scenario_semantics.py.
+    """
     def transition(state, policy):
         density = state["crowd"] / max(state["corridor_capacity"], 1.0)
         route_a = policy.get("route_a", 0)

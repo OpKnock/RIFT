@@ -2,6 +2,17 @@
 
 All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system, not a certified product.
 
+## [Unreleased]
+### Fixed
+- `/api/demo` no longer crashes on tuple-keyed QUBO JSON (quadratic terms serialize as `"a,b"` strings).
+- Oversized request bodies are consumed-and-discarded before the 413 response, keeping HTTP/1.1 keep-alive connections in sync (previously aborted sockets on some platforms).
+- `experiment_runs.user_id` column added (migration 005); the API already wrote it, which would have failed live inserts.
+### Added
+- Server-side execution: `rift.runner.run_spec` + `POST /api/experiments/{id}/execute` closes the CREATE → RUN → PERSIST → REPRODUCE loop with fingerprint-matched run records.
+- `RIFT_REQUIRE_USER_ID=true` enforcement for persistence POSTs (previously documented but unenforced).
+- Schema/code consistency tests fail the suite when API payload keys drift from migrations.
+- Guardian feasibility flags in CHAOS UI (`REJECTED UNDER PERTURBATION`); regression tests for Guardian rejection and blocked-exit penalty semantics.
+
 ## [0.6.0] — Counterfactual Laboratory release candidate
 ### Engine and science
 - Exact robust enumeration baseline with QAOA statevector comparison (expectation + lowest-cost-tail CVaR, α=0.25).

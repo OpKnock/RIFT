@@ -29,6 +29,15 @@ def service_token_configured() -> str | None:
     return None
 
 
+def require_user_id_enforced() -> bool:
+    """True when callers must assert user_id (RIFT_REQUIRE_USER_ID=true)."""
+    return os.getenv("RIFT_REQUIRE_USER_ID", "false").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+
 def extract_bearer(headers) -> str | None:
     """Accept real HTTPMessage headers or a plain dict (tests)."""
     if headers is None:
