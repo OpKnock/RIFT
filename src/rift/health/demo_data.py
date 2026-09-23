@@ -10,6 +10,7 @@ from __future__ import annotations
 import random
 
 from .models import WearableObservation
+from .sources import ReplaySource
 from .wearable import WearableStream
 
 
@@ -38,4 +39,4 @@ def demo_stream(seed: int = 42) -> WearableStream:
             sleep_hours=round(max(0.0, sleep), 1),
             activity_load=round(max(0.0, activity), 1),
         ))
-    return WearableStream(observations)
+    return ReplaySource(observations)

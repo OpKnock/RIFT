@@ -31,9 +31,23 @@ HEALTH_PERTURBATIONS = [
     {"resting_hr": 5.0, "activity_load": 25.0},
 ]
 
+# Cold-start anchors used ONLY when neither current state nor personal
+# baseline has a value (e.g. day 0, before any history exists). Synthetic
+# constants, always reported in imputed_fields — never silent.
+COLD_START_ANCHORS = {
+    "resting_hr": 70.0,
+    "hrv_rmssd": 45.0,
+    "sleep_hours": 7.0,
+    "activity_load": 40.0,
+}
 
-def _vitals_dict(state: PatientState, baseline: PersonalBaseline) -> tuple[dict, list[str]]:
-    """Fill missing vitals from the personal baseline; report imputations."""
+
+def _vitals_dict(state: PatientState, baseline: PersonalBaseline, ehr: EHRRecord | None = None) -> tuple[dict, list[str]]:
+    """Fill missing vitals: personal baseline → EHR clinic value → cold-start anchor.
+
+    Every fallback is reported in imputed_fields so downstream consumers
+    (Guardian, explainability, UI) can see what was measured vs filled.
+    """
     out, imputed = {}, []
     for field in ("resting_hr", "hrv_rmssd", "sleep_hours", "activity_load"):
         value = getattr(state, field)
@@ -41,7 +55,14 @@ def _vitals_dict(state: PatientState, baseline: PersonalBaseline) -> tuple[dict,
             value = getattr(baseline, field)
             if value is not None:
                 imputed.append(field)
-        out[field] = value if value is not None else 0.0
+        if value is None and ehr is not None and field == "resting_hr":
+            value = ehr.resting_hr_clinic
+            if value is not None:
+                imputed.append(field + ":ehr-clinic")
+        if value is None:
+            value = COLD_START_ANCHORS[field]
+            imputed.append(field + ":anchor")
+        out[field] = value
     return out, imputed
 
 
@@ -61,7 +82,7 @@ def patient_scenario(
     state: PatientState, baseline: PersonalBaseline, ehr: EHRRecord
 ) -> tuple[Scenario, list[str]]:
     """Adapt (PatientState, baseline, EHR) to a generic RIFT Scenario."""
-    vitals, imputed = _vitals_dict(state, baseline)
+    vitals, imputed = _vitals_dict(state, baseline, ehr)
 
     def _transition(world: dict, policy: dict) -> dict:
         stepped = transition(apply_policy(world, policy), ehr, policy)

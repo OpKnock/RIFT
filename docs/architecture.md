@@ -18,7 +18,7 @@ State → World Model → Counterfactual Futures → CHAOS → Candidate Policie
 - rift.auth: optional service-token gate + server-side ownership checks
 - rift.observability: request IDs + redacted structured logs
 - rift.runner: server-side spec execution (stored experiment → run record)
-- rift.health: patient twin demo (EHR/wearable/baseline/transition/risk/twin/FORESIGHT/robustness/Guardian/explain); adapts PatientState to the generic Scenario — engine modules stay domain-free
+- rift.health: patient twin demo (EHR/wearable sources/baseline/transition/risk/twin/FORESIGHT/robustness/Guardian/explain/evaluate); adapts PatientState to the generic Scenario — engine modules stay domain-free
 - rift.verifier: hard constraints
 - rift.engine: orchestration
 - rift.cli: local demo

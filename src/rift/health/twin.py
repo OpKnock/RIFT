@@ -11,16 +11,16 @@ from .ehr import EHRRecord
 from .explain import build_reasons
 from .foresight import counterfactual_futures, trajectories
 from .guardian import verdict
-from .models import PatientState, WearableObservation
+from .models import PatientState
 from .risk import input_quality, predict
 from .robustness import combine_uncertainty, robustness_report
-from .wearable import WearableStream
+from .sources import WearableSource
 
 
 class DigitalTwin:
     """Synchronized patient twin over a replayable wearable stream."""
 
-    def __init__(self, ehr: EHRRecord, stream: WearableStream, baseline_window: int = 7):
+    def __init__(self, ehr: EHRRecord, stream: WearableSource, baseline_window: int = 7):
         self.ehr = ehr
         self.stream = stream
         self.baseline_window = baseline_window
@@ -48,7 +48,10 @@ class DigitalTwin:
         """One full loop step; appends the snapshot to history and returns it."""
         state = self.synchronize(day_index)
         history = self.stream.observations_upto(day_index)
-        baseline = personal_baseline(history, self.baseline_window)
+        # No leakage: the baseline for day t uses only observations BEFORE t,
+        # so an abnormal today can never redefine what "normal" means today.
+        prior = [o for o in history if o.day_index < day_index]
+        baseline = personal_baseline(prior, self.baseline_window)
         devs = deviations(state, baseline)
         risk_record = predict(state, baseline, self.ehr)
         robust = robustness_report(state, baseline, self.ehr)
@@ -57,7 +60,7 @@ class DigitalTwin:
         lo, hi = risk_record["risk"] - risk_record["uncertainty"], risk_record["risk"] + risk_record["uncertainty"]
         risk_record["interval"] = [max(0.0, lo), min(1.0, hi)]
         risk_record["input_quality"] = input_quality(state)
-        guard = verdict(state, risk_record, self._previous_state)
+        guard = verdict(state, risk_record, self._previous_state, self.ehr)
         futures = counterfactual_futures(state, baseline, self.ehr)
         trajs = trajectories(state, baseline, self.ehr)
         best_traj = min(trajs, key=lambda t: t["path"][-1]["risk"])

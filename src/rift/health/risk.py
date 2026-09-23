@@ -83,9 +83,15 @@ def drivers(state: PatientState, baseline: PersonalBaseline) -> tuple[float, lis
 
 
 def input_quality(state: PatientState) -> float:
-    """0..1: field completeness discounted by staleness."""
+    """0..1 from the state itself: field completeness discounted by staleness.
+
+    Derived from present fields rather than any stored score, so degraded
+    or tampered states always score honestly.
+    """
+    present = sum(1 for f in ("resting_hr", "hrv_rmssd", "sleep_hours", "activity_load")
+                  if getattr(state, f) is not None)
     freshness = 1.0 / (1.0 + max(0, state.stale_days))
-    return max(0.0, min(1.0, state.data_quality * freshness))
+    return max(0.0, min(1.0, (present / 4.0) * freshness))
 
 
 def predict(state: PatientState, baseline: PersonalBaseline, ehr: EHRRecord) -> dict:
@@ -107,5 +113,6 @@ def predict(state: PatientState, baseline: PersonalBaseline, ehr: EHRRecord) -> 
         "input_quality": quality,
         "uncertainty": uncertainty,
         "interval": [max(0.0, risk - uncertainty), min(1.0, risk + uncertainty)],
+        "calibration": "demo / not calibrated",
         "model": "transparent additive demo weights (synthetic, not validated)",
     }
