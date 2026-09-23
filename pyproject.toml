@@ -4,10 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rift-engine"
-version = "0.2.0"
+version = "0.4.0"
 description = "Robust Intervention & Future Testing — counterfactual decision intelligence"
 requires-python = ">=3.11"
 dependencies = []
+
+[project.optional-dependencies]
+supabase = ["supabase>=2.0.0"]
+qiskit = ["qiskit>=2.0.0", "qiskit-ibm-runtime>=0.30.0"]
+dev = ["pytest>=8.0"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
