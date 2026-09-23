@@ -20,6 +20,10 @@ are generic `502` with a `request_id` for log correlation — no stack traces.
 - `POST /api/billing/checkout` — `{variant_id, email?, user_id?, metadata?}` → 201 `{checkout_url, checkout_id}`, 400/503/502
 - `GET /api/billing/entitlement?user_id=` → `{entitled, status}` derived from server-side subscription mirror
 
+Missing rows read as `404 not_found`; engine execution failures surface as
+`500 execution_error` (experiment marked `failed`), distinct from `502`
+dependency outages. `variant_id` must be a string (integers coerced).
+
 When `RIFT_REQUIRE_USER_ID=true`, persistence POSTs require an asserted `user_id` (400 `missing_user_id`); reads scope by `?user_id=` with 403 on owner mismatch.
 
 ## Limits

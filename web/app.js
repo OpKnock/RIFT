@@ -54,6 +54,7 @@ async function refreshSystemStatus() {
         "<div>" + escapeHtml(statusLine("persistence", persist)) + "</div>" +
         "<div>" + escapeHtml(statusLine("billing", billing)) + "</div>";
     }
+    refreshPersistPanel(persist);
     const engine = $("#engineStatus");
     if (engine) engine.textContent = "ENGINE ONLINE · " + String(health.version || "") + " · STATEVECTOR QAOA";
     if (settingsEl) {
@@ -71,6 +72,101 @@ async function refreshSystemStatus() {
   } catch (error) {
     if (sysEl) sysEl.textContent = "backend status unavailable · " + error.message;
     if (settingsEl) settingsEl.textContent = "backend capabilities unavailable";
+    refreshPersistPanel(null);
+  }
+}
+
+let savedExperimentId = null;
+
+function currentSpecBody() {
+  return {
+    name: ($("#expName") && $("#expName").value.trim()) || "lab-run",
+    scenario_name: "smart-building-emergency",
+    initial_state: {
+      crowd: Number($("#crowd").value),
+      smoke: Number($("#smoke").value),
+      corridor_capacity: Number($("#capacity").value),
+      blocked_b_penalty: $("#blockB").checked ? 35.0 : 0.0,
+    },
+    perturbations: [{ smoke: 2.0 }, { crowd: 80.0 }, { smoke: 2.0, crowd: 80.0 }, { corridor_capacity: -70.0 }],
+    policy_variables: ["route_a", "route_c", "stairwell_b"],
+    optimizer: ($("#expOpt") && $("#expOpt").value) || "exact",
+    backend: "statevector-simulator",
+  };
+}
+
+function refreshPersistPanel(persist) {
+  const statusEl = $("#persistStatus");
+  const saveBtn = $("#saveExp");
+  const execBtn = $("#execExp");
+  const online = Boolean(persist && persist.configured);
+  if (statusEl) {
+    statusEl.textContent = online
+      ? "persistence: configured — experiments save server-side"
+      : "persistence: not configured — saving is disabled until Supabase is set up on the server";
+  }
+  if (saveBtn) {
+    saveBtn.disabled = !online;
+    saveBtn.title = online ? "" : "Requires server-side Supabase configuration";
+  }
+  if (execBtn) {
+    execBtn.disabled = !online || !savedExperimentId;
+    execBtn.title = !online
+      ? "Requires server-side Supabase configuration"
+      : (!savedExperimentId ? "Save an experiment first" : "");
+  }
+}
+
+async function saveExperiment() {
+  clearError();
+  const resultEl = $("#expResult");
+  try {
+    const response = await fetch("/api/experiments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(currentSpecBody()),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "save failed");
+    const row = Array.isArray(data) ? data[0] : data;
+    savedExperimentId = (row && row.id) || null;
+    if (resultEl) {
+      resultEl.textContent = savedExperimentId
+        ? "saved " + savedExperimentId + " · fingerprint " + String((row && row.fingerprint) || "?").slice(0, 12) + "…"
+        : "saved (no id returned)";
+    }
+    refreshPersistPanel({ configured: true });
+  } catch (error) {
+    showError("SAVE FAILED · " + error.message);
+  }
+}
+
+async function executeSaved() {
+  clearError();
+  const resultEl = $("#expResult");
+  if (!savedExperimentId) {
+    showError("NOTHING TO EXECUTE · save an experiment first");
+    return;
+  }
+  try {
+    const response = await fetch("/api/experiments/" + encodeURIComponent(savedExperimentId) + "/execute", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: "{}",
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "execute failed");
+    const record = data.result || {};
+    const guardian = record.guardian || {};
+    if (resultEl) {
+      resultEl.textContent =
+        "run " + String(data.id || "?") + " · policy " + JSON.stringify(record.assignment || {}) +
+        " · robust " + Number(record.robust_cost ?? NaN).toFixed(1) +
+        " · " + (record.feasible ? "feasible" : "infeasible") +
+        " · guardian " + (guardian.passed ? "PASS" : "REJECT");
+    }
+  } catch (error) {
+    showError("EXECUTE FAILED · " + error.message);
   }
 }
 
@@ -280,6 +376,10 @@ async function run() {
 });
 
 $("#run").onclick = run;
+const saveBtn = $("#saveExp");
+if (saveBtn) saveBtn.onclick = saveExperiment;
+const execBtn = $("#execExp");
+if (execBtn) execBtn.onclick = executeSaved;
 refreshSystemStatus();
 renderHistory();
 run();

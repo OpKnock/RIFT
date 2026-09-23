@@ -77,7 +77,6 @@ def simulate_qaoa(qubo: QUBO, p:int=1, grid_steps:int=5, iterations:int=3, objec
                 best=local_best[0]; current[layer]=local_best[1]
     state=_state(energies,n,tuple(betas),tuple(gammas))
     probabilities=[abs(a)**2 for a in state]
-    idx=min(range(len(energies)),key=lambda i: energies[i])
     # Report the most probable measured state, plus its exact energy.
     measured=max(range(len(probabilities)),key=lambda i: probabilities[i])
     assignment=dict(zip(qubo.variables,((measured>>j)&1 for j in range(n))))
