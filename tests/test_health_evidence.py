@@ -15,6 +15,7 @@ from rift.health.evaluate import OUTCOME_RULE, backtest, realized_outcome, stres
 from rift.health.models import PatientState, WearableObservation
 from rift.health.sources import PublicDatasetSource
 from rift.health.twin import DigitalTwin
+from rift.health.wearable import jitter_score
 
 
 def _ehr():
@@ -69,6 +70,86 @@ def test_stress_sweep_graceful():
     assert [r["noise_magnitude"] for r in result["rows"]] == [0.0, 0.05, 0.15]
     assert all(r["agreement"] is not None and r["agreement"] >= 0.7 for r in result["rows"])
     assert result["uncertainty_non_decreasing"] is True
+    # Phase 5: uncertainty must actually RESPOND to noise, not merely not shrink.
+    first = result["rows"][0]["mean_uncertainty"]
+    last = result["rows"][-1]["mean_uncertainty"]
+    assert last is not None and first is not None and last > first
+
+
+def test_jitter_low_on_calm_days_high_on_shocks():
+    stream = demo_series()
+    prior = [o for o in stream.observations_upto(5) if o.day_index < 5]
+    calm = jitter_score(stream.latest_at(5), stream.latest_at(4), prior)
+    assert 0.0 <= calm < 0.3
+    spell_prior = [o for o in stream.observations_upto(20) if o.day_index < 20]
+    shock = jitter_score(stream.latest_at(20), stream.latest_at(19), spell_prior)
+    assert shock > calm
+    assert jitter_score(None, stream.latest_at(19), spell_prior) == 0.0
+    assert jitter_score(stream.latest_at(5), None, prior) == 0.0
+    # Deterministic.
+    assert jitter_score(stream.latest_at(5), stream.latest_at(4), prior) == calm
+
+
+def test_threshold_tradeoff_characterizes_not_games():
+    from rift.health.evaluate import backtest, threshold_tradeoff
+
+    ehr = _ehr()
+    report = backtest(DigitalTwin(ehr, demo_series()), 30, 59)
+    tradeoff = threshold_tradeoff(report)
+    assert tradeoff["operating_threshold"] == 0.6
+    assert [r["threshold"] for r in tradeoff["rows"]] == [0.4, 0.5, 0.6, 0.7, 0.8]
+    # Lowering the threshold cannot rescue detection here: sensitivity is
+    # flat below the operating point, so the misses are structural (onset
+    # shocks), not threshold artifacts. This pins the honest finding.
+    low = [r for r in tradeoff["rows"] if r["threshold"] <= 0.6]
+    assert all(r["sensitivity"] == low[0]["sensitivity"] for r in low)
+    high = [r for r in tradeoff["rows"] if r["threshold"] >= 0.7]
+    assert all(r["sensitivity"] == 0.0 for r in high)
+    assert all(r["specificity"] == 1.0 for r in high)
+
+
+def test_calibration_label_present_and_honest():
+    from rift.health.baseline import personal_baseline
+    from rift.health.risk import predict
+
+    ehr = _ehr()
+    stream = demo_series()
+    twin = DigitalTwin(ehr, stream)
+    snap = twin.update(10)
+    assert snap["risk"]["calibration"] == "demo / not calibrated"
+    assert "measurement_jitter" in snap["risk"]
+    assert snap["risk"]["measurement_jitter"] >= 0.0
+
+
+def test_no_overclaim_language_in_health_surface():
+    import re
+    from pathlib import Path
+
+    banned = [
+        "quantum advantage",
+        "quantum supremacy",
+        "ground-truth cardiac",
+        "ground truth cardiac",
+        "clinically validated",
+        "statistically calibrated",
+    ]
+    negated = re.compile(r"\b(without|never|not|no|nothing|n't|vs\.?|rather than|instead of)\b", re.IGNORECASE)
+    roots = [Path("src/rift/health"), Path("web"), Path("docs/patient-twin.md")]
+    hits = []
+    for root in roots:
+        if root.is_file():
+            files = [root]
+        elif root.name == "web":
+            files = [root / "app.js", root / "index.html"]
+        else:
+            files = list(root.glob("*.py"))
+        for path in files:
+            for line_no, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+                lowered = line.lower()
+                for phrase in banned:
+                    if phrase in lowered and not negated.search(line):
+                        hits.append(f"{path}:{line_no}:{phrase}")
+    assert not hits, f"overclaim language found: {hits}"
 
 
 def test_public_dataset_source_csv(tmp_path):

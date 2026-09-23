@@ -152,13 +152,25 @@ async function loadEvidence() {
     const ev = await response.json();
     if (!response.ok) throw new Error(ev.error || "Request failed");
     const fmt = (v) => (v == null ? "—" : Number(v).toFixed(2));
+    const stressRows = ((ev.stress && ev.stress.rows) || []).map((r) =>
+      "<div>noise " + escapeHtml(String(Math.round(Number(r.noise_magnitude) * 100))) +
+      "% · agreement " + fmt(r.agreement) +
+      " · uncertainty " + fmt(r.mean_uncertainty) + "</div>"
+    ).join("");
+    const uncertainties = ((ev.stress && ev.stress.rows) || []).map((r) => Number(r.mean_uncertainty));
+    const responds = uncertainties.length > 1 &&
+      Math.max(...uncertainties) > Math.min(...uncertainties) + 1e-9;
     el.innerHTML =
       "<div>agreement " + fmt(ev.event_agreement) + " · Brier " + fmt(ev.brier) +
       " · coverage " + fmt(ev.interval_coverage) + "</div>" +
       "<div>sensitivity " + fmt(ev.sensitivity) + " · specificity " + fmt(ev.specificity) +
       " · mean onset lag " + escapeHtml(String(ev.mean_onset_lag ?? "—")) + " d</div>" +
       "<div>" + escapeHtml(String(ev.days_evaluated)) + " held-out days · labels: " +
-      escapeHtml(String(ev.outcome_rule || "?")) + "</div>";
+      escapeHtml(String(ev.outcome_rule || "?")) + "</div>" +
+      '<div style="margin-top:8px">ROBUSTNESS STRESS</div>' + stressRows +
+      "<div>" + (responds
+        ? "uncertainty widens with sensor noise"
+        : "note: uncertainty shows a sensitivity gap under noise") + "</div>";
   } catch (error) {
     el.textContent = "evidence unavailable · " + error.message;
   }

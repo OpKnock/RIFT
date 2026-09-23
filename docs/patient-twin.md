@@ -92,11 +92,29 @@ model can now genuinely miss, and it does.
 60-day series, calibration days 0–29, held-out days 30–59
 (`GET /api/twin/evidence`): event agreement 0.87, sensitivity 0.33,
 specificity 0.93, Brier 0.120, interval coverage 0.87, onset lags
-`[-99, -99, 0]` (−99 = realized event with no prediction within ±2 days).
+`[-99,-99,0]` (−99 = realized event with no prediction within ±2 days).
 Sensor-noise stress (0/5/15%): agreement stays ≥ 0.87 with no crashes;
-mean uncertainty is flat because amplitude noise is not currently sensed —
-documented limitation, not calibration. Public datasets plug in through
+mean uncertainty now rises with noise (0.085 → 0.09 → 0.11) via the
+jitter path below. Public datasets plug in through
 `PublicDatasetSource` (strict CSV schema, same normalized pipeline).
+
+## Sensitivity and thresholds (reported, not gamed)
+
+Held-out threshold sweep (threshold → sensitivity / specificity):
+0.40 → 0.33 / 0.93 · 0.50 → 0.33 / 0.93 · 0.60 → 0.33 / 0.93 ·
+0.70 → 0.00 / 1.00 · 0.80 → 0.00 / 1.00.
+Lowering the threshold cannot rescue detection — the misses are sudden
+onset shocks the 1-day model cannot foresee, not threshold artifacts. The
+operating point stays 0.60; this table exists so the tradeoff is explicit.
+
+## Measurement jitter → uncertainty
+
+Day-over-day jumps are compared against typical fluctuation (MAD): only
+the excess counts, so ordinary wobble scores near 0 while shocks and
+sensor noise score toward 1 and widen the interval (`JITTER_WEIGHT`).
+Calm demo days measure 0.04–0.28. The dashboard stress table shows noise
+level, agreement, and uncertainty side by side, and states explicitly
+whether uncertainty responded.
 
 ## Demo target (narrow, short-horizon)
 

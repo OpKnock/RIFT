@@ -15,6 +15,7 @@ from .models import PatientState
 from .risk import input_quality, predict
 from .robustness import combine_uncertainty, robustness_report
 from .sources import WearableSource
+from .wearable import jitter_score
 
 
 class DigitalTwin:
@@ -53,7 +54,10 @@ class DigitalTwin:
         prior = [o for o in history if o.day_index < day_index]
         baseline = personal_baseline(prior, self.baseline_window)
         devs = deviations(state, baseline)
-        risk_record = predict(state, baseline, self.ehr)
+        latest = self.stream.latest_at(day_index)
+        previous_obs = self.stream.latest_at(day_index - 1) if day_index > 0 else None
+        jitter = jitter_score(latest, previous_obs, prior)
+        risk_record = predict(state, baseline, self.ehr, measurement_jitter=jitter)
         robust = robustness_report(state, baseline, self.ehr)
         risk_record = dict(risk_record)
         risk_record["uncertainty"] = combine_uncertainty(risk_record["uncertainty"], robust["worst_case_spread"])
