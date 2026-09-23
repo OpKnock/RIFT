@@ -9,6 +9,8 @@ State → World Model → Counterfactual Futures → CHAOS → Candidate Policie
 - rift.counterfactual: intervention enumeration and simulation
 - rift.adversarial: failure-state search
 - rift.optimizer: QUBO and optimizer adapters
+- rift.multivariable: exact binary policy enumeration and transparent quadratic projection
+- rift.supabase_store: optional persistence adapter
 - rift.verifier: hard constraints
 - rift.engine: orchestration
 - rift.cli: local demo
@@ -31,3 +33,6 @@ GET /experiments/{id}
 GET /runs/{id}
 POST /benchmarks
 GET /health
+
+## Multi-variable optimization boundary
+For small policy spaces, exact robust enumeration is the reference implementation. When a robust Boolean objective contains higher-order interactions, RIFT may project it to linear/quadratic terms so QAOA can operate on a QUBO. The projection is explicitly approximate and is never presented as an exact reformulation.
