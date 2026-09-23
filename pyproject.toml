@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "rift-engine"
-version = "0.1.0"
-description = "Robust Intervention & Future Testing"
+version = "0.2.0"
+description = "Robust Intervention & Future Testing — counterfactual decision intelligence"
 requires-python = ">=3.11"
 dependencies = []
 
