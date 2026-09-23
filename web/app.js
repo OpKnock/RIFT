@@ -181,7 +181,20 @@ async function loadEvidence() {
       '<div style="margin-top:8px">ROBUSTNESS STRESS</div>' + stressRows +
       "<div>" + (responds
         ? "uncertainty widens with sensor noise"
-        : "note: uncertainty shows a sensitivity gap under noise") + "</div>";
+        : "note: uncertainty shows a sensitivity gap under noise") + "</div>" +
+      (ev.external_validation && ev.external_validation.status === "complete" ?
+        '<div style="margin-top:8px">EXTERNAL CALIBRATION VALIDATION</div>' +
+        "<div>internal repaired ECE " + fmt(ev.calibration_repair.calibrated.ece) +
+        " · external ECE " + fmt(ev.external_validation.ece_calibrated) + "</div>" +
+        "<div>internal Brier " + fmt(ev.calibration_repair.calibrated.brier) +
+        " · external Brier " + fmt(ev.external_validation.brier_calibrated) + "</div>" +
+        "<div>external " + escapeHtml(String(ev.external_validation.days_evaluated)) +
+        " obs / " + escapeHtml(String(ev.external_validation.events)) + " events" +
+        " · slope " + fmt(ev.external_validation.slope_intercept && ev.external_validation.slope_intercept.slope) +
+        " · intercept " + fmt(ev.external_validation.slope_intercept && ev.external_validation.slope_intercept.intercept) + "</div>" +
+        "<div>No recalibration performed on external set</div>" +
+        ((ev.external_validation.warnings || []).map((w) =>
+          "<div>warning: " + escapeHtml(String(w)) + "</div>").join("")) : "");
   } catch (error) {
     el.textContent = "evidence unavailable · " + error.message;
   }

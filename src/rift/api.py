@@ -609,7 +609,15 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 from .health.demo_data import demo_series
                 from .health.ehr import demo_ehr, normalize_ehr
-                from .health.evaluate import OUTCOME_RULE, backtest, calibration_report, reliability, stress_sweep
+                from .health.evaluate import (
+                    EXTERNAL_SERIES_CONFIG,
+                    OUTCOME_RULE,
+                    backtest,
+                    calibration_report,
+                    external_validation,
+                    reliability,
+                    stress_sweep,
+                )
                 from .health.twin import DigitalTwin
 
                 ehr, _ = normalize_ehr(demo_ehr())
@@ -619,6 +627,18 @@ class Handler(BaseHTTPRequestHandler):
                 calibration = calibration_report(
                     [d for d in held_out["per_day"] if d["day"] < 45],
                     [d for d in held_out["per_day"] if d["day"] >= 45],
+                )
+                external = external_validation(
+                    stream=demo_series(
+                        seed=EXTERNAL_SERIES_CONFIG["seed"],
+                        days=EXTERNAL_SERIES_CONFIG["days"],
+                        spells=EXTERNAL_SERIES_CONFIG["spells"],
+                    ),
+                    ehr=ehr,
+                    params=calibration["params"],
+                    source_id=EXTERNAL_SERIES_CONFIG["source_id"],
+                    day_start=0,
+                    day_end=EXTERNAL_SERIES_CONFIG["days"] - 1,
                 )
                 payload = {
                     "labels": held_out["labels"],
@@ -642,6 +662,16 @@ class Handler(BaseHTTPRequestHandler):
                         "test_window": "days 45-59 (untouched)",
                         "raw": {k: calibration["raw"][k] for k in ("brier", "ece")},
                         "calibrated": {k: calibration["calibrated"][k] for k in ("brier", "ece")},
+                    },
+                    "external_validation": {
+                        k: external[k] for k in (
+                            "source_id", "status", "days_evaluated", "events",
+                            "params_used", "recalibrated", "event_agreement",
+                            "agreement_ci95", "sensitivity", "specificity",
+                            "brier_raw", "brier_calibrated", "ece_raw",
+                            "ece_calibrated", "slope_intercept",
+                            "interval_coverage", "confusion", "warnings",
+                        )
                     },
                     "stress": stress,
                     "meta": {

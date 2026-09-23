@@ -1,12 +1,12 @@
-"""Phase-4 validation: independent outcomes, temporal splits, calibration.
+"""Phase-4/7 validation: independent outcomes, temporal splits, calibration.
 
 SOFTWARE validation on synthetic demo data — NOT clinical validation.
 
-The critical Phase-4 change vs Phase 3: realized outcomes come from an
-INDEPENDENT labeling rule applied to observed vitals
-(`realized_outcome`), never from the model's own risk function. The model
-and the label can therefore disagree — and the metrics report that
-honestly, including onset lag and misses.
+Realized outcomes come from an INDEPENDENT labeling rule applied to
+observed vitals (`realized_outcome`), never from the model's own risk
+function. Phase 7 adds a strict three-way separation — calibration data,
+internal untouched test data, external validation data — with no refit,
+no threshold tuning, and no weight tuning on the external set.
 """
 from __future__ import annotations
 
@@ -370,4 +370,171 @@ def calibration_report(
             "ece": cal_rel["ece"],
             "reliability": cal_rel,
         },
+    }
+
+
+# External validation series: independent seed AND independent spell
+# schedule from anything used in model development, calibration fitting,
+# threshold selection, or reporting. Synthetic — an independence upgrade
+# over reusing one series, not external real-world evidence.
+EXTERNAL_SERIES_CONFIG = {
+    "source_id": "synthetic-external-v1",
+    "seed": 123,
+    "days": 60,
+    "spells": ((15, 2), (33, 2), (50, 1)),
+}
+
+MIN_EXTERNAL_DAYS = 10
+MIN_EVENTS_FOR_RATES = 5
+WILSON_Z = 1.96
+
+
+def _wilson_interval(p_hat: float, n: int) -> tuple[float, float] | None:
+    """Wilson 95% interval for a rate. Omitted (None) when n < 30."""
+    if n < 30 or not 0.0 <= p_hat <= 1.0:
+        return None
+    z = WILSON_Z
+    denom = 1 + z * z / n
+    center = (p_hat + z * z / (2 * n)) / denom
+    half = z * math.sqrt(p_hat * (1 - p_hat) / n + z * z / (4 * n * n)) / denom
+    return (max(0.0, center - half), min(1.0, center + half))
+
+
+def calibration_slope_intercept(per_day: list[dict], bins: int = 5) -> dict:
+    """WLS line through non-empty reliability bins: observed_freq ~ mean_predicted.
+
+    Slope ≈ 1 and intercept ≈ 0 mean calibrated; deviations show systematic
+    over/under-confidence. Unstable with < 3 populated bins — flagged, and
+    the estimate is still reported (never hidden) with its bin count.
+    """
+    rel = reliability({"per_day": per_day}, bins)
+    populated = [b for b in rel["bins"] if b["n"]]
+    if len(populated) < 2:
+        return {"slope": None, "intercept": None, "bins_used": len(populated),
+                "warning": "fewer than 2 populated bins: slope/intercept not estimable"}
+    sx = sum(b["n"] * b["mean_predicted"] for b in populated)
+    sy = sum(b["n"] * b["observed_freq"] for b in populated)
+    sw = sum(b["n"] for b in populated)
+    mx, my = sx / sw, sy / sw
+    denom = sum(b["n"] * (b["mean_predicted"] - mx) ** 2 for b in populated)
+    if denom <= 0:
+        return {"slope": None, "intercept": None, "bins_used": len(populated),
+                "warning": "no spread in predicted probabilities: slope/intercept not estimable"}
+    slope = sum(b["n"] * (b["mean_predicted"] - mx) * (b["observed_freq"] - my) for b in populated) / denom
+    result: dict = {"slope": slope, "intercept": my - slope * mx, "bins_used": len(populated)}
+    if len(populated) < 3:
+        result["warning"] = "fewer than 3 populated bins: slope/intercept unstable"
+    return result
+
+
+def external_validation(
+    *,
+    stream,
+    ehr: EHRRecord,
+    params: dict,
+    source_id: str,
+    day_start: int = 0,
+    day_end: int | None = None,
+) -> dict:
+    """Validate the EXISTING pipeline on data used for nothing else.
+
+    Applies the current risk model unchanged and the GIVEN Platt params
+    unchanged (no refit — verified by tests that patch the fitter to raise).
+    Operating threshold and weights are never touched. Event decisions use
+    raw risk (the deployed rule); probabilities are reported raw and
+    calibrated side by side.
+    """
+    last_day = stream.end_day if day_end is None else day_end
+    days = list(range(day_start, last_day))  # need day+1 observations for labels
+    warnings: list[str] = []
+    if len(days) < MIN_EXTERNAL_DAYS:
+        warnings.append(
+            f"only {len(days)} evaluable days (< {MIN_EXTERNAL_DAYS}): "
+            "metrics omitted, no confidence intervals manufactured"
+        )
+        return {
+            "source_id": source_id,
+            "status": "insufficient",
+            "days_evaluated": len(days),
+            "events": None,
+            "params_used": params,
+            "recalibrated": False,
+            "warnings": warnings,
+        }
+    twin = DigitalTwin(ehr, stream)
+    per_day: list[dict] = []
+    hits = {"tp": 0, "tn": 0, "fp": 0, "fn": 0}
+    covered = 0
+    for day in days:
+        snap = twin.update(day)
+        actual = stream.latest_at(day + 1)
+        if actual is None:
+            continue
+        realized, criteria = realized_outcome(actual)
+        raw_risk = snap["risk"]["risk"]
+        cal_risk = apply_platt(raw_risk, params)
+        predicted = raw_risk >= STRAIN_THRESHOLD
+        if predicted and realized:
+            hits["tp"] += 1
+        elif not predicted and not realized:
+            hits["tn"] += 1
+        elif predicted and not realized:
+            hits["fp"] += 1
+        else:
+            hits["fn"] += 1
+        lo, hi = snap["risk"]["interval"]
+        _, realized_risk_legacy = realized_label(
+            PatientState(
+                day_index=day + 1,
+                resting_hr=actual.resting_hr,
+                hrv_rmssd=actual.hrv_rmssd,
+                sleep_hours=actual.sleep_hours,
+                activity_load=actual.activity_load,
+            ),
+            personal_baseline([o for o in stream.observations_upto(day) if o.day_index < day]),
+            ehr,
+        )
+        covered += 1 if lo <= realized_risk_legacy <= hi else 0
+        per_day.append({
+            "day": day,
+            "predicted_risk": raw_risk,
+            "calibrated_risk": cal_risk,
+            "realized_event": realized,
+            "realized_criteria": criteria,
+        })
+    total = hits["tp"] + hits["tn"] + hits["fp"] + hits["fn"]
+    agreement = (hits["tp"] + hits["tn"]) / total if total else None
+    events = hits["tp"] + hits["fn"]
+    if events < MIN_EVENTS_FOR_RATES:
+        warnings.append(
+            f"only {events} positive events (< {MIN_EVENTS_FOR_RATES}): "
+            "sensitivity/specificity are unstable"
+        )
+    cal_report_like = {"per_day": [
+        {"predicted_risk": d["calibrated_risk"], "realized_event": d["realized_event"]} for d in per_day
+    ]}
+    raw_report_like = {"per_day": [
+        {"predicted_risk": d["predicted_risk"], "realized_event": d["realized_event"]} for d in per_day
+    ]}
+    slope = calibration_slope_intercept(cal_report_like["per_day"])
+    return {
+        "source_id": source_id,
+        "status": "complete",
+        "days_evaluated": len(per_day),
+        "events": events,
+        "params_used": params,
+        "recalibrated": False,
+        "event_agreement": agreement,
+        "agreement_ci95": _wilson_interval(agreement, len(per_day)) if agreement is not None else None,
+        "sensitivity": hits["tp"] / (hits["tp"] + hits["fn"]) if (hits["tp"] + hits["fn"]) else None,
+        "specificity": hits["tn"] / (hits["tn"] + hits["fp"]) if (hits["tn"] + hits["fp"]) else None,
+        "brier_raw": _brier_of(raw_report_like["per_day"]),
+        "brier_calibrated": _brier_of(cal_report_like["per_day"], key="predicted_risk"),
+        "ece_raw": reliability(raw_report_like)["ece"],
+        "ece_calibrated": reliability(cal_report_like)["ece"],
+        "slope_intercept": slope,
+        "interval_coverage": covered / len(per_day) if per_day else None,
+        "confusion": hits,
+        "warnings": warnings,
+        "per_day": per_day,
     }
