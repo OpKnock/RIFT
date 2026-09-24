@@ -47,6 +47,28 @@ def day_quality(day_observations: list[CanonicalObservation]) -> float:
     return sum(o.quality for o in day_observations) / len(day_observations)
 
 
+# Twin-estimated metrics in this schema version. Accepted canonical metrics
+# outside this set are preserved at observation level but NOT consumed by
+# twin estimation v1 — timeline_coverage() reports them on every snapshot
+# so acceptance can never silently become loss.
+TWIN_ESTIMATED_METRICS = ("resting_hr", "hrv_rmssd", "sleep_hours", "activity_load")
+
+
+def timeline_coverage(observations: list[CanonicalObservation]) -> dict[str, str]:
+    """Per-metric disposition: estimated by the twin, or preserved-but-unestimated with reason."""
+    present = {o.metric for o in observations}
+    coverage: dict[str, str] = {}
+    for metric in sorted(present):
+        if metric in TWIN_ESTIMATED_METRICS:
+            coverage[metric] = "estimated"
+        else:
+            coverage[metric] = (
+                "preserved-not-estimated: accepted by ingestion, not consumed "
+                "by twin estimation v1 (no silent loss; revisit on schema upgrade)"
+            )
+    return coverage
+
+
 def to_daily_rows(
     observations: list[CanonicalObservation],
 ) -> tuple[list[WearableObservation], dict[str, int]]:

@@ -153,3 +153,47 @@ def normalize_batch(raw_items: list[dict]) -> tuple[list[CanonicalObservation], 
             accepted.append(obs)
         issues.extend(f"[{index}] {p}" for p in problems)
     return accepted, issues
+
+
+def observation_id(obs: CanonicalObservation) -> str:
+    """Deterministic immutable identity: SHA-256 over the canonical record."""
+    import hashlib as _hashlib
+    import json as _json
+
+    canonical = _json.dumps(
+        {"patient_id": obs.patient_id, "timestamp": obs.timestamp,
+         "source": obs.source, "metric": obs.metric, "value": obs.value,
+         "unit": obs.unit, "quality": obs.quality, "provenance": obs.provenance},
+        sort_keys=True, separators=(",", ":"),
+    )
+    return _hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class Revision:
+    """A correction creates a new immutable record; nothing is mutated.
+
+    revision_id is deterministic over (superseded id, new observation,
+    reason). revised_at is wall-clock metadata, excluded from the id so
+    identical corrections reproduce identical ids.
+    """
+    supersedes_id: str
+    observation: CanonicalObservation
+    reason: str
+    revised_at: str = ""
+    revision_id: str = ""
+
+    def __post_init__(self):
+        import hashlib as _hashlib
+        import json as _json
+
+        if not self.revision_id:
+            canonical = _json.dumps(
+                {"supersedes": self.supersedes_id,
+                 "observation": self.observation.to_dict(),
+                 "reason": self.reason},
+                sort_keys=True, separators=(",", ":"),
+            )
+            object.__setattr__(
+                self, "revision_id",
+                _hashlib.sha256(canonical.encode("utf-8")).hexdigest())

@@ -316,3 +316,83 @@ def test_provenance_envelope_is_complete():
     other_ehr = EHRRecord(patient_id="demo-patient-01", age=99.0)
     other = DigitalTwin(other_ehr, demo_stream()).update(10)
     assert other["provenance"]["prediction_id"] != snap["provenance"]["prediction_id"]
+    # Component hashes are exposed, not just folded into the id.
+    assert len(prov["ehr_hash"]) == 64
+    assert len(prov["baseline_hash"]) == 64
+    assert len(prov["input_hash"]) == 64
+    assert other["provenance"]["ehr_hash"] != snap["provenance"]["ehr_hash"]
+
+
+def test_observation_ids_and_revisions_are_immutable():
+    from rift.health.observations import Revision, normalize_batch, observation_id
+
+    accepted, _ = normalize_batch([_raw(), _raw(value=71.0)])
+    first, second = accepted
+    assert observation_id(first) == observation_id(first)
+    assert len(observation_id(first)) == 64
+    assert observation_id(first) != observation_id(second)
+    rev = Revision(supersedes_id=observation_id(first), observation=second,
+                   reason="recalibrated device", revised_at="2026-01-05T00:00:00+00:00")
+    assert len(rev.revision_id) == 64
+    twin_rev = Revision(supersedes_id=observation_id(first), observation=second,
+                        reason="recalibrated device", revised_at="2026-01-05T00:00:00+00:00")
+    assert twin_rev.revision_id == rev.revision_id  # revised_at excluded from id
+    assert first.value == 70.0  # original untouched: corrections never mutate
+
+
+def test_terminology_registry_is_versioned_and_reviewable():
+    from rift.health import terminology as T
+
+    assert T.TERMINOLOGY_VERSION.startswith("LOINC")
+    assert T.mapping_status("8867-4")["metric"] == "heart_rate"
+    assert T.mapping_status("8867-4")["status"] == "supported"
+    assert T.mapping_status("80404-7")["metric"] == "rr_sd"
+    assert T.mapping_status("99999-9")["status"] == "unmapped"
+    assert "never guessed" in T.mapping_status(None)["reason"]
+
+
+def test_timeline_coverage_reports_unestimated_metrics():
+    from rift.health import timeline as T
+    from rift.health.observations import normalize_batch
+
+    accepted, issues = normalize_batch([
+        _raw(metric="resting_hr", value=70.0),
+        _raw(metric="heart_rate", value=72.0),
+        _raw(metric="rr_sd", value=40.0, unit="ms"),
+    ])
+    assert not issues
+    coverage = T.timeline_coverage(accepted)
+    assert coverage["resting_hr"] == "estimated"
+    assert coverage["heart_rate"].startswith("preserved-not-estimated")
+    assert coverage["rr_sd"].startswith("preserved-not-estimated")
+
+
+def test_twin_flags_unestimated_metrics_via_guardian():
+    from rift.health import timeline as T
+    from rift.health.demo_data import demo_stream
+    from rift.health.ehr import demo_ehr, normalize_ehr
+    from rift.health.observations import normalize_batch
+
+    accepted, _ = normalize_batch([
+        _raw(timestamp="2026-01-04T08:00:00", metric="heart_rate", value=72.0),
+    ])
+    rows, _ = T.to_daily_rows(accepted)
+    assert rows and rows[0].resting_hr is None  # generic HR never becomes resting_hr
+    ehr, _ = normalize_ehr(demo_ehr())
+    twin = DigitalTwin(ehr, demo_stream(), canonical_observations=accepted)
+    snap = twin.update(10)
+    assert any("unestimated metrics" in flag for flag in snap["guardian"]["flags"])
+    assert "timeline_coverage" in snap
+    assert snap["timeline_coverage"]["heart_rate"].startswith("preserved-not-estimated")
+
+
+def test_issued_without_effective_is_rejected():
+    from rift.health import adapters as A
+
+    issued_only = {"resourceType": "Observation",
+                   "code": {"coding": [{"code": "8867-4"}]},
+                   "valueQuantity": {"value": 70.0, "unit": "/min"},
+                   "issued": "2026-01-04T08:00:00+00:00",
+                   "subject": {"reference": "Patient/p1"}}
+    raw, issues = A.from_fhir([issued_only])
+    assert raw == [] and any("issued is not a substitute" in i for i in issues)
