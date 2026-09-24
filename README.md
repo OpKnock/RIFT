@@ -6,6 +6,12 @@
 
 RIFT is a decision-intelligence engine for testing interventions before they are trusted. It enumerates counterfactual futures, searches adversarial conditions, ranks robust policies, and keeps hard safety verification outside the optimizer.
 
+Its flagship demo is a **Patient Digital Twin**: EHR + replayable wearable
+data → synchronized patient state → FORESIGHT future trajectories →
+counterfactuals → robustness/uncertainty → Guardian → doctor dashboard
+(see [Patient Digital Twin demo](#patient-digital-twin-demo)). The same
+engine also powers the original smart-building Counterfactual Laboratory.
+
 ## The loop
 
 ```
@@ -26,7 +32,7 @@ GUARDIAN — independent verification
 ROBUST POLICY
 ```
 
-The current product is a runnable **Counterfactual Laboratory** built around a smart-building emergency simulation. It exposes live scenario controls, counterfactual futures, adversarial perturbations, robust optimization, a dependency-free QAOA statevector simulator, CVaR-style best-tail optimization, a three-variable policy lab, and independent Guardian checks.
+The engine also ships a runnable **Counterfactual Laboratory** built around a smart-building emergency simulation. It exposes live scenario controls, counterfactual futures, adversarial perturbations, robust optimization, a dependency-free QAOA statevector simulator, CVaR-style best-tail optimization, a three-variable policy lab, and independent Guardian checks.
 
 ## Run it
 
@@ -89,6 +95,7 @@ endpoint is unchanged.
 
 ## Product surfaces
 
+- **Patient Digital Twin** — synchronized patient state, FORESIGHT trajectories, what-if policies, robustness, Guardian verdict, evidence.
 - **Counterfactual Laboratory** — branch the present into candidate futures.
 - **CHAOS** — perturb declared variables and expose high-risk futures.
 - **QUANTUM** — compare classical enumeration, QAOA expectation, and QAOA CVaR.
@@ -98,7 +105,7 @@ endpoint is unchanged.
 
 ## Persistence
 
-Supabase migrations under `backend/supabase/migrations/` provide experiment/run tables (`001`), production hardening with explicit grants and metadata (`002`), a service-role-only billing mirror (`003`), and the first-class experiment model with lifecycle, reproducibility, and webhook idempotency (`004`). `src/rift/supabase_store.py` is the optional server-side adapter; `src/rift/settings.py` centralizes env handling; `src/rift/experiments.py` defines serializable specs with fingerprints.
+Supabase migrations under `backend/supabase/migrations/` provide experiment/run tables (`001`), production hardening with explicit grants and metadata (`002`), a service-role-only billing mirror (`003`), the first-class experiment model with lifecycle, reproducibility, and webhook idempotency (`004`), and run ownership (`005`). `src/rift/supabase_store.py` is the optional server-side adapter; `src/rift/settings.py` centralizes env handling; `src/rift/experiments.py` defines serializable specs with fingerprints.
 
 A live Supabase project is **not** hard-coded into the repository. Configure `RIFT_SUPABASE_URL` and `RIFT_SUPABASE_KEY` only in a trusted server environment (legacy `SUPABASE_*` names accepted as fallback). Never expose a service-role key to the browser. See `docs/supabase-setup.md`.
 
@@ -112,10 +119,10 @@ Lemon Squeezy billing is implemented as a provider boundary (`src/rift/billing.p
 
 ## Safety boundary
 
-RIFT is a research and simulation system. It does not autonomously control real emergency infrastructure. Real deployment would require validated domain models, calibrated sensors, human oversight, formal hazard analysis, and jurisdiction-specific certification.
+RIFT is a research and simulation system. It does not autonomously control real emergency infrastructure, and its healthcare demo never directs care: predictions are decision support for a human clinician, built on synthetic data with synthetic weights. Real deployment would require validated domain models, calibrated sensors, human oversight, formal hazard analysis, and jurisdiction-specific certification.
 
 ## Status
 
-**v0.6.0 — Counterfactual Laboratory release candidate.**
+**v0.6.0 — Patient Digital Twin release candidate (Counterfactual Laboratory included).**
 
 The release candidate is intended to be demo-ready when the repository CI gate is green. Quantum hardware, hosted Supabase, CodeRabbit, and billing are optional external integrations rather than hidden dependencies.

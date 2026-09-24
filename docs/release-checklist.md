@@ -1,4 +1,4 @@
-# Release checklist — RIFT v0.6.0 (lab release candidate)
+# Release checklist — RIFT v0.6.0 (release candidate)
 
 - [ ] `pip install -e ".[dev]"` clean on Python 3.11
 - [ ] `pytest` green (currently 59 tests)
