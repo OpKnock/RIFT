@@ -104,3 +104,44 @@ def test_predictive_evaluation_spell_vs_calm():
     assert sum(events.values()) <= 4  # selective, not always-on
     graph = health_causal_graph()
     assert len(graph.edges) == 6 and "cardiac_strain" in graph.nodes
+
+
+def test_guardian_findings_have_stable_rule_ids_and_stages():
+    from rift.health.guardian import STAGES
+
+    ehr, state, baseline = _setup()
+    risk_record = K.predict(state, baseline, ehr)
+    guard = G.verdict(state, risk_record, ehr=ehr)
+    assert set(guard["stages"]) == set(STAGES)
+    for finding in guard["findings"]:
+        assert set(finding) == {"rule_id", "stage", "severity", "action", "message", "evidence"}
+        assert finding["stage"] in STAGES
+        assert finding["severity"] in ("HIGH", "MEDIUM", "LOW")
+        assert finding["action"] in ("WITHHOLD", "WARN")
+    # Every rejection/flag string comes from exactly one finding.
+    assert sorted(guard["rejections"] + guard["flags"]) == sorted(
+        f["message"] for f in guard["findings"])
+    # Deterministic: no wall-clock anywhere in the verdict.
+    assert G.verdict(state, risk_record, ehr=ehr) == guard
+
+
+def test_guardian_action_mapping_and_stage_gates():
+    ehr, state, baseline = _setup()
+    risk_record = K.predict(state, baseline, ehr)
+    calm = G.verdict(state, risk_record, ehr=ehr)
+    assert calm["action"] in ("ALLOW", "WARN")
+    assert calm["display_allowed"] is True
+    bad = PatientState(day_index=1, resting_hr=400.0, hrv_rmssd=50.0,
+                       sleep_hours=7.0, activity_load=40.0)
+    rejected = G.verdict(bad, risk_record, ehr=ehr)
+    assert rejected["action"] == "WITHHOLD"
+    assert rejected["display_allowed"] is False
+    assert rejected["stages"]["STATE"]["passed"] is False
+    assert "G-001" in rejected["stages"]["STATE"]["rules"]
+    # Stages without applicable rules pass vacuously and say so.
+    assert calm["stages"]["COUNTERFACTUAL"] == {"passed": True, "rules": []}
+    assert calm["stages"]["DEPLOYMENT"] == {"passed": True, "rules": []}
+    # Unestimated metrics arrive as a rule, not a twin-side hack.
+    flagged = G.verdict(state, risk_record, ehr=ehr, unestimated=("heart_rate",))
+    assert any(f["rule_id"] == "G-011" for f in flagged["findings"])
+    assert any("unestimated metrics" in f["message"] for f in flagged["findings"])

@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system, not a certified product.
 
@@ -8,10 +8,7 @@ All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system,
 - FHIR terminology correction via versioned registry (`terminology.py`, LOINC 2.83): 8867-4 maps to generic `heart_rate` (resting only with explicit resting context), 80404-7 maps to `rr_sd` (never RMSSD); unmapped codes rejected with reviewable status.
 - Timeline coverage report: accepted-but-unestimated metrics are surfaced per snapshot and flagged by Guardian instead of silently dropped; `issued` never substitutes for `effectiveDateTime`.
 - Provenance envelope exposes ehr/baseline/input hashes; observation IDs + immutable revisions; weights digest genuinely pinned.
-- FHIR terminology correction: 8867-4 maps to generic `heart_rate` (resting only with explicit resting context), 80404-7 maps to `rr_sd` (never RMSSD); versioned LOINC map; structured per-resource provenance preserved.
-- Weights digest genuinely pinned in the registry; unpinned entries report mismatch, never silent match.
-- Provenance envelope expanded (EHR/baseline hashes, calibration id, schema version, source ids); observation provenance threaded through timeline → twin → Guardian flag.
-- Deployment gate consumes an evidence artifact (bundled synthetic snapshot by default) instead of hard-coded dataset numbers.
+- Guardian 2.0: staged enforcement gates with stable rule IDs (G-001-G-011), severity, evidence payloads, and WITHHOLD/WARN/ALLOW actions; verdict shape backward compatible; dashboard renders rule findings.
 ### Added
 - v1 data platform (`rift.health.observations/adapters/timeline`): canonical Observation with validation + unit normalization, FHIR R4 Observation import subset, CSV/JSON adapters, multi-observation-day timeline with median estimation and reproducible day indices.
 - Model registry + provenance (`rift.health.model_registry`): versioned `cardiac-strain-v1` pin, live weights-drift detection, deterministic prediction IDs stamped on snapshots, evidence-served deployment gate (clinical-use closed).

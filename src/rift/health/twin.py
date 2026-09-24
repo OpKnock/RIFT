@@ -122,7 +122,10 @@ class DigitalTwin:
         lo, hi = risk_record["risk"] - risk_record["uncertainty"], risk_record["risk"] + risk_record["uncertainty"]
         risk_record["interval"] = [max(0.0, lo), min(1.0, hi)]
         risk_record["input_quality"] = input_quality(state)
-        guard = verdict(state, risk_record, self._previous_state, self.ehr)
+        coverage = timeline_coverage(self._canonical)
+        unestimated = sorted(m for m, status in coverage.items() if status != "estimated")
+        guard = verdict(state, risk_record, self._previous_state, self.ehr,
+                        unestimated=tuple(unestimated))
         futures = counterfactual_futures(state, baseline, self.ehr)
         trajs = trajectories(state, baseline, self.ehr)
         best_traj = min(trajs, key=lambda t: t["path"][-1]["risk"])
@@ -130,14 +133,6 @@ class DigitalTwin:
             f"Best trajectory ends at risk {best_traj['path'][-1]['risk']:.2f} "
             f"under policy {best_traj['policy']} over {len(best_traj['path']) - 1} days."
         )
-        coverage = timeline_coverage(self._canonical)
-        unestimated = sorted(m for m, status in coverage.items() if status != "estimated")
-        if unestimated:
-            guard = dict(guard)
-            guard["flags"] = list(guard.get("flags", [])) + [
-                "accepted but unestimated metrics (preserved, not consumed by twin v1): "
-                + ", ".join(unestimated)
-            ]
         reasons = build_reasons(state, baseline, devs, self.ehr, risk_record, guard, note)
         snapshot = {
             "day_index": day_index,

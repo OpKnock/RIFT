@@ -135,12 +135,19 @@ function render(d) {
 
   const g = d.guardian || {};
   const passed = g.display_allowed;
+  const findings = (g.findings || []).map((f) =>
+    '<div>[' + escapeHtml(String(f.rule_id)) + "/" + escapeHtml(String(f.stage)) +
+    "/" + escapeHtml(String(f.severity)) + "] " + escapeHtml(String(f.message)) + "</div>"
+  ).join("");
   $("#guardian").innerHTML =
     '<span class="' + (passed ? "valid" : "invalid") + '">' +
     (passed ? "DISPLAYABLE" : "WITHHELD") + "</span>" +
+    (g.action ? '<div style="font-size:11px;margin-top:4px">action: ' +
+      escapeHtml(String(g.action)) + "</div>" : "") +
     '<div style="font-size:11px;margin-top:8px">' +
-    ((g.flags || []).map(escapeHtml).join("<br>") || "no warnings") +
-    ((g.rejections || []).length ? "<br>" + (g.rejections || []).map(escapeHtml).join("<br>") : "") +
+    (findings ||
+      (((g.flags || []).map(escapeHtml).join("<br>") || "no warnings") +
+      (((g.rejections || []).length ? "<br>" + (g.rejections || []).map(escapeHtml).join("<br>") : "")))) +
     "</div>";
 }
 
