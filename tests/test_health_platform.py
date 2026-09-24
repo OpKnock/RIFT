@@ -99,8 +99,22 @@ def test_fhir_subset_parsing():
     ]
     raw, issues = A.from_fhir(resources)
     assert len(raw) == 2 and len(issues) == 3
-    assert raw[0]["metric"] == "resting_hr" and raw[0]["value"] == 72.0
+    # 8867-4 is generic heart rate: never silently relabeled resting_hr.
+    assert raw[0]["metric"] == "heart_rate" and raw[0]["value"] == 72.0
     assert raw[0]["patient_id"] == "demo-01"
+    # 80404-7 is R-R interval SD, not RMSSD.
+    assert raw[1]["metric"] == "rr_sd" and raw[1]["value"] == 48.0
+    # Explicit resting context on the resource DOES justify resting_hr.
+    resting = dict(_res("8867-4", 68.0, "/min"))
+    resting["bodyPosition"] = {"coding": [{"code": "lying", "display": "Lying"}]}
+    resting["id"] = "obs-resting-1"
+    raw_rest, _ = A.from_fhir([resting])
+    assert len(raw_rest) == 1 and raw_rest[0]["metric"] == "resting_hr"
+    import json as _json
+
+    prov = _json.loads(raw_rest[0]["provenance"])
+    assert prov["loinc"] == "8867-4" and prov["resource_id"] == "obs-resting-1"
+    assert prov["terminology"].startswith("LOINC")
     accepted, problems = A.from_fhir_normalized(resources)
     assert len(accepted) == 2 and len(problems) == 3  # skips propagate, valid rows validate
     bundle = {"resourceType": "Bundle", "entry": [{"resource": _res("8867-4", 70.0, "bpm")}]}
@@ -203,3 +217,102 @@ def test_live_ingest_feeds_timeline():
     ehr, _ = normalize_ehr(demo_ehr())
     snap = DigitalTwin(ehr, live).update(1)
     assert snap["day_index"] == 1 and snap["state"]["resting_hr"] == 72.0
+
+
+def test_nonfinite_values_rejected_not_normalized():
+    for bad in (float("nan"), float("inf"), float("-inf")):
+        assert validate_observation(_raw(value=bad))[0] is None
+    for bad_q in (-0.5, 1.5, float("nan"), "high"):
+        obs, _ = validate_observation(_raw(quality=bad_q))
+        assert obs is None
+
+
+def test_strict_timestamps_and_timezone_buckets():
+    from rift.health.observations import normalize_timestamp
+
+    assert normalize_timestamp("2026-01-04T08:04:00") == "2026-01-04T08:04:00+00:00"
+    # Same instant in different zones buckets to the same UTC day.
+    assert normalize_timestamp("2026-01-05T00:30+05:30")[:10] == "2026-01-04"
+    assert normalize_timestamp("2026-01-04T19:00Z")[:10] == "2026-01-04"
+    # Date-only is accepted explicitly as midnight UTC.
+    assert normalize_timestamp("2026-01-04") == "2026-01-04T00:00:00+00:00"
+    for bad in ("2026-99-99Tgarbage", "yesterday", "", None, {"period": True}):
+        try:
+            normalize_timestamp(bad)
+            raise AssertionError(f"{bad!r} must be rejected")
+        except ValueError:
+            pass
+    assert validate_observation(_raw(timestamp="2026-99-99T00:00:00"))[0] is None
+
+
+def test_source_required_and_missing_subject_rejected():
+    no_source = _raw()
+    del no_source["source"]
+    assert validate_observation(no_source)[0] is None
+    blank = _raw()
+    blank["source"] = "  "
+    assert validate_observation(blank)[0] is None
+    from rift.health import adapters as A
+
+    nosubj = {"resourceType": "Observation",
+              "code": {"coding": [{"code": "8867-4"}]},
+              "valueQuantity": {"value": 70.0, "unit": "/min"},
+              "effectiveDateTime": "2026-01-04T08:00:00"}
+    raw, issues = A.from_fhir([nosubj])
+    assert raw == [] and any("subject" in i for i in issues)
+
+
+def test_weights_digest_genuinely_pinned():
+    from rift.health import risk as RISK
+    from rift.health.model_registry import get_model, verify_weights
+
+    assert get_model()["weights_digest"] is not None
+    assert len(get_model()["weights_digest"]) == 64
+    assert verify_weights()["match"] is True
+    assert verify_weights()["unpinned"] is False
+    original = dict(RISK.RISK_WEIGHTS)
+    try:
+        RISK.RISK_WEIGHTS["base"] = 0.99
+        assert verify_weights()["match"] is False
+    finally:
+        RISK.RISK_WEIGHTS.clear()
+        RISK.RISK_WEIGHTS.update(original)
+    assert verify_weights()["match"] is True
+
+
+def test_gate_consumes_evidence_not_hardcoded_numbers():
+    from rift.health.model_registry import deployment_gate
+
+    default = deployment_gate()
+    assert default["clinical_use"] == "closed"
+    assert default["evidence_source"].startswith("bundled")
+    strong = deployment_gate(evidence={
+        "source": "hypothetical-adequate-trial",
+        "events": 150, "non_events": 1200,
+        "calibrated": True, "clinical_review": False, "synthetic": False,
+    })
+    # Still closed: no clinical review recorded. Evidence moves the verdict,
+    # never the code path — one missing pillar keeps the gate shut.
+    assert strong["clinical_use"] == "closed"
+    assert not any("100-event" in r and "5 events" in r for r in strong["reasons"])
+
+
+def test_provenance_envelope_is_complete():
+    from rift.health.demo_data import demo_stream
+    from rift.health.ehr import demo_ehr, normalize_ehr
+
+    ehr, _ = normalize_ehr(demo_ehr())
+    snap = DigitalTwin(ehr, demo_stream()).update(10)
+    prov = snap["provenance"]
+    for key in ("prediction_id", "model_id", "weights_digest", "schema_version",
+                "calibration_id", "source_ids", "engine"):
+        assert key in prov, f"provenance missing {key}"
+    assert len(prov["prediction_id"]) == 64
+    assert prov["source_ids"] == ["synthetic-demo-generator"]
+    assert snap["state"]["provenance"] == "synthetic-demo-generator"
+    # EHR change alters the id: context is complete, not state-only.
+    from rift.health.ehr import EHRRecord
+
+    other_ehr = EHRRecord(patient_id="demo-patient-01", age=99.0)
+    other = DigitalTwin(other_ehr, demo_stream()).update(10)
+    assert other["provenance"]["prediction_id"] != snap["provenance"]["prediction_id"]

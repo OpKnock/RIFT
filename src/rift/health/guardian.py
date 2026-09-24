@@ -49,6 +49,8 @@ def check_state(state: PatientState, previous: PatientState | None = None) -> di
         flags.append(f"missing wearable fields: {', '.join(missing)} (baseline-imputed downstream)")
     if state.stale_days >= STALE_FLAG_DAYS:
         flags.append(f"wearable data stale by {state.stale_days} days: treat trend as uncertain")
+    if not getattr(state, "provenance", ""):
+        flags.append("unrecorded observation origin: provenance missing, treat as unverified")
     if previous is not None and state.resting_hr is not None and previous.resting_hr is not None:
         shift = abs(state.resting_hr - previous.resting_hr)
         if shift > MAX_PLAUSIBLE_DAILY_HR_SHIFT:

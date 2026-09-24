@@ -16,6 +16,7 @@ experiments and runs. Nothing requires a live project to run `pytest`,
    - `backend/supabase/migrations/003_billing.sql`
    - `backend/supabase/migrations/004_experiment_model.sql`
    - `backend/supabase/migrations/005_runs_owner.sql`
+   - `backend/supabase/migrations/006_model_registry.sql`
 
    With the Supabase CLI:
 
@@ -47,7 +48,8 @@ Security rules:
 - `003` billing tables grant nothing to `anon`/`authenticated` — they are
   service-role-only and read through server endpoints.
 - `004` adds the experiment lifecycle (status, reproducibility, fingerprints,
-  `updated_at` triggers, webhook idempotency); `005` adds run ownership.
+  `updated_at` triggers, webhook idempotency); `005` adds run ownership;
+  `006` adds the model registry + prediction-audit tables (service-role only).
   All migrations are additive and idempotent (`IF NOT EXISTS`).
 
 ## 3. Verify

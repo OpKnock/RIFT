@@ -180,18 +180,25 @@ days 9–10 (velocity term catches the onset day). Weights in
 
 | Module | Role | Reuses |
 |---|---|---|
-| `models.py` | EHRRecord, WearableObservation, PatientState, baselines, deviations | — |
+| `models.py` | EHRRecord, WearableObservation (+provenance), PatientState, baselines, deviations | — |
 | `ehr.py` | schema + normalization, demo fixture | — |
-| `wearable.py` | replayable stream, staleness/completeness | — |
-| `baseline.py` | personal medians, deviations | — |
+| `observations.py` | canonical Observation: strict validation, finite values, UTC timestamps, unit normalization | — |
+| `adapters.py` | FHIR (versioned LOINC map), CSV, JSON ingestion; structured provenance | `observations` |
+| `timeline.py` | UTC day bucketing, median estimation, reproducible indices | `observations` |
+| `sources.py` | ReplaySource / LiveIngestSource / PublicDatasetSource | `wearable` |
+| `wearable.py` | replayable stream, staleness/completeness, jitter + trend terms | — |
+| `baseline.py` | personal medians (strictly prior observations), deviations | — |
 | `transition.py` | bounded next-day vitals, binary policies | — |
-| `risk.py` | 24h strain risk + contributions + quality | — |
-| `twin.py` | DigitalTwin sync/update/replay/history | all above |
+| `risk.py` | 24h strain risk + contributions + quality + velocity trend | — |
+| `model_registry.py` | version pin, live weights-digest verification, evidence-driven deployment gate | — |
+| `decision.py` | policy comparison joined from ranking + trajectories | `robust` ordering |
+| `twin.py` | DigitalTwin sync/update/replay/history + provenance envelope | all above |
 | `foresight.py` | Scenario adapter, futures, trajectories, health causal graph | `counterfactual`, `robust`, `verifier`, `causal`, `models` |
 | `robustness.py` | dropout/stale/noise degradations, spread uncertainty | `robust`, `adversarial` semantics |
-| `guardian.py` | display-safety verdict (reject vs flag) | `verifier` philosophy |
+| `guardian.py` | display-safety verdict (reject vs flag, incl. provenance + OOD) | `verifier` philosophy |
 | `explain.py` | reason sentences per prediction | — |
-| `demo_data.py` | seeded 14-day series (seed 42) | — |
+| `evaluate.py` | backtest, reliability/ECE, Platt repair, threshold tradeoff, external validation | `twin` |
+| `demo_data.py` | seeded 14-day series (seed 42), 60-day series (seed 7) | — |
 
 Generic engines (`optimizer`, QUBO, QAOA, experiment runner, persistence,
 auth) are untouched and remain available; quantum stays an optional

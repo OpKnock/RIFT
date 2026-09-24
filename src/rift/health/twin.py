@@ -20,26 +20,47 @@ from .sources import WearableSource
 from .wearable import jitter_score, trend_terms
 
 
-def prediction_provenance(patient_id: str, day_index: int, state_dict: dict) -> dict:
+def prediction_provenance(
+    patient_id: str,
+    day_index: int,
+    state_dict: dict,
+    *,
+    ehr_dict: dict | None = None,
+    baseline_dict: dict | None = None,
+    calibration_id: str = "platt/demo-fit-days-30-44",
+    source_ids: list[str] | None = None,
+) -> dict:
     """Deterministic audit identity for one prediction.
 
-    prediction_id = SHA-256 over (patient, day, model, live weights digest,
-    canonical input snapshot). Re-running the same inputs reproduces the
-    same id; any weight or input change alters it. No randomness, no clock.
+    prediction_id = SHA-256 over the COMPLETE prediction context: patient,
+    day, model, live weights digest, synchronized inputs, EHR snapshot,
+    baseline snapshot, calibration id, and source observation ids. Any
+    change in any input alters the id; re-running identical inputs
+    reproduces it. No randomness, no clock.
     """
     import hashlib as _hashlib
     import json as _json
 
-    canonical = _json.dumps(
-        {"patient_id": patient_id, "day_index": day_index,
-         "model_id": DEFAULT_MODEL_ID, "weights": weights_digest(),
-         "inputs": state_dict},
-        sort_keys=True, separators=(",", ":"),
-    )
+    context = {
+        "patient_id": patient_id,
+        "day_index": day_index,
+        "model_id": DEFAULT_MODEL_ID,
+        "weights": weights_digest(),
+        "schema_version": "patient-state-v1",
+        "inputs": state_dict,
+        "ehr": ehr_dict or {},
+        "baseline": baseline_dict or {},
+        "calibration": calibration_id,
+        "source_ids": sorted(source_ids or []),
+    }
+    canonical = _json.dumps(context, sort_keys=True, separators=(",", ":"))
     return {
         "prediction_id": _hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
         "model_id": DEFAULT_MODEL_ID,
         "weights_digest": weights_digest(),
+        "schema_version": "patient-state-v1",
+        "calibration_id": calibration_id,
+        "source_ids": sorted(source_ids or []),
         "engine": "rift",
     }
 
@@ -68,6 +89,7 @@ class DigitalTwin:
                 activity_load=latest.activity_load,
                 data_quality=self.stream.completeness_at(day_index),
                 stale_days=self.stream.stale_days_at(day_index),
+                provenance=latest.provenance,
             )
         return state
 
@@ -115,7 +137,11 @@ class DigitalTwin:
             "decision_table": decision_table(futures["robust_ranking"], trajs),
             "reasons": reasons,
             "provenance": prediction_provenance(
-                self.ehr.patient_id, day_index, state.to_dict()),
+                self.ehr.patient_id, day_index, state.to_dict(),
+                ehr_dict=self.ehr.to_dict(),
+                baseline_dict=baseline.to_dict(),
+                source_ids=[latest.provenance] if latest and latest.provenance else [],
+            ),
             "model_notes": "synthetic demo weights; decision support only, not validated care",
         }
         self.history.append(snapshot)

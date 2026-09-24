@@ -683,7 +683,14 @@ class Handler(BaseHTTPRequestHandler):
                         "calibration": "demo / not calibrated",
                         "model": get_model(),
                         "weights_verified": verify_weights(),
-                        "deployment_gate": deployment_gate(),
+                        "deployment_gate": deployment_gate(get_model()["model_id"], {
+                            "source": "live external_validation block in this response",
+                            "events": external.get("events") or 0,
+                            "non_events": (external.get("days_evaluated") or 0) - (external.get("events") or 0),
+                            "calibrated": False,
+                            "clinical_review": False,
+                            "synthetic": True,
+                        }),
                     },
                 }
                 self._send(200, json.dumps(payload), request_id=request_id)
