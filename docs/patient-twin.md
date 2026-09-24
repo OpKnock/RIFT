@@ -48,6 +48,27 @@ wearable stream ─┘                                    ↓ deviations from ba
                          doctor dashboard + reasons ("why did risk change?")
 ```
 
+## Guardian rule registry (staged enforcement)
+
+Every check emits a finding `{rule_id, stage, severity, action, message,
+evidence}` through gates INPUT → STATE → MODEL → COUNTERFACTUAL → OUTPUT
+→ DEPLOYMENT. WITHHOLD blocks display; WARN travels as a warning. Stages
+with no applicable rule report passed vacuously and say so.
+
+| Rule | Stage | Severity | Effect |
+|---|---|---|---|
+| G-001 impossible physiology | STATE | HIGH | WITHHOLD |
+| G-002 missing fields | INPUT | MEDIUM | WARN |
+| G-003 stale data | INPUT | MEDIUM | WARN |
+| G-004 unrecorded provenance | INPUT | LOW | WARN |
+| G-005 implausible HR shift | STATE | HIGH | WITHHOLD |
+| G-006 unsupported output fields | OUTPUT | HIGH | WITHHOLD |
+| G-007 treatment instructions | OUTPUT | HIGH | WITHHOLD |
+| G-008 excessive uncertainty | OUTPUT | MEDIUM | WARN |
+| G-009 low input quality | OUTPUT | MEDIUM | WARN |
+| G-010 OOD population scope | MODEL | MEDIUM | WARN |
+| G-011 unestimated metrics | INPUT | LOW | WARN |
+
 New observations update the twin: call `twin.update(day)` (or replay a
 range); baselines, risk, futures, and Guardian are all recomputed.
 

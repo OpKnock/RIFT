@@ -1,16 +1,25 @@
-"""Healthcare Guardian: is this result safe to DISPLAY as decision support?
+"""Healthcare Guardian 2.0: staged policy enforcement for display safety.
 
-Guardian never diagnoses, never treats, never overrides a clinician. It
-verifies display-safety: impossible physiology and invalid transitions
-REJECT (result must not be shown as trustworthy); missing/stale/uncertain
-inputs FLAG (result shown with explicit warnings).
+Guardian never diagnoses, never treats, never overrides a clinician. Every
+check emits a structured Finding (rule_id, stage, severity, action,
+message, evidence) through stage gates:
+
+    INPUT → STATE → MODEL → COUNTERFACTUAL → OUTPUT → DEPLOYMENT
+
+A WITHHOLD finding withholds the result (display_allowed=False); WARN
+findings travel with it as explicit warnings. verdict() keeps its
+historical shape (display_allowed/rejections/flags/scope) and adds
+findings/stages/action, so existing consumers keep working.
+
+Findings carry day_index from the checked state — never wall-clock time —
+so verdicts stay fully deterministic.
 """
 from __future__ import annotations
 
 import json as _json
+from dataclasses import dataclass
 
 from .models import PHYSIOLOGICAL_BOUNDS, PatientState
-from .risk import STRAIN_THRESHOLD
 
 MAX_PLAUSIBLE_DAILY_HR_SHIFT = 30.0  # bpm/day beyond which a transition is rejected
 STALE_FLAG_DAYS = 3
@@ -21,6 +30,8 @@ ALLOWED_OUTPUT_KEYS = {
     "uncertainty", "interval", "model", "calibration",
 }
 
+STAGES = ("INPUT", "STATE", "MODEL", "COUNTERFACTUAL", "OUTPUT", "DEPLOYMENT")
+
 IMPOSSIBLE_MESSAGES = {
     "resting_hr": "resting HR outside plausible human range",
     "hrv_rmssd": "HRV outside plausible human range",
@@ -29,11 +40,47 @@ IMPOSSIBLE_MESSAGES = {
     "age": "age outside plausible human range",
 }
 
+# Action semantics: WITHHOLD blocks display; WARN travels as a warning.
+# Severity ranks triage priority and never overrides the action.
+WITHHOLD = "WITHHOLD"
+WARN = "WARN"
 
-def check_state(state: PatientState, previous: PatientState | None = None) -> dict:
+
+@dataclass(frozen=True)
+class Finding:
+    rule_id: str
+    stage: str
+    severity: str  # HIGH | MEDIUM | LOW
+    action: str    # WITHHOLD | WARN
+    message: str
+    evidence: dict
+
+    def to_dict(self) -> dict:
+        return {
+            "rule_id": self.rule_id,
+            "stage": self.stage,
+            "severity": self.severity,
+            "action": self.action,
+            "message": self.message,
+            "evidence": self.evidence,
+        }
+
+
+def check_state(state: PatientState, previous: PatientState | None = None,
+                unestimated: tuple[str, ...] = ()) -> dict:
     """Display-safety verdict for one synchronized twin state."""
     rejections: list[str] = []
     flags: list[str] = []
+    findings: list[Finding] = []
+    day = getattr(state, "day_index", None)
+
+    def _add(finding: Finding):
+        findings.append(finding)
+        if finding.action == WITHHOLD:
+            rejections.append(finding.message)
+        else:
+            flags.append(finding.message)
+
     for field, message in IMPOSSIBLE_MESSAGES.items():
         if field == "age":
             continue
@@ -42,37 +89,69 @@ def check_state(state: PatientState, previous: PatientState | None = None) -> di
             continue
         lo, hi = PHYSIOLOGICAL_BOUNDS[field]
         if not (lo <= value <= hi):
-            rejections.append(f"{message}: {value}")
+            _add(Finding("G-001", "STATE", "HIGH", WITHHOLD,
+                         f"{message}: {value}",
+                         {"field": field, "value": value, "bounds": [lo, hi],
+                          "day_index": day}))
     missing = [f for f in ("resting_hr", "hrv_rmssd", "sleep_hours", "activity_load")
                if getattr(state, f) is None]
     if missing:
-        flags.append(f"missing wearable fields: {', '.join(missing)} (baseline-imputed downstream)")
+        _add(Finding("G-002", "INPUT", "MEDIUM", WARN,
+                     f"missing wearable fields: {', '.join(missing)} (baseline-imputed downstream)",
+                     {"fields": missing, "day_index": day}))
     if state.stale_days >= STALE_FLAG_DAYS:
-        flags.append(f"wearable data stale by {state.stale_days} days: treat trend as uncertain")
+        _add(Finding("G-003", "INPUT", "MEDIUM", WARN,
+                     f"wearable data stale by {state.stale_days} days: treat trend as uncertain",
+                     {"stale_days": state.stale_days, "day_index": day}))
     if not getattr(state, "provenance", ""):
-        flags.append("unrecorded observation origin: provenance missing, treat as unverified")
+        _add(Finding("G-004", "INPUT", "LOW", WARN,
+                     "unrecorded observation origin: provenance missing, treat as unverified",
+                     {"day_index": day}))
     if previous is not None and state.resting_hr is not None and previous.resting_hr is not None:
         shift = abs(state.resting_hr - previous.resting_hr)
         if shift > MAX_PLAUSIBLE_DAILY_HR_SHIFT:
-            rejections.append(f"resting HR shifted {shift:.1f} bpm in one day: implausible transition")
-    return {"rejections": rejections, "flags": flags}
+            _add(Finding("G-005", "STATE", "HIGH", WITHHOLD,
+                         f"resting HR shifted {shift:.1f} bpm in one day: implausible transition",
+                         {"shift_bpm": shift, "day_index": day}))
+    for metric in unestimated:
+        _add(Finding("G-011", "INPUT", "LOW", WARN,
+                     f"accepted but unestimated metrics (preserved, not consumed by twin v1): {metric}",
+                     {"metric": metric, "day_index": day}))
+    return {"rejections": rejections, "flags": flags, "findings": findings}
 
 
 def check_prediction(risk_record: dict) -> dict:
     """Display-safety verdict for one risk prediction."""
     rejections: list[str] = []
     flags: list[str] = []
+    findings: list[Finding] = []
+
+    def _add(finding: Finding):
+        findings.append(finding)
+        if finding.action == WITHHOLD:
+            rejections.append(finding.message)
+        else:
+            flags.append(finding.message)
+
     unexpected = set(risk_record) - ALLOWED_OUTPUT_KEYS
     if unexpected:
-        rejections.append(f"prediction carries unsupported output fields: {sorted(unexpected)}")
+        _add(Finding("G-006", "OUTPUT", "HIGH", WITHHOLD,
+                     f"prediction carries unsupported output fields: {sorted(unexpected)}",
+                     {"fields": sorted(str(f) for f in unexpected)}))
     if "prescription" in json_text(risk_record).lower() or "dosage" in json_text(risk_record).lower():
-        rejections.append("prediction output must never contain treatment instructions")
+        _add(Finding("G-007", "OUTPUT", "HIGH", WITHHOLD,
+                     "prediction output must never contain treatment instructions",
+                     {}))
     uncertainty = risk_record.get("uncertainty", 0.0) or 0.0
     if uncertainty > UNCERTAINTY_FLAG:
-        flags.append(f"uncertainty {uncertainty:.2f} exceeds display threshold: show interval, not a point estimate")
+        _add(Finding("G-008", "OUTPUT", "MEDIUM", WARN,
+                     f"uncertainty {uncertainty:.2f} exceeds display threshold: show interval, not a point estimate",
+                     {"uncertainty": uncertainty, "threshold": UNCERTAINTY_FLAG}))
     if risk_record.get("input_quality", 1.0) < 0.5:
-        flags.append("input quality below 0.5: prediction is indicative only")
-    return {"rejections": rejections, "flags": flags}
+        _add(Finding("G-009", "OUTPUT", "MEDIUM", WARN,
+                     "input quality below 0.5: prediction is indicative only",
+                     {"input_quality": risk_record.get("input_quality")}))
+    return {"rejections": rejections, "flags": flags, "findings": findings}
 
 
 def json_text(record: dict) -> str:
@@ -84,23 +163,53 @@ def json_text(record: dict) -> str:
 
 def check_population(ehr) -> dict:
     """Out-of-distribution scope check. The demo weights assume adults."""
+    rejections: list[str] = []
     flags: list[str] = []
+    findings: list[Finding] = []
     age = getattr(ehr, "age", None) if ehr is not None else None
     if age is not None and (age < 18 or age > 90):
-        flags.append(f"age {age:.0f} is outside the adult demo scope (18-90): treat output as out-of-distribution")
-    return {"rejections": [], "flags": flags}
+        message = f"age {age:.0f} is outside the adult demo scope (18-90): treat output as out-of-distribution"
+        flags.append(message)
+        findings.append(Finding("G-010", "MODEL", "MEDIUM", WARN, message, {"age": age}))
+    return {"rejections": rejections, "flags": flags, "findings": findings}
 
 
-def verdict(state: PatientState, risk_record: dict, previous: PatientState | None = None, ehr=None) -> dict:
-    """Combined verdict. display_allowed is False when any rejection exists."""
-    state_check = check_state(state, previous)
+def verdict(state: PatientState, risk_record: dict, previous: PatientState | None = None, ehr=None,
+            unestimated: tuple[str, ...] = ()) -> dict:
+    """Combined verdict across gates. display_allowed is False on any WITHHOLD.
+
+    Historical keys (display_allowed/rejections/flags/scope) are unchanged;
+    findings/stages/action are additive. Stages with no applicable rule
+    report passed vacuously with an empty rule list (COUNTERFACTUAL and
+    DEPLOYMENT have no verdict-level rules yet — stated, not hidden).
+    """
+    state_check = check_state(state, previous, unestimated)
     pred_check = check_prediction(risk_record)
     pop_check = check_population(ehr)
+    findings: list[Finding] = (
+        state_check["findings"] + pred_check["findings"] + pop_check["findings"]
+    )
     rejections = state_check["rejections"] + pred_check["rejections"] + pop_check["rejections"]
     flags = state_check["flags"] + pred_check["flags"] + pop_check["flags"]
+    stages: dict[str, dict] = {}
+    for stage in STAGES:
+        stage_findings = [f for f in findings if f.stage == stage]
+        stages[stage] = {
+            "passed": not any(f.action == WITHHOLD for f in stage_findings),
+            "rules": [f.rule_id for f in stage_findings],
+        }
+    if any(f.action == WITHHOLD for f in findings):
+        action = WITHHOLD
+    elif findings:
+        action = WARN
+    else:
+        action = "ALLOW"
     return {
         "display_allowed": not rejections,
+        "action": action,
         "rejections": rejections,
         "flags": flags,
+        "findings": [f.to_dict() for f in findings],
+        "stages": stages,
         "scope": "display-safety for decision support; not a clinical authority",
     }
