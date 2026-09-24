@@ -7,15 +7,41 @@ History is a JSON-safe append-only log, replayable by construction.
 from __future__ import annotations
 
 from .baseline import deviations, personal_baseline
+from .decision import decision_table
 from .ehr import EHRRecord
 from .explain import build_reasons
 from .foresight import counterfactual_futures, trajectories
 from .guardian import verdict
+from .model_registry import DEFAULT_MODEL_ID, weights_digest
 from .models import PatientState
 from .risk import input_quality, predict
 from .robustness import combine_uncertainty, robustness_report
 from .sources import WearableSource
 from .wearable import jitter_score, trend_terms
+
+
+def prediction_provenance(patient_id: str, day_index: int, state_dict: dict) -> dict:
+    """Deterministic audit identity for one prediction.
+
+    prediction_id = SHA-256 over (patient, day, model, live weights digest,
+    canonical input snapshot). Re-running the same inputs reproduces the
+    same id; any weight or input change alters it. No randomness, no clock.
+    """
+    import hashlib as _hashlib
+    import json as _json
+
+    canonical = _json.dumps(
+        {"patient_id": patient_id, "day_index": day_index,
+         "model_id": DEFAULT_MODEL_ID, "weights": weights_digest(),
+         "inputs": state_dict},
+        sort_keys=True, separators=(",", ":"),
+    )
+    return {
+        "prediction_id": _hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        "model_id": DEFAULT_MODEL_ID,
+        "weights_digest": weights_digest(),
+        "engine": "rift",
+    }
 
 
 class DigitalTwin:
@@ -86,7 +112,10 @@ class DigitalTwin:
             "guardian": guard,
             "futures": futures,
             "trajectories": trajs,
+            "decision_table": decision_table(futures["robust_ranking"], trajs),
             "reasons": reasons,
+            "provenance": prediction_provenance(
+                self.ehr.patient_id, day_index, state.to_dict()),
             "model_notes": "synthetic demo weights; decision support only, not validated care",
         }
         self.history.append(snapshot)

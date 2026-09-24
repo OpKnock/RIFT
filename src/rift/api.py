@@ -618,6 +618,7 @@ class Handler(BaseHTTPRequestHandler):
                     reliability,
                     stress_sweep,
                 )
+                from .health.model_registry import deployment_gate, get_model, verify_weights
                 from .health.twin import DigitalTwin
 
                 ehr, _ = normalize_ehr(demo_ehr())
@@ -680,6 +681,9 @@ class Handler(BaseHTTPRequestHandler):
                         "engine_version": ENGINE_VERSION,
                         "dataset": "synthetic 60-day series (seed 7); NOT clinically validated",
                         "calibration": "demo / not calibrated",
+                        "model": get_model(),
+                        "weights_verified": verify_weights(),
+                        "deployment_gate": deployment_gate(),
                     },
                 }
                 self._send(200, json.dumps(payload), request_id=request_id)

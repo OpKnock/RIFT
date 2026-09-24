@@ -4,6 +4,10 @@ All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system,
 
 ## [Unreleased]
 ### Added
+- v1 data platform (`rift.health.observations/adapters/timeline`): canonical Observation with validation + unit normalization, FHIR R4 Observation import subset, CSV/JSON adapters, multi-observation-day timeline with median estimation and reproducible day indices.
+- Model registry + provenance (`rift.health.model_registry`): versioned `cardiac-strain-v1` pin, live weights-drift detection, deterministic prediction IDs stamped on snapshots, evidence-served deployment gate (clinical-use closed).
+- Decision table (`rift.health.decision`): policy comparison joined from robust ranking + trajectories, in snapshots.
+- Migration `006_model_registry.sql`: registry + prediction-audit tables (service-role only; unapplied, no live project).
 - Patient Digital Twin healthcare demo (`src/rift/health/`, `GET /api/twin/demo`, doctor dashboard): synthetic EHR + replayable 14-day wearable stream → personal baselines → bounded transition model → 24h cardiac-strain risk → FORESIGHT trajectories/counterfactuals via the generic engine → robustness spread → display-safety Guardian → reasons. Decision support only; synthetic, not validated.
 - Phase-3 validation (`rift.health.evaluate` + backtest metrics: 1-day MAE, event agreement, Brier, interval coverage, counterfactual sanity); baseline uses strictly prior observations (no leakage); `WearableSource` replay/live seam; risk intervals labeled demo/not-calibrated.
 - Phase-4 evidence: independent outcome labels (observed-criteria rule, breaking the self-agreement circularity), 60-day series with calibration/holdout split, rolling backtest with onset lead/lag, sensor-noise stress sweep, `PublicDatasetSource` CSV adapter, `GET /api/twin/evidence` + dashboard evidence panel.
