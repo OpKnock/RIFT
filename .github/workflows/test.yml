@@ -26,6 +26,8 @@ jobs:
         run: python scripts/secret_scan.py
       - name: Version consistency (pyproject, package, health)
         run: python scripts/check_versions.py
+      - name: Phase completion matrix (statuses, evidence, tests)
+        run: python scripts/check_phase_matrix.py
   security:
     runs-on: ubuntu-latest
     steps:

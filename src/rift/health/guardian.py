@@ -27,7 +27,7 @@ UNCERTAINTY_FLAG = 0.35
 ALLOWED_OUTPUT_KEYS = {
     "target", "horizon", "risk", "event_predicted", "threshold",
     "contributions", "input_quality", "measurement_jitter", "trend_terms",
-    "uncertainty", "interval", "model", "calibration",
+    "uncertainty", "uncertainty_breakdown", "interval", "model", "calibration",
 }
 
 STAGES = ("INPUT", "STATE", "MODEL", "COUNTERFACTUAL", "OUTPUT", "DEPLOYMENT")
@@ -39,6 +39,19 @@ IMPOSSIBLE_MESSAGES = {
     "activity_load": "activity load outside demo index range",
     "age": "age outside plausible human range",
 }
+
+# PatientState v1 feature schema: exact field set the twin, risk, and
+# Guardian code was built against. Drift here breaks downstream
+# assumptions, so it withholds rather than warns.
+STATE_SCHEMA_FIELDS = frozenset({
+    "day_index", "resting_hr", "hrv_rmssd", "sleep_hours", "activity_load",
+    "data_quality", "stale_days", "provenance",
+})
+
+LEDGER_REQUIRED_KEYS = frozenset({
+    "policy", "transition_model", "model_id", "weights_digest",
+    "horizon_days", "perturbation_set", "causal_scope", "claim",
+})
 
 # Action semantics: WITHHOLD blocks display; WARN travels as a warning.
 # Severity ranks triage priority and never overrides the action.
@@ -174,23 +187,150 @@ def check_population(ehr) -> dict:
     return {"rejections": rejections, "flags": flags, "findings": findings}
 
 
+def check_schema(state: PatientState) -> dict:
+    """G-012: feature-schema drift check against PatientState v1."""
+    rejections: list[str] = []
+    flags: list[str] = []
+    findings: list[Finding] = []
+    if isinstance(state, dict):
+        actual = set(state)
+    else:
+        actual = set(state.to_dict())
+    if actual != STATE_SCHEMA_FIELDS:
+        message = (
+            "patient-state schema drift: "
+            f"missing={sorted(STATE_SCHEMA_FIELDS - actual)} "
+            f"unexpected={sorted(actual - STATE_SCHEMA_FIELDS)}"
+        )
+        rejections.append(message)
+        findings.append(Finding("G-012", "INPUT", "HIGH", WITHHOLD, message,
+                                {"missing": sorted(STATE_SCHEMA_FIELDS - actual),
+                                 "unexpected": sorted(actual - STATE_SCHEMA_FIELDS)}))
+    return {"rejections": rejections, "flags": flags, "findings": findings}
+
+
+def check_counterfactuals(counterfactuals: dict | None) -> dict:
+    """G-013/G-014: every evaluated policy needs a complete assumption
+    ledger, and the ranking must honor the engine's own ordering."""
+    rejections: list[str] = []
+    flags: list[str] = []
+    findings: list[Finding] = []
+    if counterfactuals is None:
+        return {"rejections": rejections, "flags": flags, "findings": findings}
+    ranking = counterfactuals.get("robust_ranking") or []
+    for item in ranking:
+        policy = item.get("policy")
+        ledger = item.get("assumptions") or {}
+        missing = sorted(LEDGER_REQUIRED_KEYS - set(ledger))
+        if missing:
+            message = (f"policy {policy} lacks a complete assumption ledger "
+                       f"(missing: {', '.join(missing)}): counterfactual unevaluable")
+            rejections.append(message)
+            findings.append(Finding("G-013", "COUNTERFACTUAL", "HIGH", WITHHOLD, message,
+                                    {"policy": policy, "missing": missing}))
+    order = [(not r.get("feasible_under_all", True),
+              r.get("worst_case_risk", float("inf")),
+              r.get("nominal_risk", float("inf"))) for r in ranking]
+    if order != sorted(order):
+        message = "robust ranking violates engine ordering: output not independently verifiable"
+        rejections.append(message)
+        findings.append(Finding("G-014", "OUTPUT", "HIGH", WITHHOLD, message, {}))
+    top = ranking[0] if ranking else None
+    if top is not None and not top.get("feasible_under_all", True):
+        message = (f"top-ranked policy {top.get('policy')} is infeasible under "
+                   "perturbation: shown as rejected, never as recommended")
+        flags.append(message)
+        findings.append(Finding("G-014", "OUTPUT", "MEDIUM", WARN, message,
+                                {"policy": top.get("policy")}))
+    return {"rejections": rejections, "flags": flags, "findings": findings}
+
+
+def check_model(model_context: dict | None) -> dict:
+    """G-015: model identity and weights-digest verification."""
+    rejections: list[str] = []
+    flags: list[str] = []
+    findings: list[Finding] = []
+    if model_context is None:
+        return {"rejections": rejections, "flags": flags, "findings": findings}
+    from .model_registry import get_model, weights_digest
+
+    model_id = model_context.get("model_id")
+    try:
+        entry = get_model(model_id)
+    except KeyError:
+        message = f"unregistered model_id {model_id!r}: prediction not traceable"
+        rejections.append(message)
+        findings.append(Finding("G-015", "MODEL", "HIGH", WITHHOLD, message,
+                                {"model_id": model_id}))
+        return {"rejections": rejections, "flags": flags, "findings": findings}
+    live = weights_digest()
+    pinned = entry.get("weights_digest")
+    if pinned is None or pinned != live:
+        message = ("model weights do not match the registry pin: "
+                   "possible tampering or unreviewed weight change")
+        rejections.append(message)
+        findings.append(Finding("G-015", "MODEL", "HIGH", WITHHOLD, message,
+                                {"model_id": model_id, "pinned": bool(pinned)}))
+    return {"rejections": rejections, "flags": flags, "findings": findings}
+
+
+def check_deployment(deployment: dict | None) -> dict:
+    """G-016: deployment-state inversion protection.
+
+    A gate reporting clinical-use open without validated status is a
+    contradiction: withhold rather than present. Closed gates and absent
+    deployment context pass with the state recorded in stages.
+    """
+    rejections: list[str] = []
+    flags: list[str] = []
+    findings: list[Finding] = []
+    if deployment is None:
+        return {"rejections": rejections, "flags": flags, "findings": findings}
+    if deployment.get("clinical_use") == "open":
+        from .model_registry import get_model
+
+        try:
+            status = get_model(deployment.get("model_id", ""))["status"]
+        except KeyError:
+            status = "unknown"
+        if status != "validated":
+            message = ("deployment gate reports open for a model without "
+                       f"validated status ({status}): refusing to present")
+            rejections.append(message)
+            findings.append(Finding("G-016", "DEPLOYMENT", "HIGH", WITHHOLD, message,
+                                    {"model_id": deployment.get("model_id"),
+                                     "status": status}))
+    return {"rejections": rejections, "flags": flags, "findings": findings}
+
+
 def verdict(state: PatientState, risk_record: dict, previous: PatientState | None = None, ehr=None,
-            unestimated: tuple[str, ...] = ()) -> dict:
+            unestimated: tuple[str, ...] = (), counterfactuals: dict | None = None,
+            model_context: dict | None = None, deployment: dict | None = None) -> dict:
     """Combined verdict across gates. display_allowed is False on any WITHHOLD.
 
     Historical keys (display_allowed/rejections/flags/scope) are unchanged;
-    findings/stages/action are additive. Stages with no applicable rule
-    report passed vacuously with an empty rule list (COUNTERFACTUAL and
-    DEPLOYMENT have no verdict-level rules yet — stated, not hidden).
+    findings/stages/action are additive. Optional counterfactuals,
+    model_context, and deployment inputs activate the G-013…G-016 rules;
+    stages with no applicable rule report passed vacuously.
     """
     state_check = check_state(state, previous, unestimated)
     pred_check = check_prediction(risk_record)
     pop_check = check_population(ehr)
+    schema_check = check_schema(state)
+    counter_check = check_counterfactuals(counterfactuals)
+    model_check = check_model(model_context)
+    deploy_check = check_deployment(deployment)
     findings: list[Finding] = (
         state_check["findings"] + pred_check["findings"] + pop_check["findings"]
+        + schema_check["findings"] + counter_check["findings"]
+        + model_check["findings"] + deploy_check["findings"]
     )
-    rejections = state_check["rejections"] + pred_check["rejections"] + pop_check["rejections"]
-    flags = state_check["flags"] + pred_check["flags"] + pop_check["flags"]
+    rejections = (state_check["rejections"] + pred_check["rejections"] + pop_check["rejections"]
+                 + schema_check["rejections"] + counter_check["rejections"]
+                 + model_check["rejections"] + deploy_check["rejections"])
+    flags = (state_check["flags"] + pred_check["flags"] + pop_check["flags"]
+             + schema_check["flags"] + counter_check["flags"]
+             + model_check["flags"] + deploy_check["flags"])
     stages: dict[str, dict] = {}
     for stage in STAGES:
         stage_findings = [f for f in findings if f.stage == stage]

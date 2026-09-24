@@ -143,16 +143,55 @@ def validate_observation(raw: dict) -> tuple[CanonicalObservation | None, list[s
 
 def normalize_batch(raw_items: list[dict]) -> tuple[list[CanonicalObservation], list[str]]:
     """Validate a batch; returns (accepted, issues). Rejects never abort the batch."""
+    accepted, decisions = ingest_batch(raw_items, batch_id="", source_id="")
+    issues = [f"[{i}] {reason}"
+              for i, d in enumerate(decisions) if d["decision"] == "rejected"
+              for reason in d["reasons"]]
+    return accepted, issues
+
+
+def ingest_batch(raw_items: list[dict], batch_id: str = "",
+                 source_id: str = "") -> tuple[list[CanonicalObservation], list[dict]]:
+    """Ingest with a complete per-item decision trail (Phase 1 auditability).
+
+    Every input produces exactly one decision record:
+    {batch_id, source, observation_id (or null), decision, reasons}.
+    Duplicates (same observation_id twice in one batch) are rejected as
+    duplicates — never silently double-counted.
+    """
     accepted: list[CanonicalObservation] = []
-    issues: list[str] = []
+    decisions: list[dict] = []
     if not isinstance(raw_items, list):
-        return [], ["batch must be a list"]
+        return [], [{"batch_id": batch_id, "source": source_id,
+                     "observation_id": None, "decision": "rejected",
+                     "reasons": ["batch must be a list"]}]
+    seen: set[str] = set()
     for index, raw in enumerate(raw_items):
         obs, problems = validate_observation(raw)
-        if obs is not None:
-            accepted.append(obs)
-        issues.extend(f"[{index}] {p}" for p in problems)
-    return accepted, issues
+        if obs is None:
+            decisions.append({
+                "batch_id": batch_id,
+                "source": source_id or (raw.get("source") if isinstance(raw, dict) else ""),
+                "observation_id": None,
+                "decision": "rejected",
+                "reasons": problems,
+            })
+            continue
+        oid = observation_id(obs)
+        if oid in seen:
+            decisions.append({
+                "batch_id": batch_id, "source": source_id or obs.source,
+                "observation_id": oid, "decision": "rejected",
+                "reasons": [f"duplicate of item already accepted in batch {batch_id or index}"],
+            })
+            continue
+        seen.add(oid)
+        accepted.append(obs)
+        decisions.append({
+            "batch_id": batch_id, "source": source_id or obs.source,
+            "observation_id": oid, "decision": "accepted", "reasons": [],
+        })
+    return accepted, decisions
 
 
 def observation_id(obs: CanonicalObservation) -> str:

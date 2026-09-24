@@ -9,6 +9,10 @@ All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system,
 - Timeline coverage report: accepted-but-unestimated metrics are surfaced per snapshot and flagged by Guardian instead of silently dropped; `issued` never substitutes for `effectiveDateTime`.
 - Provenance envelope exposes ehr/baseline/input hashes; observation IDs + immutable revisions; weights digest genuinely pinned.
 - Guardian 2.0: staged enforcement gates with stable rule IDs (G-001-G-011), severity, evidence payloads, and WITHHOLD/WARN/ALLOW actions; verdict shape backward compatible; dashboard renders rule findings.
+- Guardian 2.0 completion: G-012 feature-schema drift, G-013 counterfactual assumption ledgers, G-014 optimization-output verification, G-015 model identity/digest, G-016 deployment inversion protection — all wired through twin verdicts.
+- Evidence bundles (`rift.health.evidence`): versioned manifest + validation.json/md + optional HMAC signing with explicit unsigned marking.
+- Phase completion matrix (`docs/phase-matrix.json`, CI-enforced): 21 phases with honest statuses, evidence, tests, blockers.
+- Ingest audit trail (`ingest_batch` decisions, duplicate rejection), migration `007_observations.sql`, uncertainty decomposition in snapshots.
 ### Added
 - v1 data platform (`rift.health.observations/adapters/timeline`): canonical Observation with validation + unit normalization, FHIR R4 Observation import subset, CSV/JSON adapters, multi-observation-day timeline with median estimation and reproducible day indices.
 - Model registry + provenance (`rift.health.model_registry`): versioned `cardiac-strain-v1` pin, live weights-drift detection, deterministic prediction IDs stamped on snapshots, evidence-served deployment gate (clinical-use closed).

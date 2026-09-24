@@ -145,3 +145,86 @@ def test_guardian_action_mapping_and_stage_gates():
     flagged = G.verdict(state, risk_record, ehr=ehr, unestimated=("heart_rate",))
     assert any(f["rule_id"] == "G-011" for f in flagged["findings"])
     assert any("unestimated metrics" in f["message"] for f in flagged["findings"])
+
+
+def test_guardian_schema_drift_withholds():
+    ehr, state, baseline = _setup()
+    risk_record = K.predict(state, baseline, ehr)
+    assert G.check_schema(state)["findings"] == []
+    # Dict-form states are checked identically (same contract, both shapes).
+    drifted = dict(state.to_dict())
+    drifted.pop("sleep_hours")
+    drifted["mystery_field"] = 1.0
+    result = G.check_schema(drifted)
+    assert any(f.rule_id == "G-012" for f in result["findings"])
+    assert result["rejections"]
+
+
+def test_guardian_counterfactual_ledger_and_ordering():
+    from rift.health.foresight import counterfactual_futures, policy_assumptions
+
+    ehr, state, baseline = _setup()
+    futures = counterfactual_futures(state, baseline, ehr)
+    for item in futures["robust_ranking"]:
+        assert set(item["assumptions"]) >= {
+            "policy", "transition_model", "model_id", "weights_digest",
+            "horizon_days", "perturbation_set", "causal_scope", "claim"}
+    assert G.check_counterfactuals(futures)["findings"] == []
+    stripped = {"robust_ranking": [{**item, "assumptions": {}} for item in futures["robust_ranking"]]}
+    missing = G.check_counterfactuals(stripped)
+    assert any(f.rule_id == "G-013" for f in missing["findings"])
+    assert missing["rejections"]
+    assert G.check_counterfactuals(None) == {"rejections": [], "flags": [], "findings": []}
+    assert policy_assumptions({"sleep_plus": 1, "exertion_cut": 0}, 3)["horizon_days"] == 3
+
+
+def test_guardian_model_identity_and_deployment():
+    from rift.health import guardian as G2
+
+    ehr, state, baseline = _setup()
+    risk_record = K.predict(state, baseline, ehr)
+    assert G.check_model(None) == {"rejections": [], "flags": [], "findings": []}
+    assert G.check_model({"model_id": "nope"})["rejections"]
+    from rift.health.model_registry import weights_digest
+
+    ok = G.check_model({"model_id": "cardiac-strain-v1", "weights_digest": weights_digest()})
+    assert ok["findings"] == []
+    # Tamper with LIVE weights: the check compares registry pin vs live, so
+    # a forged context digest alone changes nothing — only real drift fires.
+    from rift.health import risk as RISK
+
+    original = dict(RISK.RISK_WEIGHTS)
+    try:
+        RISK.RISK_WEIGHTS["base"] = 0.99
+        tampered = G.check_model({"model_id": "cardiac-strain-v1",
+                                  "weights_digest": weights_digest()})
+        assert any(f.rule_id == "G-015" for f in tampered["findings"])
+        assert tampered["rejections"]
+    finally:
+        RISK.RISK_WEIGHTS.clear()
+        RISK.RISK_WEIGHTS.update(original)
+    assert G.check_deployment(None) == {"rejections": [], "flags": [], "findings": []}
+    assert G.check_deployment({"clinical_use": "closed"})["findings"] == []
+    inverted = G.check_deployment({"clinical_use": "open", "model_id": "cardiac-strain-v1"})
+    assert any(f.rule_id == "G-016" for f in inverted["findings"])
+    assert inverted["rejections"]
+    # Full verdict wires all three new contexts.
+    full = G.verdict(state, risk_record, ehr=ehr,
+                     counterfactuals={"robust_ranking": []},
+                     model_context={"model_id": "cardiac-strain-v1",
+                                    "weights_digest": weights_digest()},
+                     deployment={"clinical_use": "closed"})
+    assert full["display_allowed"] is True
+    assert full["stages"]["COUNTERFACTUAL"] == {"passed": True, "rules": []}
+
+
+def test_twin_snapshot_carries_counterfactual_model_deployment_gates():
+    from rift.health.demo_data import demo_stream
+    from rift.health.ehr import demo_ehr, normalize_ehr
+
+    ehr, _ = normalize_ehr(demo_ehr())
+    snap = DigitalTwin(ehr, demo_stream()).update(10)
+    rules = {f["rule_id"] for f in snap["guardian"]["findings"]}
+    assert snap["guardian"]["stages"]["MODEL"]["passed"] is True  # G-015 verified live
+    assert snap["guardian"]["stages"]["DEPLOYMENT"]["passed"] is True  # closed gate, no findings
+    assert "G-015" not in rules  # verified silently: no news is good news
