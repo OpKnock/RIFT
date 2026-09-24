@@ -396,3 +396,35 @@ def test_issued_without_effective_is_rejected():
                    "subject": {"reference": "Patient/p1"}}
     raw, issues = A.from_fhir([issued_only])
     assert raw == [] and any("issued is not a substitute" in i for i in issues)
+
+
+def test_ingest_batch_decisions_and_dedup():
+    from rift.health.observations import ingest_batch
+
+    first = _raw()
+    accepted, decisions = ingest_batch(
+        [first, dict(first), _raw(metric="nope")],
+        batch_id="b1", source_id="csv-test")
+    assert len(accepted) == 1 and len(decisions) == 3
+    assert [d["decision"] for d in decisions] == ["accepted", "rejected", "rejected"]
+    assert all(d["batch_id"] == "b1" for d in decisions)
+    assert decisions[0]["observation_id"] is not None
+    assert decisions[1]["observation_id"] == decisions[0]["observation_id"]
+    assert any("duplicate" in r for r in decisions[1]["reasons"])
+    assert decisions[2]["observation_id"] is None
+    empty, bad = ingest_batch("not-a-list", batch_id="b2", source_id="s")
+    assert empty == [] and bad[0]["decision"] == "rejected"
+
+
+def test_uncertainty_breakdown_sums_and_labels():
+    from rift.health.demo_data import demo_stream
+    from rift.health.ehr import demo_ehr, normalize_ehr
+
+    ehr, _ = normalize_ehr(demo_ehr())
+    breakdown = DigitalTwin(ehr, demo_stream()).update(10)["risk"]["uncertainty_breakdown"]
+    assert breakdown["grade"] == "heuristic-demo"
+    parts = (breakdown["base_component"] + breakdown["quality_component"]
+             + breakdown["jitter_component"] + breakdown["robustness_spread"])
+    # Components are rounded to 4dp, so allow rounding slack — not exactness theater.
+    assert abs(min(0.45, parts) - breakdown["total"]) < 1e-3
+    assert breakdown["jitter_component"] >= 0.0

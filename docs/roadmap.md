@@ -1,8 +1,10 @@
 # RIFT post-submission research roadmap
 
 v1 productization is underway on `main` (v0.6.0 tagged as the frozen
-snapshot). Completed v1 platform work is marked ✅; the rest needs real
-data and stays honestly pending.
+snapshot). Machine-verifiable status lives in `docs/phase-matrix.json`
+(enforced by `scripts/check_phase_matrix.py` in CI); the prose below
+summarizes it. Completed v1 platform work is marked ✅; the rest needs
+real data and stays honestly pending.
 
 ## Data platform ✅ (built, synthetic/tested)
 
@@ -34,6 +36,13 @@ adds registry + audit tables for a future live project.
 as the engine). `deployment_gate()` reports clinical-use closed with
 evidence-based reasons until adequate validation exists; surfaced in
 `/api/twin/evidence`. Gates constrain claims, never auto-open them.
+
+## Guardian 2.0 + evidence bundles ✅ (built)
+
+Staged enforcement (G-001…G-016) with severity, evidence payloads, and
+WITHHOLD/WARN/ALLOW actions; versioned evidence bundles
+(manifest + validation.json/md, optional HMAC signing) for every
+validation claim.
 
 The prototype is feature-frozen. Nothing below is promised or scheduled;
 each phase needs what this build deliberately lacks: real data, clinical

@@ -12,7 +12,7 @@ from .ehr import EHRRecord
 from .explain import build_reasons
 from .foresight import counterfactual_futures, trajectories
 from .guardian import verdict
-from .model_registry import DEFAULT_MODEL_ID, weights_digest
+from .model_registry import DEFAULT_MODEL_ID, deployment_gate, weights_digest
 from .models import PatientState
 from .risk import input_quality, predict
 from .robustness import combine_uncertainty, robustness_report
@@ -119,15 +119,35 @@ class DigitalTwin:
         robust = robustness_report(state, baseline, self.ehr)
         risk_record = dict(risk_record)
         risk_record["uncertainty"] = combine_uncertainty(risk_record["uncertainty"], robust["worst_case_spread"])
+        # Decomposition (all heuristic/demo-grade, labeled as such): which
+        # uncertainty comes from where, so "the model is uncertain" is never
+        # conflated with "the sensor is noisy" or "the input is stale".
+        # Components sum to the reported total unless the 0.45 cap binds.
+        _qc = 0.30 * (1.0 - input_quality(state))
+        _jc = 0.15 * risk_record["measurement_jitter"]
+        _sc = robust["worst_case_spread"] / 2
+        risk_record["uncertainty_breakdown"] = {
+            "base_component": 0.05,
+            "quality_component": round(_qc, 4),
+            "jitter_component": round(_jc, 4),
+            "robustness_spread": round(_sc, 4),
+            "cap": 0.45,
+            "total": risk_record["uncertainty"],
+            "grade": "heuristic-demo",
+        }
         lo, hi = risk_record["risk"] - risk_record["uncertainty"], risk_record["risk"] + risk_record["uncertainty"]
         risk_record["interval"] = [max(0.0, lo), min(1.0, hi)]
         risk_record["input_quality"] = input_quality(state)
         coverage = timeline_coverage(self._canonical)
         unestimated = sorted(m for m, status in coverage.items() if status != "estimated")
-        guard = verdict(state, risk_record, self._previous_state, self.ehr,
-                        unestimated=tuple(unestimated))
         futures = counterfactual_futures(state, baseline, self.ehr)
         trajs = trajectories(state, baseline, self.ehr)
+        guard = verdict(state, risk_record, self._previous_state, self.ehr,
+                        unestimated=tuple(unestimated),
+                        counterfactuals=futures,
+                        model_context={"model_id": DEFAULT_MODEL_ID,
+                                       "weights_digest": weights_digest()},
+                        deployment=deployment_gate())
         best_traj = min(trajs, key=lambda t: t["path"][-1]["risk"])
         note = (
             f"Best trajectory ends at risk {best_traj['path'][-1]['risk']:.2f} "

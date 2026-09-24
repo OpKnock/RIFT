@@ -108,6 +108,28 @@ def patient_scenario(
     return scenario, imputed
 
 
+def policy_assumptions(policy: dict, horizon_days: int) -> dict:
+    """Explicit assumption ledger for one intervention policy.
+
+    Every counterfactual carries its assumptions so Guardian (G-013) and
+    reviewers can distinguish "predicted state" from "estimated outcome
+    under intervention A". Ledger includes the live weights digest, tying
+    each assumption set to exact model weights.
+    """
+    from .model_registry import DEFAULT_MODEL_ID, weights_digest
+
+    return {
+        "policy": dict(policy),
+        "transition_model": "synthetic-bounded-v1",
+        "model_id": DEFAULT_MODEL_ID,
+        "weights_digest": weights_digest(),
+        "horizon_days": horizon_days,
+        "perturbation_set": "health-v1 (5 sensor/parameter perturbations)",
+        "causal_scope": "associational demo graph; not causal proof",
+        "claim": "simulated trajectory under declared assumptions; not a treatment prediction",
+    }
+
+
 def counterfactual_futures(state: PatientState, baseline: PersonalBaseline, ehr: EHRRecord) -> dict:
     """One-step what-if futures for every intervention policy (4 policies)."""
     scenario, imputed = patient_scenario(state, baseline, ehr)
@@ -132,6 +154,7 @@ def counterfactual_futures(state: PatientState, baseline: PersonalBaseline, ehr:
                 "nominal_risk": a.candidate.score,
                 "worst_case_risk": a.worst_case.adversarial_score if a.worst_case else a.candidate.score,
                 "feasible_under_all": a.feasible_under_all,
+                "assumptions": policy_assumptions(a.candidate.policy, horizon_days=1),
             }
             for a in ranked
         ],
@@ -163,7 +186,8 @@ def trajectories(
                 "activity_load": world["activity_load"],
                 "risk": scenario.objective(world),
             })
-        paths.append({"policy": policy, "path": path, "imputed_fields": imputed})
+        paths.append({"policy": policy, "path": path, "imputed_fields": imputed,
+                        "assumptions": policy_assumptions(policy, horizon_days=horizon_days)})
     return paths
 
 

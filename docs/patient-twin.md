@@ -214,6 +214,7 @@ days 9–10 (velocity term catches the onset day). Weights in
 | `risk.py` | 24h strain risk + contributions + quality + velocity trend | — |
 | `model_registry.py` | version pin, live weights-digest verification, evidence-driven deployment gate | — |
 | `decision.py` | policy comparison joined from ranking + trajectories | `robust` ordering |
+| `evidence.py` | versioned evidence bundles (manifest, validation.json/md, optional HMAC signing) | — |
 | `twin.py` | DigitalTwin sync/update/replay/history + provenance envelope | all above |
 | `foresight.py` | Scenario adapter, futures, trajectories, health causal graph | `counterfactual`, `robust`, `verifier`, `causal`, `models` |
 | `robustness.py` | dropout/stale/noise degradations, spread uncertainty | `robust`, `adversarial` semantics |
