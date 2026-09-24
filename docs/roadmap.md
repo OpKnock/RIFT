@@ -1,5 +1,40 @@
 # RIFT post-submission research roadmap
 
+v1 productization is underway on `main` (v0.6.0 tagged as the frozen
+snapshot). Completed v1 platform work is marked ✅; the rest needs real
+data and stays honestly pending.
+
+## Data platform ✅ (built, synthetic/tested)
+
+Canonical `Observation` (patient/timestamp/source/metric/value/unit/
+quality/provenance) + strict validation + unit normalization;
+FHIR R4 Observation import subset, CSV/JSON adapters; patient timeline
+(multi-observation days, median estimation, reproducible day indices);
+`ReplaySource` / `LiveIngestSource` / `PublicDatasetSource` share one
+interface. Real device APIs remain future work.
+
+## Twin state estimation ✅ (median layer; documented seam)
+
+Timeline estimation (median per metric/day) is separated from replay and
+from prediction, with the seam documented for future statistical models.
+No validated estimator is claimed.
+
+## Model registry + provenance ✅ (code-side; DB migration unapplied)
+
+Versioned registry (`cardiac-strain-v1`, weights digest pin, threshold,
+calibration method, status/gate), live weights-drift detection, and
+deterministic prediction IDs (SHA-256 over patient/day/model/weights/
+inputs) stamped on every twin snapshot. `backend/.../006_model_registry.sql`
+adds registry + audit tables for a future live project.
+
+## Decision comparison + deployment gate ✅ (built)
+
+`decision_table` joins robust ranking with trajectory outcomes per policy
+(expected/worst-case/uncertainty/feasibility side by side, same ordering
+as the engine). `deployment_gate()` reports clinical-use closed with
+evidence-based reasons until adequate validation exists; surfaced in
+`/api/twin/evidence`. Gates constrain claims, never auto-open them.
+
 The prototype is feature-frozen. Nothing below is promised or scheduled;
 each phase needs what this build deliberately lacks: real data, clinical
 endpoints, and prospective evaluation. Recorded here so future work has a

@@ -5,7 +5,7 @@ RIFT is a counterfactual decision lab: world state → futures → CHAOS → rob
 ## Where things live
 - Engine: `src/rift/` (`engine.py` orchestration, `scenarios.py`, `counterfactual.py`, `adversarial.py`, `robust*.py`, `optimizer.py`, `qaoa.py`, `cvar.py`, `multivariable.py`, `verifier.py`, `benchmark.py`, `causal.py`, `futures.py`, `uncertainty.py`)
 - Product boundaries: `experiments.py` (specs/fingerprints), `limits.py` (bounds), `auth.py` (token gate + ownership), `auth_jwt.py` (verified JWT identity), `ratelimit.py` (in-process budgets), `settings.py` (server env), `supabase_store.py`/`persistence.py` (DB), `billing.py` (Lemon Squeezy), `observability.py` (request IDs/logs), `api.py` (HTTP), `cli.py`, `qpu.py` (gated hardware stub)
-- Healthcare demo: `health/` (PatientState/EHR/wearable sources/baseline/transition/risk/twin/FORESIGHT/robustness/Guardian/explain/evaluate/demo data); engine stays generic in `src/rift/`
+- Healthcare demo: `health/` (PatientState/EHR/wearable sources/baseline/transition/risk/twin/FORESIGHT/robustness/Guardian/explain/evaluate/demo data); v1 platform: `observations`+`adapters`+`timeline` (canonical ingestion), `model_registry`+provenance (traceability), `decision` (policy comparison); engine stays generic in `src/rift/`
 - Migrations (source of truth): `backend/supabase/migrations/` 001→005
 - Frontend: `web/` (lab + status/history/settings/save-execute panels)
 - Tests: `tests/` (unit + API boundary + auth + billing lifecycle + hardening + execute-flow/runner/schema)
