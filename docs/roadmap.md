@@ -52,9 +52,11 @@ starting point, not a backlog of half-built features.
 ## Phase A — Real/public data
 
 Replace synthetic-only evaluation with appropriately governed public or
-permitted datasets. Entry point is ready: `PublicDatasetSource` accepts
-any CSV following the documented schema, feeding the unchanged twin,
-risk, Guardian, and evaluation layers.
+permitted datasets. Entry points are ready: `PublicDatasetSource` accepts
+any CSV following the documented schema, and `fhir_clinical` ingests
+Patient/Condition/Medication/Encounter/Device resources with pagination,
+auth, and retry — feeding the unchanged twin, risk, Guardian, and
+evaluation layers.
 
 Target shape: development cohort → calibration cohort → external cohort
 → temporal validation → prospective evaluation.
@@ -68,10 +70,13 @@ should move: physiological deterioration → predefined clinical endpoint
 
 ## Phase C — Proper uncertainty
 
-Current: heuristic uncertainty + jitter + coverage + calibration repair.
-Future: measurement uncertainty + model uncertainty + distribution shift
-+ calibrated prediction intervals, each estimated from data rather than
-constructed from weights.
+Current: heuristic uncertainty + jitter + coverage + calibration repair,
+now joined by a drift-detection module (`drift.py`: distribution,
+missingness, and source shifts with explicit thresholds) that reports —
+not yet alerts. Future: measurement uncertainty + model uncertainty +
+distribution shift + calibrated prediction intervals, each estimated from
+data rather than constructed from weights, wired into monitoring with
+alerting.
 
 ## Phase D — Strong external validation
 

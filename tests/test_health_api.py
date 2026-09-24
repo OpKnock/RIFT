@@ -54,3 +54,33 @@ def test_twin_demo_rejects_bad_day():
             except urllib.error.HTTPError as exc:
                 assert exc.code == 422
                 assert json.loads(exc.read().decode())["error"] == "invalid twin request"
+
+
+def _get_json(server, path):
+    with urllib.request.urlopen(server.url(path), timeout=60) as response:
+        assert response.status == 200
+        return json.loads(response.read().decode())
+
+
+def test_user_journey_demo_to_evidence_coherence():
+    """Act as a user: walk the product path and demand cross-endpoint coherence.
+
+    Twin snapshot, evidence report, and meta must agree on engine version,
+    dataset identity, and operating threshold — a user navigating from the
+    dashboard to raw JSON must never see contradictory facts.
+    """
+    with _Server() as server:
+        health = _get_json(server, "/api/health")
+        assert health["status"] == "ok"
+        twin = _get_json(server, "/api/twin/demo?t=10")
+        assert twin["risk"]["event_predicted"] is True
+        assert twin["guardian"]["display_allowed"] is True
+        evidence = _get_json(server, "/api/twin/evidence")
+        meta = _get_json(server, "/api/meta")
+        assert twin["meta"]["engine_version"] == meta["engine_version"] == "0.6.0"
+        assert "seed 7" in evidence["meta"]["dataset"]
+        assert evidence["calibration_repair"]["params"]["fit_days"] == 15
+        assert twin["risk"]["threshold"] == 0.6
+        assert evidence["external_validation"]["recalibrated"] is False
+        assert evidence["external_validation"]["sample_adequacy"]["verdict"] == "limited"
+        assert twin["provenance"]["model_id"] == "cardiac-strain-v1"

@@ -25,18 +25,56 @@ def bucket_by_day(observations: list[CanonicalObservation]) -> dict[str, list[Ca
     Requires normalized timestamps: bucketing raw strings would split one
     instant across days. Sorted output for reproducible indices.
     """
+    return bucket_by_resolution(observations, "day")
+
+
+RESOLUTIONS = ("hour", "day", "week")
+
+
+def bucket_key(timestamp_utc_iso: str, resolution: str = "day") -> str:
+    """Truncate a normalized UTC timestamp to hour/day/week bucket keys.
+
+    Week keys are ISO calendar weeks (YYYY-Www). Only documented
+    resolutions are accepted; anything else raises instead of guessing.
+    """
+    from datetime import datetime as _datetime
+
+    if resolution not in RESOLUTIONS:
+        raise ValueError(f"unknown resolution {resolution!r}; expected one of {list(RESOLUTIONS)}")
+    parsed = _datetime.fromisoformat(timestamp_utc_iso)
+    if resolution == "hour":
+        return parsed.strftime("%Y-%m-%dT%H")
+    if resolution == "week":
+        year, week, _ = parsed.isocalendar()
+        return f"{year}-W{week:02d}"
+    return parsed.strftime("%Y-%m-%d")
+
+
+def bucket_by_resolution(observations: list[CanonicalObservation],
+                         resolution: str = "day") -> dict[str, list[CanonicalObservation]]:
+    """Group observations by time bucket at the requested resolution."""
     buckets: dict[str, list[CanonicalObservation]] = {}
     for obs in sorted(observations, key=lambda o: o.timestamp):
-        buckets.setdefault(obs.timestamp[:10], []).append(obs)
+        buckets.setdefault(bucket_key(obs.timestamp, resolution), []).append(obs)
     return buckets
 
 
-def estimate_day(day_observations: list[CanonicalObservation]) -> dict[str, float | None]:
-    """Median per metric over one day's observations; None when absent."""
+def estimate_day(day_observations: list[CanonicalObservation],
+                 weight_by_quality: bool = False) -> dict[str, float | None]:
+    """Median per metric over one day's observations; None when absent.
+
+    With weight_by_quality=True, uses quality-weighted means instead —
+    an explicit alternative aggregation policy, never a silent default.
+    """
     estimated: dict[str, float | None] = {}
     for field in FIELDS:
-        values = [o.value for o in day_observations if o.metric == field]
-        estimated[field] = float(median(values)) if values else None
+        pairs = [(o.value, o.quality) for o in day_observations if o.metric == field]
+        if not pairs:
+            estimated[field] = None
+        elif weight_by_quality and sum(q for _, q in pairs) > 0:
+            estimated[field] = float(sum(v * q for v, q in pairs) / sum(q for _, q in pairs))
+        else:
+            estimated[field] = float(median([v for v, _ in pairs]))
     return estimated
 
 

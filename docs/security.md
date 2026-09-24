@@ -8,6 +8,9 @@
 ## Rate limiting
 - In-process fixed-window limiter (`src/rift/ratelimit.py`), enabled with `RIFT_RATE_LIMIT_ENABLED=true`; separate lower budget for the expensive `.../execute` endpoint; `429 + Retry-After` on excess. Defense-in-depth behind edge rules (see `docs/deployment.md`); static assets uncounted; client IP from direct peer unless `RIFT_TRUST_PROXY=true`.
 
+## Server-side request forgery (FHIR extraction)
+- `fhir_clinical.checked_open` gates every fetch hop: http/https schemes only, no redirects, DNS-resolved targets must be globally routable. Loopback/private targets require explicit `RIFT_ALLOW_PRIVATE_FETCH=true` (dev/test only). Tested: metadata-IP, file://, and gopher URLs refused; loopback refused by default and allowed under the flag.
+
 ## Checked and passing (evidence in repo/tests)
 - Static analysis: `bandit -r src` reports **zero issues** (triaged 2026-09-23: one medium `urlopen` hardened with an endpoint allowlist; low `try/except/pass` sites converted to redacted `log_event` diagnostics except three justified `nosec` best-effort paths; `assert` replaced with an explicit raise). Enforced in CI (`security` job).
 - Supply chain: RIFT's runtime dependencies are `[]`; auditing the full declared closure (`pytest`, `supabase`, `qiskit`, `qiskit-ibm-runtime`) with pip-audit found **no known vulnerabilities**. (The host machine's global environment has unrelated CVEs in packages RIFT never imports — not a repo finding.)
