@@ -2,7 +2,7 @@
 
 - [ ] `pip install -e ".[dev]"` clean on Python 3.11
 - [ ] `pytest` green (currently 146 tests)
-- [ ] `python scripts/validate_migrations.py` ok (001→005 in order, RLS on)
+- [ ] `python scripts/validate_migrations.py` ok (001→006 in order, RLS on)
 - [ ] `python scripts/secret_scan.py` ok
 - [ ] `python scripts/check_versions.py` ok (pyproject ↔ package ↔ health)
 - [ ] `python -m rift.cli demo` prints futures + Guardian-ready candidates

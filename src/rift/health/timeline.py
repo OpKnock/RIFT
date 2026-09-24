@@ -1,12 +1,14 @@
 """Patient timeline: canonical observations → daily twin inputs.
 
-Separates three jobs the old day-index rows conflated:
-1. bucketing timestamped observations into calendar days,
-2. estimating one daily value per metric (median: robust to multi-obs days),
-3. mapping calendar days to reproducible integer indices.
+Pipeline order is load-bearing: raw timestamp → strict ISO parse →
+UTC normalization (in observations.normalize_timestamp) → calendar-day
+bucket → per-metric estimation → integer day indices.
 
-Estimation is deliberately simple (median) and documented as such — a
-future StatisticalModel/ValidatedClinicalModel plugs into estimate_day().
+"Calendar day" therefore always means UTC calendar day. Naive timestamps
+are documented as assumed UTC at the validation boundary, so
+2026-01-05T00:30+05:30 and 2026-01-04T19:00Z bucket together (same
+instant), deterministically. Patient/site-local day bucketing is future
+work requiring an explicit timezone field this schema does not yet have.
 """
 from __future__ import annotations
 
@@ -18,7 +20,11 @@ from .wearable import FIELDS
 
 
 def bucket_by_day(observations: list[CanonicalObservation]) -> dict[str, list[CanonicalObservation]]:
-    """Group observations by calendar date (timestamp[:10]). Sorted output."""
+    """Group observations by UTC calendar date (normalized timestamp[:10]).
+
+    Requires normalized timestamps: bucketing raw strings would split one
+    instant across days. Sorted output for reproducible indices.
+    """
     buckets: dict[str, list[CanonicalObservation]] = {}
     for obs in sorted(observations, key=lambda o: o.timestamp):
         buckets.setdefault(obs.timestamp[:10], []).append(obs)
@@ -56,11 +62,13 @@ def to_daily_rows(
     rows = []
     for date in dates:
         estimated = estimate_day(buckets[date])
+        origins = sorted({o.provenance for o in buckets[date] if o.provenance})
         rows.append(WearableObservation(
             day_index=day_index[date],
             resting_hr=estimated["resting_hr"],
             hrv_rmssd=estimated["hrv_rmssd"],
             sleep_hours=estimated["sleep_hours"],
             activity_load=estimated["activity_load"],
+            provenance=";".join(origins),
         ))
     return rows, day_index

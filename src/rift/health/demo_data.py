@@ -26,6 +26,7 @@ def demo_series(
     days: int = 60,
     spells: tuple[tuple[int, int], ...] = ((20, 2), (35, 1), (47, 2)),
     partial_days: tuple[int, ...] = (),
+    provenance: str = "synthetic-demo-generator",
 ) -> WearableStream:
     """Longer deterministic series for temporal evaluation.
 
@@ -53,5 +54,6 @@ def demo_series(
             hrv_rmssd=None if day in partial_days else round(hrv, 1),
             sleep_hours=round(max(0.0, sleep), 1),
             activity_load=round(max(0.0, activity), 1),
+            provenance=provenance,
         ))
     return ReplaySource(observations)

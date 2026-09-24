@@ -11,36 +11,45 @@ days work without changing the twin core.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
-from .models import WearableObservation
+import math
+from dataclasses import dataclass
+from datetime import datetime, timezone
 
 # Canonical metric names and their expected units. Values arriving in other
 # units are converted; unknown units are rejected, never guessed.
-METRICS = ("resting_hr", "hrv_rmssd", "sleep_hours", "activity_load")
+#
+# resting_hr means RESTING heart rate specifically. Generic heart-rate
+# readings use heart_rate; R-R interval SD uses rr_sd. The twin's risk
+# path consumes resting_hr/hrv_rmssd only — generic readings are preserved
+# at observation level but never silently relabeled (see adapters.py).
+METRICS = ("resting_hr", "hrv_rmssd", "sleep_hours", "activity_load", "heart_rate", "rr_sd")
 EXPECTED_UNITS = {
     "resting_hr": "bpm",
     "hrv_rmssd": "ms",
     "sleep_hours": "h",
     "activity_load": "index",
+    "heart_rate": "bpm",
+    "rr_sd": "ms",
 }
 
 # Accepted unit aliases per metric: alias -> multiplier to canonical unit.
 UNIT_ALIASES = {
-    "resting_hr": {"bpm": 1.0, "beats_per_minute": 1.0, "bpm_": 1.0},
+    "resting_hr": {"bpm": 1.0, "beats_per_minute": 1.0},
     "hrv_rmssd": {"ms": 1.0, "millisecond": 1.0, "s": 1000.0},
     "sleep_hours": {"h": 1.0, "hour": 1.0, "hours": 1.0, "min": 1.0 / 60.0, "s": 1.0 / 3600.0},
     "activity_load": {"index": 1.0, "points": 1.0, "steps": 0.01},
+    "heart_rate": {"bpm": 1.0, "beats_per_minute": 1.0, "/min": 1.0, "beats/min": 1.0},
+    "rr_sd": {"ms": 1.0, "millisecond": 1.0, "s": 1000.0},
 }
 
 
 @dataclass(frozen=True)
 class CanonicalObservation:
     patient_id: str
-    timestamp: str  # ISO-8601, e.g. 2026-01-04T08:04:00
-    source: str     # e.g. fhir, csv, json, wearable-api
+    timestamp: str  # normalized UTC ISO-8601, e.g. 2026-01-04T08:04:00+00:00
+    source: str     # e.g. fhir, csv, json, wearable-api (required)
     metric: str
-    value: float
+    value: float    # finite, in EXPECTED_UNITS[metric]
     unit: str
     quality: float = 1.0  # 0..1 as asserted by the source adapter
     provenance: str = ""  # free text: file/device/endpoint identity
@@ -58,12 +67,35 @@ class CanonicalObservation:
         }
 
 
+def normalize_timestamp(raw: object) -> str:
+    """Parse ISO-8601 strictly and normalize to UTC.
+
+    Naive timestamps are assumed UTC (documented, not guessed per-source).
+    Date-only strings are accepted as midnight UTC. Raises ValueError on
+    anything unparseable — including FHIR Period/Timing objects, which this
+    pipeline does not accept as instants.
+    """
+    if not isinstance(raw, str):
+        raise ValueError(f"timestamp must be a string, got {type(raw).__name__}")
+    text = raw.strip()
+    try:
+        # datetime.fromisoformat always returns datetime (date-only input
+        # becomes midnight); 'Z' suffix handled for pre-3.11-style strings.
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"unparseable timestamp {raw!r}; expected ISO-8601") from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat()
+
+
 def validate_observation(raw: dict) -> tuple[CanonicalObservation | None, list[str]]:
     """Validate + normalize one raw observation dict. Never raises.
 
-    Returns (observation, issues). Unknown metrics, bad timestamps, unknown
-    units, and non-numeric values are rejected with reasons; quality is
-    clamped to 0..1.
+    Returns (observation, issues). Rejected with reasons: unknown metrics,
+    unparseable timestamps, non-finite values, unknown units, out-of-range
+    or non-numeric quality, missing patient_id, missing source. Nothing is
+    clamped or defaulted except documented UTC assumption for naive times.
     """
     issues: list[str] = []
     if not isinstance(raw, dict):
@@ -71,13 +103,16 @@ def validate_observation(raw: dict) -> tuple[CanonicalObservation | None, list[s
     metric = raw.get("metric")
     if metric not in METRICS:
         return None, [f"unknown metric {metric!r}; expected one of {list(METRICS)}"]
-    timestamp = raw.get("timestamp")
-    if not isinstance(timestamp, str) or len(timestamp) < 10 or "T" not in timestamp:
-        return None, [f"bad timestamp {timestamp!r}; expected ISO-8601"]
+    try:
+        timestamp = normalize_timestamp(raw.get("timestamp"))
+    except ValueError as exc:
+        return None, [str(exc)]
     try:
         value = float(raw.get("value"))
     except (TypeError, ValueError):
         return None, [f"non-numeric value for {metric!r}"]
+    if not math.isfinite(value):
+        return None, [f"non-finite value for {metric!r}: rejected, not normalized"]
     aliases = UNIT_ALIASES[metric]
     unit = raw.get("unit")
     if unit not in aliases:
@@ -85,16 +120,19 @@ def validate_observation(raw: dict) -> tuple[CanonicalObservation | None, list[s
     try:
         quality = float(raw.get("quality", 1.0))
     except (TypeError, ValueError):
-        issues.append("non-numeric quality clamped to 0.0")
-        quality = 0.0
-    quality = max(0.0, min(1.0, quality))
+        return None, [f"non-numeric quality for {metric!r}: rejected, not defaulted"]
+    if not math.isfinite(quality) or not 0.0 <= quality <= 1.0:
+        return None, [f"quality {raw.get('quality')!r} out of range [0, 1]: rejected, not clamped"]
     patient_id = raw.get("patient_id")
     if not isinstance(patient_id, str) or not patient_id.strip():
         return None, ["missing patient_id"]
+    source = raw.get("source")
+    if not isinstance(source, str) or not source.strip():
+        return None, ["missing source: provenance-first ingestion requires a named source"]
     return CanonicalObservation(
         patient_id=patient_id.strip(),
         timestamp=timestamp,
-        source=str(raw.get("source") or "unknown"),
+        source=source.strip(),
         metric=metric,
         value=value * aliases[unit],
         unit=EXPECTED_UNITS[metric],
