@@ -205,7 +205,7 @@ days 9–10 (velocity term catches the onset day). Weights in
 | `ehr.py` | schema + normalization, demo fixture | — |
 | `observations.py` | canonical Observation: strict validation, finite values, UTC timestamps, unit normalization, immutable ids + revisions | — |
 | `adapters.py` | FHIR (versioned terminology registry), CSV, JSON ingestion; structured provenance | `observations`, `terminology` |
-| `timeline.py` | UTC day bucketing, median estimation, reproducible indices, coverage report | `observations` |
+| `timeline.py` | UTC day/hour/week bucketing, median or quality-weighted estimation, reproducible indices, coverage report | `observations` |
 | `terminology.py` | versioned LOINC map with per-code mapping status (supported/withheld) | — |
 | `sources.py` | ReplaySource / LiveIngestSource / PublicDatasetSource | `wearable` |
 | `wearable.py` | replayable stream, staleness/completeness, jitter + trend terms | — |
@@ -214,6 +214,12 @@ days 9–10 (velocity term catches the onset day). Weights in
 | `risk.py` | 24h strain risk + contributions + quality + velocity trend | — |
 | `model_registry.py` | version pin, live weights-digest verification, evidence-driven deployment gate | — |
 | `decision.py` | policy comparison joined from ranking + trajectories | `robust` ordering |
+| `estimation.py` | median / quality-weighted / EWM baseline estimators + disagreement report (median stays production) | — |
+| `drift.py` | distribution/missingness/source drift detection with explicit thresholds | `wearable` |
+| `fhir_clinical.py` | Patient/Condition/Medication/Encounter/Device parsing, bundle→EHR bridge, paginated auth fetch | `ehr`, `terminology` |
+| `estimation.py` | median / quality-weighted / EWM baseline estimators + disagreement report (median stays production) | — |
+| `drift.py` | distribution/missingness/source drift detection with explicit thresholds | `wearable` |
+| `fhir_clinical.py` | Patient/Condition/Medication/Encounter/Device parsing, bundle→EHR bridge, paginated auth fetch | `ehr`, `terminology` |
 | `evidence.py` | versioned evidence bundles (manifest, validation.json/md, optional HMAC signing) | — |
 | `twin.py` | DigitalTwin sync/update/replay/history + provenance envelope | all above |
 | `foresight.py` | Scenario adapter, futures, trajectories, health causal graph | `counterfactual`, `robust`, `verifier`, `causal`, `models` |

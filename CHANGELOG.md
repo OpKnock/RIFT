@@ -3,6 +3,11 @@
 All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system, not a certified product.
 
 ## [Unreleased]
+### Added
+- FHIR clinical resources (`fhir_clinical.py`): Patient/Condition/Medication/Encounter/Device parsing, bundle→EHR bridge, paginated authenticated extraction with retry/backoff + manifests, SSRF-hardened fetching (scheme/IP allowlist, no redirects, dev-only private override).
+- FHIR clinical resources (`fhir_clinical.py`): Patient/Condition/Medication/Encounter/Device parsing, bundle→EHR bridge, paginated authenticated extraction with retry/backoff + manifests.
+- Timeline multi-resolution (hour/day/week) + quality-weighted estimation alternative; estimator comparison module (median/weighted/EWM + disagreement report).
+- Drift detection (`drift.py`): distribution, missingness, and source shifts with explicit thresholds.
 ### Fixed
 - Ingestion audit fixes: reject NaN/±Infinity values and non-finite/out-of-range quality; strict ISO-8601 UTC timestamps with explicit UTC day-bucket semantics; source and FHIR subject required.
 - FHIR terminology correction via versioned registry (`terminology.py`, LOINC 2.83): 8867-4 maps to generic `heart_rate` (resting only with explicit resting context), 80404-7 maps to `rr_sd` (never RMSSD); unmapped codes rejected with reviewable status.

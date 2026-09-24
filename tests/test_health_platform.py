@@ -428,3 +428,239 @@ def test_uncertainty_breakdown_sums_and_labels():
     # Components are rounded to 4dp, so allow rounding slack — not exactness theater.
     assert abs(min(0.45, parts) - breakdown["total"]) < 1e-3
     assert breakdown["jitter_component"] >= 0.0
+
+
+def test_fhir_clinical_resources():
+    from rift.health import fhir_clinical as F
+
+    patient = {"resourceType": "Patient", "id": "p1",
+               "birthDate": "1968-03-22", "gender": "male"}
+    demo, issues = F.parse_patient(patient)
+    assert demo["patient_id"] == "p1" and demo["age"] == 58.0 and demo["sex"] == "M"
+    assert F.parse_patient({"resourceType": "Patient"})[0].get("age") is None
+    assert F.parse_patient({}) == ({}, ["not a Patient resource"])
+    cond = {"resourceType": "Condition",
+            "code": {"coding": [{"display": "Hypertension"}]},
+            "clinicalStatus": {"coding": [{"code": "active"}]}}
+    assert F.parse_condition(cond)[0] == "hypertension"
+    assert F.parse_condition({"resourceType": "Condition",
+                              "code": {"coding": [{"display": "Martian flu"}]}})[0] is None
+    resolved = {"resourceType": "Condition",
+                "code": {"coding": [{"display": "Hypertension"}]},
+                "clinicalStatus": {"coding": [{"code": "resolved"}]}}
+    assert F.parse_condition(resolved)[0] is None  # inactive excluded
+    med = {"resourceType": "MedicationStatement",
+           "medicationCodeableConcept": {"coding": [{"display": "Metformin"}]},
+           "status": "active"}
+    assert F.parse_medication(med)[0] == "metformin"
+    assert F.parse_medication({"resourceType": "Observation"})[0] is None
+    enc, _ = F.parse_encounter({"resourceType": "Encounter", "id": "e1",
+                                "period": {"start": "2026-01-04T08:00:00+00:00"},
+                                "status": "finished"})
+    assert enc["id"] == "e1"
+    assert F.parse_encounter({"resourceType": "Encounter"})[0] is None
+    dev, _ = F.parse_device({"resourceType": "Device", "id": "d1",
+                             "type": {"coding": [{"display": "watch"}]},
+                             "status": "active",
+                             "patient": {"reference": "Patient/p1"}})
+    assert dev["patient_id"] == "p1"
+    bundle = {"resourceType": "Bundle", "entry": [
+        {"resource": patient}, {"resource": cond}, {"resource": med}]}
+    raw, issues = F.bundle_to_ehr(bundle)
+    assert raw["patient_id"] == "p1" and "hypertension" in raw["conditions"]
+    assert "metformin" in raw["medications"]
+    assert F.bundle_to_ehr({})[0]["conditions"] == []
+    from rift.health.ehr import normalize_ehr
+
+    record, problems = normalize_ehr(raw)
+    assert record.age == 58.0 and "hypertension" in record.conditions
+
+
+def test_fhir_pagination_auth_retry_manifest(monkeypatch):
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from rift.health import fhir_clinical as F
+
+    monkeypatch.setenv("RIFT_ALLOW_PRIVATE_FETCH", "true")
+
+    calls = {"n": 0, "auth": []}
+
+    class FHIRHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            calls["n"] += 1
+            calls["auth"].append(self.headers.get("Authorization"))
+            if self.headers.get("Authorization") != "Bearer good-token":
+                self.send_response(401)
+                self.end_headers()
+                return
+            if self.path == "/page1" and calls["n"] in (2, 3):
+                self.send_response(503)  # transient: must be retried
+                self.end_headers()
+                return
+            import json as _json
+
+            if self.path == "/page1":
+                body = {"resourceType": "Bundle", "entry": [
+                    {"resource": {"resourceType": "Observation"}}],
+                    "link": [{"relation": "next", "url": f"http://127.0.0.1:{port}/page2"}]}
+            else:
+                body = {"resourceType": "Bundle", "entry": []}
+            raw = _json.dumps(body).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/fhir+json")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def log_message(self, *args):
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), FHIRHandler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        try:
+            F.fetch_bundle(f"http://127.0.0.1:{port}/page1", token="bad-token", timeout_s=5)
+            raise AssertionError("bad credentials must raise auth error")
+        except F.FhirError as exc:
+            assert "auth" in str(exc)
+        resources, manifest = F.fetch_all_pages(
+            f"http://127.0.0.1:{port}/page1", token="good-token", timeout_s=5)
+        assert len(resources) == 1
+        assert manifest["total_resources"] == 1 and len(manifest["pages"]) == 2
+        assert manifest["truncated"] is False
+        assert calls["n"] >= 4  # initial + auth-fail + retries + page2
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_fhir_ssrf_private_targets_refused_by_default(monkeypatch):
+    from rift.health import fhir_clinical as F
+
+    monkeypatch.delenv("RIFT_ALLOW_PRIVATE_FETCH", raising=False)
+    for url in ("http://169.254.169.254/latest/meta-data/",
+                "http://127.0.0.1:9/fhir",
+                "file:///etc/passwd",
+                "gopher://example.com/"):
+        try:
+            F.fetch_bundle(url, token="t", timeout_s=2, max_retries=0)
+            raise AssertionError(f"{url} must be refused")
+        except F.FhirError as exc:
+            assert "security" in str(exc), str(exc)
+
+
+def test_fhir_private_fetch_opt_in_is_explicit(monkeypatch):
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from rift.health import fhir_clinical as F
+
+    class OKHandler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            raw = b'{"resourceType": "Bundle", "entry": []}'
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+
+        def log_message(self, *args):
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), OKHandler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        monkeypatch.delenv("RIFT_ALLOW_PRIVATE_FETCH", raising=False)
+        try:
+            F.fetch_bundle(f"http://127.0.0.1:{port}/x", timeout_s=5, max_retries=0)
+            raise AssertionError("loopback must be refused by default")
+        except F.FhirError:
+            pass
+        monkeypatch.setenv("RIFT_ALLOW_PRIVATE_FETCH", "true")
+        assert F.fetch_bundle(f"http://127.0.0.1:{port}/x", timeout_s=5)["resourceType"] == "Bundle"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_multiresolution_buckets_and_weighted_estimation():
+    from rift.health import timeline as T
+    from rift.health.observations import normalize_batch
+
+    accepted, issues = normalize_batch([
+        _raw(timestamp="2026-01-04T08:04:00", metric="resting_hr", value=70.0),
+        _raw(timestamp="2026-01-04T18:00:00", metric="resting_hr", value=74.0),
+        _raw(timestamp="2026-01-05T08:00:00", metric="resting_hr", value=72.0),
+    ])
+    assert not issues
+    hours = T.bucket_by_resolution(accepted, "hour")
+    assert sorted(hours) == ["2026-01-04T08", "2026-01-04T18", "2026-01-05T08"]
+    weeks = T.bucket_by_resolution(accepted, "week")
+    # 2026-01-04 is a Sunday, 2026-01-05 a Monday: ISO weeks split here,
+    # which is exactly the boundary behavior week buckets must have.
+    assert sorted(weeks) == ["2026-W01", "2026-W02"]
+    try:
+        T.bucket_by_resolution(accepted, "fortnight")
+        raise AssertionError("unknown resolution must be rejected")
+    except ValueError:
+        pass
+    day_obs = [o for o in accepted if o.timestamp.startswith("2026-01-04")]
+    assert T.estimate_day(day_obs)["resting_hr"] == 72.0  # median default unchanged
+    weighted = T.estimate_day(
+        [dict(o.to_dict(), quality=q) for o in []], weight_by_quality=True) if False else None
+    import dataclasses
+
+    low_first = [dataclasses.replace(day_obs[0], quality=0.0),
+                 dataclasses.replace(day_obs[1], quality=1.0)]
+    assert T.estimate_day(low_first, weight_by_quality=True)["resting_hr"] == 74.0
+    assert T.estimate_day(low_first)["resting_hr"] == 72.0  # median ignores quality
+
+
+def test_estimator_comparison_reports_disagreement():
+    from rift.health import estimation as E
+
+    values = [70.0, 71.0, 72.0, 90.0]
+    assert E.median_estimate(values) == 71.5
+    assert E.median_estimate([]) is None
+    assert E.weighted_mean_estimate(values, [1, 1, 1, 0]) == 71.0
+    assert E.ewm_estimate([70.0, 70.0, 70.0]) == 70.0
+    try:
+        E.ewm_estimate(values, alpha=0.0)
+        raise AssertionError("bad alpha must be rejected")
+    except ValueError:
+        pass
+    report = E.compare_estimators({"hr": values})
+    assert report["production"] == "median"
+    assert set(report["estimators"]) == {"median", "weighted_mean", "ewm"}
+    assert report["max_disagreement"]["hr"] > 0  # outlier moves mean/ewm off median
+
+
+def test_drift_detection_events_and_insufficient_data():
+    from rift.health import drift as D
+    from rift.health.models import WearableObservation as W
+
+    ref = [W(day_index=i, resting_hr=70.0, hrv_rmssd=50.0, sleep_hours=7.0, activity_load=40.0)
+           for i in range(7)]
+    same = [W(day_index=7 + i, resting_hr=70.0, hrv_rmssd=50.0, sleep_hours=7.0, activity_load=40.0)
+            for i in range(3)]
+    calm = D.detect_drift(ref, same)
+    assert calm["drifted"] is False and calm["events"] == []
+    shifted = [W(day_index=7 + i, resting_hr=85.0, hrv_rmssd=50.0, sleep_hours=7.0, activity_load=40.0)
+               for i in range(3)]
+    hot = D.detect_drift(ref, shifted)
+    assert hot["drifted"] is True
+    assert any(e["field"] == "resting_hr" for e in hot["events"])
+    gappy = [W(day_index=7 + i, resting_hr=None, hrv_rmssd=None, sleep_hours=None, activity_load=None)
+             for i in range(3)]
+    missing = D.detect_drift(ref, gappy)
+    assert missing["drifted"] is True
+    assert any(e["kind"] == "missingness" for e in missing["events"])
+    empty = D.detect_drift([], same)
+    assert empty["drifted"] is False
+    assert any("unassessable" in e["message"] for e in empty["events"])
