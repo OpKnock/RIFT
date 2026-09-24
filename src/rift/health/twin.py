@@ -17,6 +17,7 @@ from .models import PatientState
 from .risk import input_quality, predict
 from .robustness import combine_uncertainty, robustness_report
 from .sources import WearableSource
+from .timeline import timeline_coverage
 from .wearable import jitter_score, trend_terms
 
 
@@ -61,6 +62,12 @@ def prediction_provenance(
         "schema_version": "patient-state-v1",
         "calibration_id": calibration_id,
         "source_ids": sorted(source_ids or []),
+        "ehr_hash": _hashlib.sha256(_json.dumps(
+            ehr_dict or {}, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest(),
+        "baseline_hash": _hashlib.sha256(_json.dumps(
+            baseline_dict or {}, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest(),
+        "input_hash": _hashlib.sha256(_json.dumps(
+            state_dict, sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest(),
         "engine": "rift",
     }
 
@@ -68,10 +75,12 @@ def prediction_provenance(
 class DigitalTwin:
     """Synchronized patient twin over a replayable wearable stream."""
 
-    def __init__(self, ehr: EHRRecord, stream: WearableSource, baseline_window: int = 7):
+    def __init__(self, ehr: EHRRecord, stream: WearableSource, baseline_window: int = 7,
+                 canonical_observations: list | None = None):
         self.ehr = ehr
         self.stream = stream
         self.baseline_window = baseline_window
+        self._canonical = list(canonical_observations) if canonical_observations else []
         self.history: list[dict] = []
         self._previous_state: PatientState | None = None
 
@@ -121,6 +130,14 @@ class DigitalTwin:
             f"Best trajectory ends at risk {best_traj['path'][-1]['risk']:.2f} "
             f"under policy {best_traj['policy']} over {len(best_traj['path']) - 1} days."
         )
+        coverage = timeline_coverage(self._canonical)
+        unestimated = sorted(m for m, status in coverage.items() if status != "estimated")
+        if unestimated:
+            guard = dict(guard)
+            guard["flags"] = list(guard.get("flags", [])) + [
+                "accepted but unestimated metrics (preserved, not consumed by twin v1): "
+                + ", ".join(unestimated)
+            ]
         reasons = build_reasons(state, baseline, devs, self.ehr, risk_record, guard, note)
         snapshot = {
             "day_index": day_index,
@@ -136,6 +153,7 @@ class DigitalTwin:
             "trajectories": trajs,
             "decision_table": decision_table(futures["robust_ranking"], trajs),
             "reasons": reasons,
+            "timeline_coverage": coverage,
             "provenance": prediction_provenance(
                 self.ehr.patient_id, day_index, state.to_dict(),
                 ehr_dict=self.ehr.to_dict(),

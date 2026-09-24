@@ -182,9 +182,10 @@ days 9–10 (velocity term catches the onset day). Weights in
 |---|---|---|
 | `models.py` | EHRRecord, WearableObservation (+provenance), PatientState, baselines, deviations | — |
 | `ehr.py` | schema + normalization, demo fixture | — |
-| `observations.py` | canonical Observation: strict validation, finite values, UTC timestamps, unit normalization | — |
-| `adapters.py` | FHIR (versioned LOINC map), CSV, JSON ingestion; structured provenance | `observations` |
-| `timeline.py` | UTC day bucketing, median estimation, reproducible indices | `observations` |
+| `observations.py` | canonical Observation: strict validation, finite values, UTC timestamps, unit normalization, immutable ids + revisions | — |
+| `adapters.py` | FHIR (versioned terminology registry), CSV, JSON ingestion; structured provenance | `observations`, `terminology` |
+| `timeline.py` | UTC day bucketing, median estimation, reproducible indices, coverage report | `observations` |
+| `terminology.py` | versioned LOINC map with per-code mapping status (supported/withheld) | — |
 | `sources.py` | ReplaySource / LiveIngestSource / PublicDatasetSource | `wearable` |
 | `wearable.py` | replayable stream, staleness/completeness, jitter + trend terms | — |
 | `baseline.py` | personal medians (strictly prior observations), deviations | — |

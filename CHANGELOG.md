@@ -5,6 +5,9 @@ All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system,
 ## [Unreleased]
 ### Fixed
 - Ingestion audit fixes: reject NaN/±Infinity values and non-finite/out-of-range quality; strict ISO-8601 UTC timestamps with explicit UTC day-bucket semantics; source and FHIR subject required.
+- FHIR terminology correction via versioned registry (`terminology.py`, LOINC 2.83): 8867-4 maps to generic `heart_rate` (resting only with explicit resting context), 80404-7 maps to `rr_sd` (never RMSSD); unmapped codes rejected with reviewable status.
+- Timeline coverage report: accepted-but-unestimated metrics are surfaced per snapshot and flagged by Guardian instead of silently dropped; `issued` never substitutes for `effectiveDateTime`.
+- Provenance envelope exposes ehr/baseline/input hashes; observation IDs + immutable revisions; weights digest genuinely pinned.
 - FHIR terminology correction: 8867-4 maps to generic `heart_rate` (resting only with explicit resting context), 80404-7 maps to `rr_sd` (never RMSSD); versioned LOINC map; structured per-resource provenance preserved.
 - Weights digest genuinely pinned in the registry; unpinned entries report mismatch, never silent match.
 - Provenance envelope expanded (EHR/baseline hashes, calibration id, schema version, source ids); observation provenance threaded through timeline → twin → Guardian flag.

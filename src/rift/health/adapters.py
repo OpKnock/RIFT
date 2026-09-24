@@ -11,28 +11,15 @@ import json
 import math
 
 from .observations import EXPECTED_UNITS, normalize_batch
+from .terminology import (
+    LOINC_MAP,
+    RESTING_CONTEXT_CODES,
+    TERMINOLOGY_VERSION as FHIR_TERMINOLOGY_VERSION,
+)
 
-# Versioned terminology mapping, not a permanent assumption. LOINC meanings
-# below were checked against the published terminology (LOINC 2.83):
-# - 8867-4 is generic Heart rate, NOT resting heart rate → heart_rate.
-#   Mapping it to resting_hr would silently change the data's meaning, so
-#   the adapter refuses to do that (see _resting_context).
-# - 80404-7 is R-R interval standard deviation, NOT RMSSD → rr_sd.
-# A resting_hr reading from FHIR additionally requires explicit resting
-# context on the resource; see _resting_context.
-FHIR_TERMINOLOGY_VERSION = "LOINC 2.83 (2026-08-19)"
-FHIR_LOINC_MAP = {
-    "8867-4": ("heart_rate", {"/min": 1.0, "bpm": 1.0, "beats/min": 1.0}),
-    "80404-7": ("rr_sd", {"ms": 1.0, "millisecond": 1.0, "s": 1000.0}),
-    "93832-4": ("sleep_hours", {"h": 1.0, "min": 1.0 / 60.0, "s": 1.0 / 3600.0}),
-}
-
-# FHIR codings that assert a resting context (body position / interpretation),
-# allowing 8867-4 to be recorded as resting_hr instead of generic heart_rate.
-# Without one of these, generic heart rate stays generic.
-RESTING_CONTEXT_CODES = frozenset({
-    "supine", "lying", "recumbent", "resting", "at-rest", "LAEQ",
-})
+# Back-compat alias: (metric, units) view of the versioned registry.
+# New code should use terminology.mapping_status() directly.
+FHIR_LOINC_MAP = {code: (metric, units) for code, (metric, units, _, _) in LOINC_MAP.items()}
 
 
 def _fhir_patient(ref: object) -> str | None:
@@ -118,12 +105,14 @@ def from_fhir(payload: dict | list, provenance: str = "fhir") -> tuple[list, lis
         if unit not in units:
             issues.append(f"[{index}] skipped: unsupported UCUM unit {unit!r}")
             continue
-        timestamp = res.get("effectiveDateTime") or res.get("issued")
+        timestamp = res.get("effectiveDateTime") or res.get("effectiveInstant")
         if isinstance(timestamp, dict):
             issues.append(f"[{index}] skipped: Period/Timing effective not supported, need a single instant")
             continue
         if not isinstance(timestamp, str) or "T" not in timestamp:
-            issues.append(f"[{index}] skipped: missing effectiveDateTime")
+            # issued is resource availability time, NOT observation time —
+            # substituting it would mislabel clinical timing, so reject.
+            issues.append(f"[{index}] skipped: missing effectiveDateTime/effectiveInstant (issued is not a substitute)")
             continue
         patient_id = _fhir_patient(res.get("subject"))
         if not patient_id:
