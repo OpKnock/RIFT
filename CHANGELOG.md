@@ -8,7 +8,6 @@ All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system,
 - Promotion lifecycle (`promote`/`rollback`/`get_audit_log`): one-step moves, evidence + approver + notes rules, audit trail; validation automatable, approval human.
 - Decision sensitivity analysis (`decision.sensitivity_analysis`): per-field risk swings under perturbation, stability reporting.
 - FHIR clinical resources (`fhir_clinical.py`): Patient/Condition/Medication/Encounter/Device parsing, bundle→EHR bridge, paginated authenticated extraction with retry/backoff + manifests, SSRF-hardened fetching (scheme/IP allowlist, no redirects, dev-only private override).
-- FHIR clinical resources (`fhir_clinical.py`): Patient/Condition/Medication/Encounter/Device parsing, bundle→EHR bridge, paginated authenticated extraction with retry/backoff + manifests.
 - Timeline multi-resolution (hour/day/week) + quality-weighted estimation alternative; estimator comparison module (median/weighted/EWM + disagreement report).
 - Drift detection (`drift.py`): distribution, missingness, and source shifts with explicit thresholds.
 ### Fixed
