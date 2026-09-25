@@ -53,9 +53,16 @@ def fetch_with_provenance(url: str, timeout: int = 30) -> tuple[FetchResult, str
         "error": None,
     }
     text = ""
+    # Scheme allowlist: urllib supports file:// and custom schemes, so every
+    # fetch target must be https (fixed PhysioNet base + validated subject/night).
+    from urllib.parse import urlparse as _urlparse
+
+    if _urlparse(url).scheme != "https" or not url.startswith(BASE):
+        result["error"] = "refusing non-allowlisted fetch target"
+        return result, text
     try:
         request = urllib.request.Request(url, headers={"Accept": "text/csv"})
-        with urllib.request.urlopen(request, timeout=timeout) as resp:  # nosec B310 -- URL is fixed PhysioNet base + validated subject/night
+        with urllib.request.urlopen(request, timeout=timeout) as resp:  # nosec B310 -- allowlisted above; nosemgrep -- fixed https base, validated inputs
             result["http_status"] = resp.getcode()
             content = resp.read()
             result["content_sha256"] = hashlib.sha256(content).hexdigest()

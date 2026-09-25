@@ -37,9 +37,16 @@ def fetch_with_provenance(url: str, timeout: int = 60) -> tuple[FetchResult, str
         "error": None,
     }
     text = ""
+    # Scheme allowlist: urllib supports file:// and custom schemes, so every
+    # fetch target must be https under the fixed PhysioNet base.
+    from urllib.parse import urlparse as _urlparse
+
+    if _urlparse(url).scheme != "https" or not url.startswith(BASE):
+        result["error"] = "refusing non-allowlisted fetch target"
+        return result, text
     try:
         request = urllib.request.Request(url, headers={"Accept": "text/plain"})
-        with urllib.request.urlopen(request, timeout=timeout) as resp:  # nosec B310 - fixed PhysioNet URL
+        with urllib.request.urlopen(request, timeout=timeout) as resp:  # nosec B310 - allowlisted above; nosemgrep -- fixed https base, validated inputs
             result["http_status"] = resp.getcode()
             content = resp.read()
             result["content_sha256"] = hashlib.sha256(content).hexdigest()
@@ -113,9 +120,11 @@ def scrape_sample(out_dir: str = "data/physionet_sepsis",
     path = Path(out_dir) / training_set
     path.mkdir(parents=True, exist_ok=True)
     
-    # Get patient list
+    # Get patient list (allowlisted fixed base; training_set is validated below).
+    if training_set not in TRAINING_SETS:
+        raise ValueError(f"unknown training set {training_set!r}")
     url = f"{BASE}/training/{training_set}/"
-    resp = urllib.request.urlopen(url, timeout=30)  # nosec B310 - fixed PhysioNet URL
+    resp = urllib.request.urlopen(url, timeout=30)  # nosec B310 - fixed base + validated set; nosemgrep -- fixed https base, validated set
     html = resp.read().decode('utf-8', errors='ignore')
     
     import re

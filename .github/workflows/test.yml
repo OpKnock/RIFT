@@ -37,3 +37,18 @@ jobs:
           python-version: "3.11"
       - name: Bandit SAST (fail on any finding)
         run: pip install -c constraints.txt "bandit>=1.9,<2" && bandit -r src -q
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build production image (repo-root context)
+        run: docker build -f deployment/docker/Dockerfile -t rift:ci .
+      - name: Smoke-test image health endpoint
+        run: |
+          docker run -d --name rift-ci -p 8080:8080 rift:ci
+          for i in $(seq 1 30); do
+            curl -fs http://localhost:8080/api/health && break || sleep 5
+          done
+          curl -f http://localhost:8080/api/health
+          docker stop rift-ci
