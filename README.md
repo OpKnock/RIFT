@@ -376,4 +376,4 @@ RIFT is a research and simulation system. It does not autonomously control real 
 
 ## License
 
-**AGPL-3.0-or-later** — see [`LICENSE`](./LICENSE). Anyone running a modified version over a network must offer the corresponding source to its users (Section 13). Copyright (C) 2026 OpKnock — adjust the holder/year in `LICENSE` if that isn't right.
+**AGPL-3.0-or-later** — see [`LICENSE`](./LICENSE). Anyone running a modified version over a network must offer the corresponding source to its users (Section 13). Copyright (C) 2026 Mehul Wagde.
