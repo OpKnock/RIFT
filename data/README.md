@@ -1,11 +1,13 @@
 # Public dataset examples
 
 `public_example.csv` is a **synthetic format example**, not real patient data.
-`public_real_bidsleep.csv` is a **tiny real-data example** scraped from the
-public BIDSleep PhysioNet dataset (3 nights, median HR only) to prove the
-`PublicDatasetSource` → `DigitalTwin` path works on independently published
-open data. Other fields are blank — the twin handles missingness via
-baseline imputation and input-quality flags, as tested.
+`public_real_bidsleep.LEGACY.csv` is a **retired artifact**: it mislabels
+BIDSleep instantaneous HR as `resting_hr` and raw acceleration as
+`activity_load`. It is kept for audit history only — do NOT use it for
+validation. Regenerate with `python -m rift.health.bidsleep_scrape`,
+which emits the canonical schema (`heart_rate` + experimental
+`accel_magnitude_mean`, provenance-only, never `activity_load`) with
+subject identity and provenance.
 It re-uses the synthetic 60-day external series (seed 123) written as the
 strict CSV schema `PublicDatasetSource` expects:
 

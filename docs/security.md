@@ -1,4 +1,4 @@
-# RIFT security audit (v0.6.0, this commit)
+# RIFT security audit (v1.0.0, this commit)
 
 ## Authentication modes (server decides identity, never the browser)
 - **JWT mode** (`RIFT_SUPABASE_JWT_SECRET` set): `Authorization: Bearer <Supabase JWT>` is HS256-verified (signature, exp/nbf with leeway, optional aud/iss); `alg=none` and foreign algorithms rejected; identity is the token `sub` and caller-supplied `user_id` is ignored entirely. This is the production mode.

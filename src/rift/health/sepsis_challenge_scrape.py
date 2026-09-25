@@ -154,12 +154,17 @@ def scrape_sample(out_dir: str = "data/physionet_sepsis",
         
         for hour_idx, row in enumerate(rows):
             rec_id = f"{patient_id}_icu_h{hour_idx}"
-            # Use ICULOS from the actual row data (hours from ICU admission)
+            # Strict ICULOS: invalid/missing ICU time rejects the row (no fabricated time).
             iculos_val = row.get("ICULOS", "NaN")
             try:
-                iculos_hours = float(iculos_val) if iculos_val != "NaN" else float(hour_idx)
-            except (ValueError, TypeError):
-                iculos_hours = float(hour_idx)
+                iculos_hours = float(iculos_val)
+                if not (iculos_hours == iculos_hours and abs(iculos_hours) < 1e6):  # finite check
+                    raise ValueError(f"non-finite ICULOS {iculos_val!r}")
+            except (ValueError, TypeError) as exc:
+                raise ValueError(
+                    f"patient {patient_id} hour {hour_idx}: invalid/missing ICULOS {iculos_val!r}; "
+                    f"refusing to manufacture time ({exc})"
+                )
             
             # For date field, use a synthetic study start date + ICULOS hours
             # This preserves relative time while avoiding fabricated calendar dates
@@ -213,7 +218,15 @@ def scrape_sample(out_dir: str = "data/physionet_sepsis",
             print(f"  Processed {i+1}/{max_patients} patients...")
     
     print(f"Sepsis distribution: {sepsis_counts}")
-    
+
+    # Fail closed on incomplete cohort: requested vs succeeded must match.
+    if len(all_provenance) != len(patient_ids):
+        raise RuntimeError(
+            f"incomplete cohort extraction: requested {len(patient_ids)} patients, "
+            f"succeeded {len(all_provenance)} in {training_set}; "
+            f"refusing to write partial validation cohort"
+        )
+
     # Write CSV
     fieldnames = ["subject_id", "recording_id", "date", "metric", "value", "unit", "source", "provenance"]
     csv_path = path / f"sepsis_challenge2019_{training_set}_sample.csv"

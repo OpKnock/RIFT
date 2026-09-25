@@ -25,16 +25,18 @@ class ProspectiveManager:
         self._outcomes: dict[str, dict] = {}
 
     @staticmethod
-    def _lock_id(patient_id: str, day: int, predicted_risk: float, input_hash: str) -> str:
+    def _lock_id(patient_id: str, day: int, predicted_risk: float,
+                 predicted_event: bool, input_hash: str) -> str:
         canonical = json.dumps(
-            {"patient_id": patient_id, "day": day, "predicted_risk": predicted_risk, "input_hash": input_hash},
+            {"patient_id": patient_id, "day": day, "predicted_risk": predicted_risk,
+             "predicted_event": bool(predicted_event), "input_hash": input_hash},
             sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(canonical.encode()).hexdigest()[:16]
+        return hashlib.sha256(canonical.encode()).hexdigest()
 
     def lock_prediction(self, patient_id: str, day: int, predicted_risk: float,
                         predicted_event: bool, input_hash: str) -> dict:
         """Freeze a prediction. Idempotent on same inputs; new id on any change."""
-        lock_id = self._lock_id(patient_id, day, predicted_risk, input_hash)
+        lock_id = self._lock_id(patient_id, day, predicted_risk, predicted_event, input_hash)
         if lock_id not in self._predictions:
             self._predictions[lock_id] = {
                 "lock_id": lock_id, "patient_id": patient_id, "day": day,

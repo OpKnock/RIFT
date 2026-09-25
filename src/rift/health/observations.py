@@ -30,6 +30,8 @@ FEATURE_METRICS = (
     "eda", "skin_temp",  # wearable exam stress dataset
     "spo2", "temperature", "sbp", "map", "dbp", "resp_rate",
     "icu_los_hours",
+    # Experimental raw-sensor features (explicitly non-clinical names):
+    "accel_magnitude_mean",  # mean accelerometer magnitude (g); NOT activity_load
 )
 
 # OUTCOME_METRICS: Clinical labels/targets (model outputs, not inputs)
@@ -56,6 +58,7 @@ EXPECTED_UNITS = {
     "resp_rate": "breaths/min",
     "icu_los_hours": "hours",
     "sepsis_label": "binary",
+    "accel_magnitude_mean": "g",
 }
 
 # Accepted unit aliases per metric: alias -> multiplier to canonical unit.
@@ -76,6 +79,7 @@ UNIT_ALIASES = {
     "resp_rate": {"breaths/min": 1.0, "bpm": 1.0},
     "icu_los_hours": {"hours": 1.0, "h": 1.0},
     "sepsis_label": {"binary": 1.0},
+    "accel_magnitude_mean": {"g": 1.0},
 }
 
 

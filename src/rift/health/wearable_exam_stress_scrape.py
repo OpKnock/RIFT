@@ -102,6 +102,16 @@ def scrape(out_dir: str = "data/wearable_exam_stress") -> Path:
         "IBI": "ms",
         "TEMP": "°C",
     }
+
+    # Canonical metric names per observations.METRICS. ACC/BVP have no
+    # validated canonical mapping and are skipped so output always loads
+    # via PublicDatasetSource (fail-closed downstream would reject them).
+    CANONICAL_MAP = {
+        "EDA": "eda",
+        "HR": "heart_rate",
+        "IBI": "rr_sd",
+        "TEMP": "skin_temp",
+    }
     
     for subject in SUBJECTS:
         for exam in EXAMS:
@@ -121,15 +131,20 @@ def scrape(out_dir: str = "data/wearable_exam_stress") -> Path:
                     print(f"  [{recording_id}/{modality}] No valid data")
                     continue
                 
+                if modality not in CANONICAL_MAP:
+                    print(f"  [{recording_id}/{modality}] skipped: no canonical metric (would fail validation)")
+                    continue
+
                 prov["row_count"] = count
                 prov["modality"] = modality
+                prov["canonical_metric"] = CANONICAL_MAP[modality]
                 provenance_json = json.dumps(prov, separators=(",", ":"))
-                
+
                 rows.append({
                     "subject_id": subject,
                     "recording_id": recording_id,
                     "date": recording_date,
-                    "metric": modality.lower(),
+                    "metric": CANONICAL_MAP[modality],
                     "value": f"{mean_val:.3f}",
                     "unit": units.get(modality, ""),
                     "source": "physionet_wearable_exam_stress",

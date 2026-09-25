@@ -50,8 +50,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -e '.[supabase,dev,test]'
-          pip install -r requirements-dev.txt 2>/dev/null || true
+          pip install -e '.[supabase,dev]'
 
       - name: Run tests
         run: pytest tests/ -v --tb=short --junitxml=test-results.xml
@@ -64,7 +63,7 @@ jobs:
           path: test-results.xml
 
       - name: Run Bandit security scan
-        run: bandit -r src/ -f json -o bandit-results.json || true
+        run: bandit -r src/ -f json -o bandit-results.json
 
       - name: Upload Bandit results
         uses: actions/upload-artifact@v4
@@ -274,7 +273,7 @@ jobs:
     steps:
       - name: Generate changelog
         run: |
-          python -m changelog --version ${{ github.ref_name }} > CHANGELOG_RELEASE.md
+          git log --oneline ${{ github.ref_name }}~1..${{ github.ref_name }} > CHANGELOG_RELEASE.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1

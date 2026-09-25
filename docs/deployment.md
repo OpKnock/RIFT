@@ -1,4 +1,4 @@
-# Deploy RIFT (v0.6.0 lab server)
+# Deploy RIFT (v1.0.0)
 
 ## Local
 ```bash
@@ -12,7 +12,7 @@ curl http://127.0.0.1:8080/api/health
 
 ## Docker
 ```bash
-docker build -t rift:0.6.0 .
+docker build -t rift:1.0.0 .
 docker run --rm -p 8080:8080 \
   -e RIFT_SUPABASE_URL= -e RIFT_SUPABASE_KEY= \
   -e RIFT_API_TOKEN= -e RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET= \

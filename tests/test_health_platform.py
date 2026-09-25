@@ -55,8 +55,9 @@ def test_timeline_buckets_median_and_index():
     assert T.estimate_day(buckets["2026-01-04"])["resting_hr"] == 72.0
     assert T.estimate_day(buckets["2026-01-04"])["hrv_rmssd"] is None
     rows, index = T.to_daily_rows(obs)
-    assert index == {"2026-01-04": 0, "2026-01-05": 1}
+    assert index == {("p1", "2026-01-04"): 0, ("p1", "2026-01-05"): 1}
     assert rows[0].day_index == 0 and rows[0].resting_hr == 72.0
+    assert rows[0].patient_id == "p1"
     assert T.day_quality([]) == 0.0
 
 
@@ -75,7 +76,8 @@ def test_timeline_feeds_twin_unchanged():
     accepted, issues = normalize_batch(raw)
     assert not issues and len(accepted) == 8
     rows, index = T.to_daily_rows(accepted)
-    assert index == {"2026-01-04": 0, "2026-01-05": 1}
+    assert index == {("demo-patient-01", "2026-01-04"): 0, ("demo-patient-01", "2026-01-05"): 1}
+    assert all(r.patient_id == "demo-patient-01" for r in rows)
     ehr, _ = normalize_ehr(demo_ehr())
     snap = DigitalTwin(ehr, ReplaySource(rows)).update(1)
     assert snap["day_index"] == 1
