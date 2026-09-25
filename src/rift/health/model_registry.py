@@ -143,7 +143,10 @@ def promote(model_id: str = DEFAULT_MODEL_ID, target: str = "candidate",
       clinical review recorded.
     - validated → approved / approved → deployed: require approver identity
       plus the validated evidence re-supplied (no stale approvals).
-    - deployed → retired, or any → blocked with a reason in notes.
+    - retired: allowed from any non-terminal state (research, candidate,
+      validated, approved, deployed) with a reason in notes — early
+      retirement (e.g. a flawed candidate) is legal and recorded.
+    - blocked: allowed from any state with a reason in notes.
     Every decision appends to AUDIT_LOG. Raises ValueError on violation.
     """
     if model_id not in REGISTRY:
@@ -193,9 +196,13 @@ def promote(model_id: str = DEFAULT_MODEL_ID, target: str = "candidate",
 
 
 def rollback(model_id: str = DEFAULT_MODEL_ID, reason: str = "") -> dict:
-    """Return a deployed/approved model to its previous recorded status.
+    """Return a model to its previous recorded promotion status.
 
     Rollback never deletes history: it appends, like every other transition.
+    Consecutive rollbacks walk back the promotion chain one step at a time:
+    rollback records themselves are skipped when searching history, so a
+    second rollback moves to the state before the first rollback's source
+    (e.g. approved → validated → candidate), never forward again.
     """
     if model_id not in REGISTRY:
         raise KeyError(f"unknown model_id: {model_id!r}")
@@ -205,9 +212,12 @@ def rollback(model_id: str = DEFAULT_MODEL_ID, reason: str = "") -> dict:
     current = entry.get("status", "research")
     previous = None
     for record in reversed(AUDIT_LOG):
-        if record["model_id"] == model_id and record["to"] == current:
-            previous = record["from"]
-            break
+        if record["model_id"] != model_id or record["to"] != current:
+            continue
+        if str(record.get("notes") or "").startswith("ROLLBACK:"):
+            continue  # rollback records are history, not promotion sources
+        previous = record["from"]
+        break
     if previous is None:
         raise ValueError(f"no recorded previous status to roll back from {current!r}")
     entry["status"] = previous

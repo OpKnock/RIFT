@@ -152,6 +152,18 @@ class DigitalTwin:
                         model_context={"model_id": DEFAULT_MODEL_ID,
                                        "weights_digest": weights_digest()},
                         deployment=deployment_gate())
+        # Operational telemetry: every produced prediction feeds the
+        # in-process collector so /metrics reflects real prediction flow.
+        try:
+            from .monitoring import collector as _ops_collector
+
+            _ops_collector.record_prediction(
+                float(risk_record.get("risk", 0.0) or 0.0),
+                str(guard.get("action", "ALLOW") or "ALLOW"),
+                1.0 - float(risk_record.get("input_quality", 1.0) or 1.0),
+            )
+        except Exception:  # nosec B110 -- telemetry must never break the clinical path
+            pass
         best_traj = min(trajs, key=lambda t: t["path"][-1]["risk"])
         note = (
             f"Best trajectory ends at risk {best_traj['path'][-1]['risk']:.2f} "

@@ -1,0 +1,9 @@
+# RIFT pinned dependencies for reproducible research environments.
+# Generated 2026-09-25 against pyproject.toml extras. Install with:
+#   pip install -e ".[dev,supabase,physio]" -c constraints.txt
+# Re-pin with: pip-compile (pip-tools) or `pip freeze` after CI green.
+pytest==9.1.1
+bandit==1.9.4
+supabase==2.31.0
+wfdb==4.3.1
+qiskit==2.5.2

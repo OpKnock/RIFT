@@ -85,6 +85,14 @@ UNIT_ALIASES = {
     "ibi_mean": {"ms": 1.0, "millisecond": 1.0, "s": 1000.0},
 }
 
+# Additive offsets applied AFTER the multiplier: canonical = value * mult + offset.
+# Kelvin -> Celsius requires an offset (C = K - 273.15); a multiplier-only
+# table silently computes 300 K = 300 C, which is a real normalization bug.
+UNIT_OFFSETS: dict[str, dict[str, float]] = {
+    "skin_temp": {"K": -273.15},
+    "temperature": {"K": -273.15},
+}
+
 
 def is_feature_metric(metric: str) -> bool:
     """Check if a metric is a feature (physiological measurement) vs outcome."""
@@ -182,12 +190,16 @@ def validate_observation(raw: dict) -> tuple[CanonicalObservation | None, list[s
     source = raw.get("source")
     if not isinstance(source, str) or not source.strip():
         return None, ["missing source: provenance-first ingestion requires a named source"]
+    offset = UNIT_OFFSETS.get(metric, {}).get(unit, 0.0)
+    canonical_value = value * aliases[unit] + offset
+    if not math.isfinite(canonical_value):
+        return None, [f"unit conversion overflow for {metric!r} in {unit!r}: rejected"]
     return CanonicalObservation(
         patient_id=patient_id.strip(),
         timestamp=timestamp,
         source=source.strip(),
         metric=metric,
-        value=value * aliases[unit],
+        value=canonical_value,
         unit=EXPECTED_UNITS[metric],
         quality=quality,
         provenance=str(raw.get("provenance") or ""),

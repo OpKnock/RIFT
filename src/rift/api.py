@@ -510,42 +510,29 @@ class Handler(BaseHTTPRequestHandler):
                 alerts = ops_collector.check_alerts()
                 self._send(200, json.dumps({"monitor": snapshot, "alerts": alerts}),
                            request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
             except Exception:
                 self._send(500, json.dumps({"error": "monitor_error", "request_id": request_id}),
                            request_id=request_id)
-            self._finish(timer, request_id, "GET", path, 200)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
             return
         if path == "/metrics":
             # Prometheus exposition for the deployment scrape config.
-            # Renders the in-process collector snapshot as text 0.0.4.
+            # The metric vocabulary is defined once in
+            # rift.health.monitoring (EXPORTED_METRICS / render_prometheus);
+            # rules and dashboards must reference only those names.
             try:
                 from .health.monitoring import collector as ops_collector
+                from .health.monitoring import render_prometheus
 
-                snap = ops_collector.report()
-                lines = [
-                    "# HELP rift_requests_total Total HTTP requests by route.",
-                    "# TYPE rift_requests_total counter",
-                ]
-                for route, stats in (snap.get("routes") or {}).items():
-                    lines.append(f'rift_requests_total{{route="{route}"}} {stats.get("requests", 0)}')
-                lines += [
-                    "# HELP rift_failure_rate Overall 5xx failure rate.",
-                    "# TYPE rift_failure_rate gauge",
-                    f"rift_failure_rate {snap.get('failure_rate', 0.0)}",
-                    "# HELP rift_guardian_reject_rate Guardian WITHHOLD rate.",
-                    "# TYPE rift_guardian_reject_rate gauge",
-                    f"rift_guardian_reject_rate {snap.get('guardian_reject_rate', 0.0)}",
-                    "# HELP rift_prediction_count Predictions recorded.",
-                    "# TYPE rift_prediction_count counter",
-                    f"rift_prediction_count {snap.get('prediction_count', 0)}",
-                ]
-                body = "\n".join(lines) + "\n"
+                body = render_prometheus(ops_collector.report())
                 self._send(200, body, content_type="text/plain; version=0.0.4",
                            request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
             except Exception:
                 self._send(500, json.dumps({"error": "monitor_error", "request_id": request_id}),
                            request_id=request_id)
-            self._finish(timer, request_id, "GET", path, 200)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
             return
         if path == "/api/health":
             payload = {
@@ -661,10 +648,11 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 from .health import prospective as _pros
                 self._send(200, json.dumps(_pros.manager.stats()), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
             except Exception:
                 self._send(500, json.dumps({"error": "prospective_error", "request_id": request_id}),
                            request_id=request_id)
-            self._finish(timer, request_id, "GET", path, 200)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
             return
         if path == "/api/twin/evidence":
             try:
@@ -1250,6 +1238,8 @@ class Handler(BaseHTTPRequestHandler):
                     if not lock_id or not isinstance(realized, bool):
                         self._send(400, json.dumps({"error": "lock_id and realized_event required"}),
                                    request_id=request_id)
+                        self._finish(timer, request_id, "POST", path, 400, "validation")
+                        return
                     else:
                         self._send(200, json.dumps(_pros2.manager.reconcile_outcome(lock_id, realized)),
                                    request_id=request_id)
@@ -1258,6 +1248,8 @@ class Handler(BaseHTTPRequestHandler):
             except Exception:
                 self._send(500, json.dumps({"error": "prospective_error", "request_id": request_id}),
                            request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 500, "internal")
+                return
             self._finish(timer, request_id, "POST", path, 200)
             return
         if path == "/api/billing/webhook":
@@ -1307,14 +1299,30 @@ class Handler(BaseHTTPRequestHandler):
                         except Exception:
                             log_event("dependency_failure", request_id=request_id, dependency="supabase")
                     custom = event.get("custom_data") or {}
-                    store.record_billing_event({
-                        "event_name": event["event_name"],
-                        "supported": event["supported"],
-                        "provider_event_id": webhook_event_id(body),
-                        "idempotency_key": key,
-                        "lemon_customer_id": (event.get("data") or {}).get("id") if event["event_name"].startswith("order_") else None,
-                        "payload": body,
-                    })
+                    try:
+                        store.record_billing_event({
+                            "event_name": event["event_name"],
+                            "supported": event["supported"],
+                            "provider_event_id": webhook_event_id(body),
+                            "idempotency_key": key,
+                            "lemon_customer_id": (event.get("data") or {}).get("id") if event["event_name"].startswith("order_") else None,
+                            "payload": body,
+                        })
+                    except Exception as exc:
+                        # The billing_events table carries a UNIQUE constraint
+                        # on idempotency_key (migration 004): a concurrent
+                        # duplicate delivery surfaces here as a constraint
+                        # violation, which is a safe duplicate-ack.
+                        if "duplicate" in str(exc).lower() or "unique" in str(exc).lower() or "23505" in str(exc):
+                            self._send(200, json.dumps({"received": True, "event": event["event_name"], "duplicate": True}), request_id=request_id)
+                            self._finish(timer, request_id, "POST", path, 200)
+                            return
+                        # Durable processing failed: return 502 so Lemon Squeezy
+                        # retries instead of believing the event was recorded.
+                        log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                        self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                        self._finish(timer, request_id, "POST", path, 502, "persistence_error")
+                        return
                     update = subscription_update_from_event(event)
                     if update is not None:
                         try:
@@ -1324,9 +1332,13 @@ class Handler(BaseHTTPRequestHandler):
                             store.upsert_subscription(row)
                         except Exception:
                             log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                            self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                            self._finish(timer, request_id, "POST", path, 502, "persistence_error")
+                            return
             except Exception:
-                # Best-effort audit log by design: webhook acceptance must not
-                # depend on Supabase, and the 200 below stays truthful.
+                # Unconfigured store: no durability possible; accept as
+                # best-effort dev-mode receipt (documented). Any configured-
+                # store failure above already returned 502.
                 log_event("dependency_failure", request_id=request_id, dependency="supabase")
             self._send(200, json.dumps({"received": True, "event": event["event_name"]}), request_id=request_id)
             self._finish(timer, request_id, "POST", path, 200)
