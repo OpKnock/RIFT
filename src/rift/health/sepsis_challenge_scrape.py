@@ -111,7 +111,7 @@ def scrape_sample(out_dir: str = "data/physionet_sepsis",
     
     # Get patient list
     url = f"{BASE}/training/{training_set}/"
-    resp = urllib.request.urlopen(url, timeout=30)
+    resp = urllib.request.urlopen(url, timeout=30)  # nosec B310 - fixed PhysioNet URL
     html = resp.read().decode('utf-8', errors='ignore')
     
     import re
