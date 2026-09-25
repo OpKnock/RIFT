@@ -625,6 +625,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
                 self._finish(timer, request_id, "GET", path, 500, "internal")
             return
+        if path == "/api/twin/prospective":
+            try:
+                from .health import prospective as _pros
+                self._send(200, json.dumps(_pros.manager.stats()), request_id=request_id)
+            except Exception:
+                self._send(500, json.dumps({"error": "prospective_error", "request_id": request_id}),
+                           request_id=request_id)
+            self._finish(timer, request_id, "GET", path, 200)
+            return
         if path == "/api/twin/evidence":
             try:
                 from .health.demo_data import demo_series
@@ -1176,6 +1185,49 @@ class Handler(BaseHTTPRequestHandler):
                 self._finish(timer, request_id, "POST", path, 502, "billing_error")
             return
 
+        if path == "/api/twin/prospective":
+            # POST mirrors GET query-param handling inside POST body.
+            parsed_q2 = {}
+            body2, _ = self._read_json()
+            if body2 == "overflow":
+                self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 413, "validation")
+                return
+            if body2 is None:
+                self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
+            try:
+                from .health import prospective as _pros2
+                action = (body2 or {}).get("action") or "lock"
+                if action == "lock":
+                    from .health.demo_data import demo_series
+                    from .health.ehr import demo_ehr, normalize_ehr
+                    from .health.twin import DigitalTwin
+                    ehr, _ = normalize_ehr(demo_ehr())
+                    snap = DigitalTwin(ehr, demo_series()).update(10)
+                    rec = _pros2.manager.lock_prediction(
+                        patient_id=snap["patient_id"], day=snap["day_index"],
+                        predicted_risk=snap["risk"]["risk"],
+                        predicted_event=snap["risk"]["event_predicted"],
+                        input_hash=snap["provenance"]["input_hash"])
+                    self._send(200, json.dumps(rec), request_id=request_id)
+                elif action == "reconcile":
+                    lock_id = (body2 or {}).get("lock_id")
+                    realized = (body2 or {}).get("realized_event")
+                    if not lock_id or not isinstance(realized, bool):
+                        self._send(400, json.dumps({"error": "lock_id and realized_event required"}),
+                                   request_id=request_id)
+                    else:
+                        self._send(200, json.dumps(_pros2.manager.reconcile_outcome(lock_id, realized)),
+                                   request_id=request_id)
+                else:
+                    self._send(200, json.dumps(_pros2.manager.stats()), request_id=request_id)
+            except Exception:
+                self._send(500, json.dumps({"error": "prospective_error", "request_id": request_id}),
+                           request_id=request_id)
+            self._finish(timer, request_id, "POST", path, 200)
+            return
         if path == "/api/billing/webhook":
             body, raw = self._read_json()
             config = get_billing_config()
