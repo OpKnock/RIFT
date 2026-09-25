@@ -375,6 +375,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def _finish(self, timer: Timer, request_id: str, method: str, path: str,
                 status: int, error_category: str | None = None, **extra):
+        try:
+            from .health.monitoring import collector as ops_collector
+
+            ops_collector.record_request(path.split("?")[0][:200], status,
+                                         round(timer.elapsed_ms(), 2))
+        except Exception:  # nosec B110 -- monitoring is best-effort; failure must not break request handling
+            pass
         log_event(
             "http_request",
             request_id=request_id,
@@ -495,6 +502,19 @@ class Handler(BaseHTTPRequestHandler):
         if not self._rate_limit(timer, request_id, "GET", path):
             return
 
+        if path == "/api/ops/monitor":
+            try:
+                from .health.monitoring import collector as ops_collector
+
+                snapshot = ops_collector.report()
+                alerts = ops_collector.check_alerts()
+                self._send(200, json.dumps({"monitor": snapshot, "alerts": alerts}),
+                           request_id=request_id)
+            except Exception:
+                self._send(500, json.dumps({"error": "monitor_error", "request_id": request_id}),
+                           request_id=request_id)
+            self._finish(timer, request_id, "GET", path, 200)
+            return
         if path == "/api/health":
             payload = {
                 "status": "ok",
@@ -619,6 +639,7 @@ class Handler(BaseHTTPRequestHandler):
                     stress_sweep,
                 )
                 from .health.model_registry import deployment_gate, get_model, verify_weights
+                from .health.subgroups import subgroup_metrics
                 from .health.twin import DigitalTwin
 
                 ehr, _ = normalize_ehr(demo_ehr())
@@ -657,6 +678,7 @@ class Handler(BaseHTTPRequestHandler):
                     "mean_onset_lag": held_out["mean_onset_lag"],
                     "confusion": held_out["confusion"],
                     "reliability": reliability(held_out),
+                    "subgroups": subgroup_metrics(held_out["per_day"]),
                     "calibration_repair": {
                         "method": "platt-scaling fit on days 30-44 only",
                         "params": calibration["params"],
