@@ -128,8 +128,12 @@ Lemon Squeezy billing is implemented as a provider boundary (`src/rift/billing.p
 
 RIFT is a research and simulation system. It does not autonomously control real emergency infrastructure, and its healthcare demo never directs care: predictions are decision support for a human clinician, built on synthetic data with synthetic weights. Real deployment would require validated domain models, calibrated sensors, human oversight, formal hazard analysis, and jurisdiction-specific certification.
 
+![Demo](docs/demo.gif)
+
+*Record with: `python -m rift.cli serve` → screen capture of FORESIGHT trajectories animating + gauge filling. The file is intentionally not committed — capture on your machine for your deck.*
+
 ## Status
 
-**v0.6.0 — Patient Digital Twin release candidate (Counterfactual Laboratory included).**
+**v1.0.0 — Patient Digital Twin final product** • Evidence-gated, production-platform ready (see `docs/evidence-sheet.md`).
 
 The release candidate is intended to be demo-ready when the repository CI gate is green. Quantum hardware, hosted Supabase, CodeRabbit, and billing are optional external integrations rather than hidden dependencies.

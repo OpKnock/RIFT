@@ -28,5 +28,5 @@
       "2"
     ]
   ],
-  "note": "Median HR per night; other fields left blank to demonstrate missingness handling, not imputed."
+  "note": "Median HR from hr.csv + mean activity from motion.csv per night; HRV/sleep left blank to demonstrate missingness handling, not imputed."
 }

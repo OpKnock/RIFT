@@ -29,7 +29,7 @@ def fetch_hr_median(subject: str, night: str) -> tuple[float | None, int]:
     try:
         with urllib.request.urlopen(url, timeout=30) as resp:  # nosec B310 -- URL is fixed PhysioNet base + validated subject/night, never user input
             text = resp.read().decode()
-    except Exception as exc:
+    except Exception:
         return None, 0
     hrs = []
     for line in text.splitlines():
@@ -48,6 +48,39 @@ def fetch_hr_median(subject: str, night: str) -> tuple[float | None, int]:
     return float(statistics.median(hrs)), len(hrs)
 
 
+def fetch_motion_mean(subject: str, night: str, max_rows: int = 8000) -> tuple[float | None, int]:
+    """Mean acceleration magnitude from motion.csv (sampled, real sensor data)."""
+    url = f"{BASE}/{subject}/{night}/motion.csv"
+    try:
+        with urllib.request.urlopen(url, timeout=30) as resp:  # nosec B310 -- fixed PhysioNet base
+            # Stream-decode to avoid loading 30MB full file when only a sample is needed
+            import math as _math
+            mags = []
+            # Read header + up to max_rows lines
+            header = resp.readline().decode(errors="replace")
+            for _ in range(max_rows):
+                line = resp.readline()
+                if not line:
+                    break
+                try:
+                    parts = line.decode(errors="replace").strip().split(",")
+                    if len(parts) < 4:
+                        continue
+                    x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+                    mags.append(_math.sqrt(x*x + y*y + z*z))
+                except ValueError:
+                    continue
+            if not mags:
+                return None, 0
+            # Scale magnitude (~1.0 for still) to activity_load 0-100 index
+            mean_mag = statistics.mean(mags)
+            # Map 0.9-1.5 g range → 20-80 index, clamped
+            activity = max(0.0, min(100.0, (mean_mag - 0.9) * 100.0 + 20.0))
+            return float(activity), len(mags)
+    except Exception:
+        return None, 0
+
+
 def scrape(out_path: str = "data/public_real_bidsleep.csv", nights=None) -> Path:
     target = nights or NIGHTS
     path = Path(out_path)
@@ -55,15 +88,16 @@ def scrape(out_path: str = "data/public_real_bidsleep.csv", nights=None) -> Path
     rows = []
     for idx, (subject, night) in enumerate(target):
         median_hr, n = fetch_hr_median(subject, night)
+        activity, m = fetch_motion_mean(subject, night)
         rows.append({
             "day_index": idx,
             "resting_hr": f"{median_hr:.1f}" if median_hr is not None else "",
             "hrv_rmssd": "",
             "sleep_hours": "",
-            "activity_load": "",
-            "_source": f"{BASE}/{subject}/{night}/hr.csv ({n} samples)",
+            "activity_load": f"{activity:.1f}" if activity is not None else "",
+            "_source": f"{BASE}/{subject}/{night}/hr.csv ({n} samples) + motion.csv ({m} samples)",
         })
-        print(f"[{idx}] {subject}/{night}: median HR {median_hr} from {n} samples")
+        print(f"[{idx}] {subject}/{night}: median HR {median_hr} from {n} samples, activity {activity} from {m} motion samples")
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=[
             "day_index", "resting_hr", "hrv_rmssd", "sleep_hours", "activity_load"])
@@ -78,7 +112,7 @@ def scrape(out_path: str = "data/public_real_bidsleep.csv", nights=None) -> Path
         "license": "Open Data Commons Attribution License v1.0",
         "doi": "10.13026/a0sy-7t69",
         "nights": target,
-        "note": "Median HR per night; other fields left blank to demonstrate missingness handling, not imputed.",
+        "note": "Median HR from hr.csv + mean activity from motion.csv per night; HRV/sleep left blank to demonstrate missingness handling, not imputed.",
     }, indent=2), encoding="utf-8")
     print(f"Wrote {path} and {sidecar}")
     return path
