@@ -266,5 +266,17 @@ const policyEl = $("#policy");
 if (policyEl) policyEl.onchange = run;
 
 $("#run").onclick = run;
+document.getElementById("exportEvidence")?.addEventListener("click", async () => {
+  try {
+    const r = await fetch("/api/twin/evidence", { headers: { Accept: "application/json" } });
+    const j = await r.json();
+    const blob = new Blob([JSON.stringify(j, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "rift-evidence.json"; a.click();
+    URL.revokeObjectURL(url);
+    window.print();
+  } catch (e) { alert("Export failed: " + e.message); }
+});
 loadEvidence();
 run();
