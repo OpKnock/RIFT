@@ -3,7 +3,7 @@
 ![Tests](https://github.com/OpKnock/RIFT/actions/workflows/test.yml/badge.svg)
 ![Bandit](https://img.shields.io/badge/Bandit-0%20issues-brightgreen)
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
-![License](https://img.shields.io/badge/license-MIT-lightgrey)
+![License](https://img.shields.io/badge/license-AGPL--3.0-blue)
 
 **Robust Intervention & Future Testing — Patient Digital Twin • FORESIGHT • Guardian**
 
@@ -376,4 +376,4 @@ RIFT is a research and simulation system. It does not autonomously control real 
 
 ## License
 
-MIT (per the project badge) — note: no `LICENSE` file is currently committed, so add one before distributing the code outside this repository.
+**AGPL-3.0-or-later** — see [`LICENSE`](./LICENSE). Anyone running a modified version over a network must offer the corresponding source to its users (Section 13). Copyright (C) 2026 OpKnock — adjust the holder/year in `LICENSE` if that isn't right.
