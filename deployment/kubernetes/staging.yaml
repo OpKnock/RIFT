@@ -1,0 +1,146 @@
+# RIFT Kubernetes Deployment - Staging
+# Phase 20: Deployment/Governance
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rift-api
+  namespace: rift-staging
+  labels:
+    app: rift-api
+    version: v1.0.0
+    environment: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: rift-api
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: rift-api
+        version: v1.0.0
+        environment: staging
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: rift-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: rift-api
+          image: ghcr.io/opknock/rift:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: RIFT_SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rift-secrets
+                  key: supabase-url
+            - name: RIFT_SUPABASE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rift-secrets
+                  key: supabase-key
+            - name: RIFT_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: rift-secrets
+                  key: api-token
+            - name: RIFT_REQUIRE_USER_ID
+              value: "true"
+            - name: RIFT_ALLOW_PRIVATE_FETCH
+              value: "false"
+            - name: RIFT_ALLOW_HTTP
+              value: "false"
+            - name: RIFT_TRUSTED_FHIR_HOSTS
+              value: "fhir.epic.com,fhir.cerner.com"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "2Gi"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rift-api
+  namespace: rift-staging
+  labels:
+    app: rift-api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: rift-api
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rift-api
+  namespace: rift-staging
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  tls:
+    - hosts:
+        - staging.rift.example.com
+      secretName: rift-api-tls
+  rules:
+    - host: staging.rift.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rift-api
+                port:
+                  number: 80

@@ -1,0 +1,107 @@
+# RIFT Prometheus Configuration
+# Phase 18: Monitoring/MLOps - Production-grade Prometheus setup
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'rift-production'
+    environment: 'production'
+    team: 'clinical-ai'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+# Rule files
+rule_files:
+  - "rules/rift_health_alerts.yml"
+  - "rules/rift_infrastructure_alerts.yml"
+  - "rules/rift_business_alerts.yml"
+
+# Scrape configurations
+scrape_configs:
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # RIFT API metrics
+  - job_name: 'rift-api'
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names:
+            - rift-production
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+        action: keep
+        regex: true
+      - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+        action: replace
+        target_label: __metrics_path__
+        regex: (.+)
+      - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+        action: replace
+        regex: ([^:]+)(?::\d+)?;(\d+)
+        replacement: $1:$2
+        target_label: __address__
+      - action: labelmap
+        regex: __meta_kubernetes_pod_label_(.+)
+
+  # Node Exporter (host metrics)
+  - job_name: 'node-exporter'
+    kubernetes_sd_configs:
+      - role: node
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+
+  # kube-state-metrics
+  - job_name: 'kube-state-metrics'
+    kubernetes_sd_configs:
+      - role: service
+        namespaces:
+          names:
+            - monitoring
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_service_name]
+        action: keep
+        regex: kube-state-metrics
+
+  # Cadvisor (container metrics)
+  - job_name: 'cadvisor'
+    kubernetes_sd_configs:
+      - role: node
+    scheme: https
+    tls_config:
+      ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+    relabel_configs:
+      - action: labelmap
+        regex: __meta_kubernetes_node_label_(.+)
+      - source_labels: [__meta_kubernetes_node_name]
+        regex: (.+)
+        target_label: __address__
+        replacement: ${1}:10250
+
+  # RIFT Supabase (if exposing metrics)
+  - job_name: 'rift-supabase'
+    static_configs:
+      - targets: ['supabase-metrics:9090']
+        labels:
+          component: 'persistence'
+
+# Remote write for long-term storage (optional)
+# remote_write:
+#   - url: "https://cortex.example.com/api/prom/push"
+#     headers:
+#       Authorization: "Bearer ${CORTEX_TOKEN}"
+
+# Retention
+# storage:
+#   tsdb:
+#     retention.time: 30d
+#     retention.size: 100GB

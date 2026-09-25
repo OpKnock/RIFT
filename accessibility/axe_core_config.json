@@ -1,0 +1,29 @@
+{
+  "rules": {
+    "color-contrast": { "enabled": true },
+    "image-alt": { "enabled": true },
+    "label": { "enabled": true },
+    "button-name": { "enabled": true },
+    "link-name": { "enabled": true },
+    "heading-order": { "enabled": true },
+    "region": { "enabled": true },
+    "landmark-one-main": { "enabled": true },
+    "page-has-heading-one": { "enabled": true },
+    "html-has-lang": { "enabled": true },
+    "html-lang-valid": { "enabled": true },
+    "document-title": { "enabled": true },
+    "meta-viewport": { "enabled": true },
+    "skip-link": { "enabled": true },
+    "focus-order-semantics": { "enabled": true },
+    "aria-valid-attr": { "enabled": true },
+    "aria-required-attr": { "enabled": true },
+    "aria-allowed-attr": { "enabled": true },
+    "aria-required-children": { "enabled": true },
+    "aria-required-parent": { "enabled": true }
+  },
+  "tags": ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "best-practice"],
+  "runOnly": {
+    "type": "tag",
+    "values": ["wcag2aa", "wcag21aa"]
+  }
+}

@@ -1,0 +1,88 @@
+# RIFT Business & Product Alerting Rules
+
+groups:
+  - name: rift.product
+    interval: 15m
+    rules:
+      - alert: RiftAPILatencyDegraded
+        expr: |
+          histogram_quantile(0.95, rate(rift_api_request_duration_seconds_bucket[15m])) > 1.0
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "API P95 latency > 1s (15m window)"
+          description: "User-facing latency degraded. Endpoint: {{ $labels.endpoint }}"
+
+      - alert: RiftErrorRateElevated
+        expr: |
+          rate(rift_api_requests_total{status=~"4..|5.."}[15m]) / rate(rift_api_requests_total[15m]) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "API error rate > 2%"
+          description: "{{ $value | humanizePercentage }} of requests failing. Check error logs."
+
+      - alert: RiftExperimentFailureRate
+        expr: |
+          rate(rift_experiment_runs_total{status="failed"}[1h]) / rate(rift_experiment_runs_total[1h]) > 0.1
+        for: 30m
+        labels:
+          severity: warning
+          team: product
+        annotations:
+          summary: "Experiment failure rate > 10%"
+          description: "Users experiencing failed runs. Check experiment validation."
+
+  - name: rift.growth
+    interval: 1h
+    rules:
+      - alert: RiftWeeklyActiveUsersDeclining
+        expr: |
+          rift_weekly_active_users < rift_weekly_active_users offset 7d * 0.9
+        for: 6h
+        labels:
+          severity: info
+          team: growth
+        annotations:
+          summary: "Weekly active users declining > 10% WoW"
+          description: "Current: {{ $value }}, Last week: {{ $labels.offset_7d }}. Investigate retention."
+
+      - alert: RiftChurnRateHigh
+        expr: |
+          rift_monthly_churn_rate > 0.15
+        for: 6h
+        labels:
+          severity: warning
+          team: growth
+        annotations:
+          summary: "Monthly churn > 15%"
+          description: "Churn rate {{ $value | humanizePercentage }}. Review user feedback."
+
+  - name: rift.reliability
+    interval: 5m
+    rules:
+      - alert: RiftSLOLatencyBudgetBurning
+        expr: |
+          (1 - (rift_slo_latency_budget_remaining / rift_slo_latency_budget_total)) > 0.5
+        for: 15m
+        labels:
+          severity: warning
+          team: sre
+        annotations:
+          summary: "SLO latency error budget > 50% consumed"
+          description: "Burn rate accelerating. Consider feature freeze."
+
+      - alert: RiftSLOAvailabilityBudgetBurning
+        expr: |
+          (1 - (rift_slo_availability_budget_remaining / rift_slo_availability_budget_total)) > 0.5
+        for: 15m
+        labels:
+          severity: critical
+          team: sre
+        annotations:
+          summary: "SLO availability error budget > 50% consumed"
+          description: "Availability budget burning fast. Page on-call immediately."
