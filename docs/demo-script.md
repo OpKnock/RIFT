@@ -8,7 +8,7 @@ same commands, same numbers, every run.
 ```bash
 python -m venv .venv
 # Windows: .venv\Scripts\activate — macOS/Linux: source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev]" -c constraints.txt
 pytest -q   # 218 passing on the release commit
 ```
 

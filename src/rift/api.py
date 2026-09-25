@@ -72,6 +72,30 @@ def _seen_webhook_key(key: str | None) -> bool:
     return bool(key) and key in _SEEN_WEBHOOK_KEYS
 
 
+def _apply_subscription_update(store, event: dict, request_id: str | None) -> bool:
+    """Apply the subscription-mirror side effect idempotently.
+
+    Returns True when there is nothing to apply or the upsert succeeded.
+    Returns False on failure — callers must answer 502 so the provider
+    retries, since a recorded event without its subscription mirror would
+    leave entitlements stale. Single choke point so the duplicate,
+    unique-violation, and fresh paths cannot drift apart.
+    """
+    update = subscription_update_from_event(event)
+    if update is None:
+        return True
+    try:
+        row = dict(update)
+        custom = event.get("custom_data") or {}
+        if custom.get("user_id"):
+            row["user_id"] = custom["user_id"]
+        store.upsert_subscription(row)
+        return True
+    except Exception:
+        log_event("dependency_failure", request_id=request_id, dependency="supabase")
+        return False
+
+
 def _remember_webhook_key(key: str | None) -> None:
     """Record a key ONLY after durable processing succeeded.
 
@@ -1304,26 +1328,16 @@ class Handler(BaseHTTPRequestHandler):
                                 # have been recorded while the subscription
                                 # side effect below failed (502). Re-apply the
                                 # update idempotently before acknowledging.
-                                resume_update = subscription_update_from_event(event)
-                                if resume_update is not None:
-                                    try:
-                                        resume_row = dict(resume_update)
-                                        resume_custom = event.get("custom_data") or {}
-                                        if resume_custom.get("user_id"):
-                                            resume_row["user_id"] = resume_custom["user_id"]
-                                        store.upsert_subscription(resume_row)
-                                    except Exception:
-                                        log_event("dependency_failure", request_id=request_id, dependency="supabase")
-                                        self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
-                                        self._finish(timer, request_id, "POST", path, 502, "persistence_error")
-                                        return
+                                if not _apply_subscription_update(store, event, request_id):
+                                    self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                                    self._finish(timer, request_id, "POST", path, 502, "persistence_error")
+                                    return
                                 _remember_webhook_key(key)
                                 self._send(200, json.dumps({"received": True, "event": event["event_name"], "duplicate": True}), request_id=request_id)
                                 self._finish(timer, request_id, "POST", path, 200)
                                 return
                         except Exception:
                             log_event("dependency_failure", request_id=request_id, dependency="supabase")
-                    custom = event.get("custom_data") or {}
                     try:
                         store.record_billing_event({
                             "event_name": event["event_name"],
@@ -1337,8 +1351,15 @@ class Handler(BaseHTTPRequestHandler):
                         # The billing_events table carries a UNIQUE constraint
                         # on idempotency_key (migration 004): a concurrent
                         # duplicate delivery surfaces here as a constraint
-                        # violation, which is a safe duplicate-ack.
+                        # violation. Like the durable-duplicate path above, the
+                        # subscription side effect must be resumed (not skipped)
+                        # before acknowledging: the conflicting row proves the
+                        # event was recorded, not that it was processed.
                         if "duplicate" in str(exc).lower() or "unique" in str(exc).lower() or "23505" in str(exc):
+                            if not _apply_subscription_update(store, event, request_id):
+                                self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                                self._finish(timer, request_id, "POST", path, 502, "persistence_error")
+                                return
                             _remember_webhook_key(key)
                             self._send(200, json.dumps({"received": True, "event": event["event_name"], "duplicate": True}), request_id=request_id)
                             self._finish(timer, request_id, "POST", path, 200)
@@ -1349,18 +1370,10 @@ class Handler(BaseHTTPRequestHandler):
                         self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
                         self._finish(timer, request_id, "POST", path, 502, "persistence_error")
                         return
-                    update = subscription_update_from_event(event)
-                    if update is not None:
-                        try:
-                            row = dict(update)
-                            if custom.get("user_id"):
-                                row["user_id"] = custom["user_id"]
-                            store.upsert_subscription(row)
-                        except Exception:
-                            log_event("dependency_failure", request_id=request_id, dependency="supabase")
-                            self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
-                            self._finish(timer, request_id, "POST", path, 502, "persistence_error")
-                            return
+                    if not _apply_subscription_update(store, event, request_id):
+                        self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                        self._finish(timer, request_id, "POST", path, 502, "persistence_error")
+                        return
             except Exception:
                 # Unconfigured store: no durability possible; accept as
                 # best-effort dev-mode receipt (documented). Any configured-

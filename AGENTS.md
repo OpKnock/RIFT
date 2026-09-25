@@ -13,7 +13,7 @@ RIFT is a counterfactual decision lab: world state → futures → CHAOS → rob
 - Docs: `docs/` (setup, api, experiments, billing, security, deployment, review, release-checklist) + `README.md`, `CHANGELOG.md`
 
 ## Commands
-`pip install -e ".[dev]"` · `pytest` · `python scripts/validate_migrations.py` · `python scripts/secret_scan.py` · `python scripts/check_versions.py` · `python -m rift.cli demo|serve`
+`pip install -e ".[dev]" -c constraints.txt` · `pytest` · `python scripts/validate_migrations.py` · `python scripts/secret_scan.py` · `python scripts/check_versions.py` · `python -m rift.cli demo|serve`
 
 ## Rules
 - Preserve working behavior; smallest sound fix + regression test.
