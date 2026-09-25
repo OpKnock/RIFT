@@ -1,8 +1,15 @@
 # RIFT
 
-**Robust Intervention & Future Testing**
+![Tests](https://github.com/OpKnock/RIFT/actions/workflows/test.yml/badge.svg)
+![Bandit](https://img.shields.io/badge/Bandit-0%20issues-brightgreen)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
-> **Test the decision. Break the future.**
+**Robust Intervention & Future Testing — Patient Digital Twin • FORESIGHT • Guardian**
+
+> **Don't just predict the future. Search it. Break it. Verify it.**
+
+**v1.0.0 final product** • Research-grade twin, production platform, evidence-gated deployment — not a prototype anymore.
 
 RIFT is a decision-intelligence engine for testing interventions before they are trusted. It enumerates counterfactual futures, searches adversarial conditions, ranks robust policies, and keeps hard safety verification outside the optimizer.
 

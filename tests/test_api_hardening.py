@@ -174,7 +174,7 @@ def test_meta_endpoint_lists_limits(monkeypatch):
         status, _, raw = _get(server.url("/api/meta"))
         assert status == 200
         payload = json.loads(raw)
-        assert payload["engine_version"] == "0.6.0"
+        assert payload["engine_version"] == (__import__("rift").__version__)
         assert "max_policy_variables" in payload["limits"]
 
 

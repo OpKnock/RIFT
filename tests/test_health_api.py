@@ -38,7 +38,7 @@ def test_twin_demo_contract():
     assert payload["day_index"] == 10
     assert payload["risk"]["event_predicted"] is True
     assert len(payload["trajectories"]) == 4
-    assert payload["meta"]["engine_version"] == "0.6.0"
+    assert payload["meta"]["engine_version"] == (__import__("rift").__version__)
     assert "NOT clinically validated" in payload["meta"]["dataset"]
     assert isinstance(payload["guardian"]["display_allowed"], bool)
 
@@ -77,7 +77,8 @@ def test_user_journey_demo_to_evidence_coherence():
         assert twin["guardian"]["display_allowed"] is True
         evidence = _get_json(server, "/api/twin/evidence")
         meta = _get_json(server, "/api/meta")
-        assert twin["meta"]["engine_version"] == meta["engine_version"] == "0.6.0"
+        assert twin["meta"]["engine_version"] == meta["engine_version"]
+        assert meta["engine_version"] == __import__("rift").__version__
         assert "seed 7" in evidence["meta"]["dataset"]
         assert evidence["calibration_repair"]["params"]["fit_days"] == 15
         assert twin["risk"]["threshold"] == 0.6

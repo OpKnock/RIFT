@@ -12,7 +12,7 @@ def _spec(**overrides):
 
 def test_run_spec_exact_shape():
     record = run_spec(_spec())
-    assert record["engine_version"] == "0.6.0"
+    assert record["engine_version"] == (__import__("rift").__version__)
     assert record["optimizer"] == "exact"
     assert record["backend"] == "statevector-simulator"
     assert set(record["assignment"]) == {"route_a", "route_c", "stairwell_b"}
