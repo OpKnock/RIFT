@@ -9,7 +9,12 @@ rule_files:
   - "rules/*.yml"
 
 scrape_configs:
-  # RIFT API
+  # RIFT API (/metrics is bearer-gated when RIFT_API_TOKEN is set;
+  # the compose dev stack runs open dev mode, so no token is needed here.
+  # If you set a token on rift-api, add:
+  #   authorization:
+  #     credentials_file: /etc/prometheus/rift-api-token
+  # and mount the same token value at that path.)
   - job_name: 'rift-api'
     static_configs:
       - targets: ['rift-api:8080']

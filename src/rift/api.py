@@ -534,6 +534,12 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/ops/monitor":
+            # Operational telemetry is gated like persistence endpoints: open
+            # in dev mode, bearer-gated when JWT/service-token auth is set.
+            _, ok = self._identity(request_id)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
             try:
                 from .health.monitoring import collector as ops_collector
 
@@ -552,6 +558,13 @@ class Handler(BaseHTTPRequestHandler):
             # The metric vocabulary is defined once in
             # rift.health.monitoring (EXPORTED_METRICS / render_prometheus);
             # rules and dashboards must reference only those names.
+            # Gated like persistence endpoints: open in dev mode,
+            # bearer-gated when JWT/service-token auth is set, so the
+            # production Ingress cannot expose telemetry anonymously.
+            _, ok = self._identity(request_id)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
             try:
                 from .health.monitoring import collector as ops_collector
                 from .health.monitoring import render_prometheus
