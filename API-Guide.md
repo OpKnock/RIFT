@@ -88,8 +88,27 @@ curl http://127.0.0.1:8080/api/twin/reviews
 
 Actions: `ACCEPT`, `REJECT`, `OVERRIDE`, `REQUEST_REVIEW`. Unknown actions,
 missing reviewer/evidence, and rationale-free overrides are rejected (400).
-Same in-memory caveat as prospective: durable persistence required before
-clinical use.
+
+## Durable ledgers (crash-safe mode)
+
+```bash
+export RIFT_PROSPECTIVE_LEDGER=/var/lib/rift/prospective.jsonl
+export RIFT_REVIEWS_LEDGER=/var/lib/rift/reviews.jsonl
+```
+
+With these set, both ledgers fsync every append and replay on boot
+(`GET /api/twin/reviews` gains no new shape; `stats` is unchanged).
+Without them, ledgers are in-memory demo mode. Back up JSONL files by
+copying them; restore by placing the copy at the configured path. One API
+process per ledger file — concurrent multi-process writers are not supported.
+
+## Quantum backends
+
+- `qaoa-statevector-simulator`: default, stdlib-only.
+- `qaoa-aer-simulator`: real Qiskit SDK execution (`pip install -e ".[qiskit]"`).
+- IBM hardware: `solve_on_ibm(qubo, backend_name)` with `RIFT_QPU_TOKEN` set —
+  see `docs/external-gates.md` §1 for the free-tier setup. No token, no run:
+  the error tells you exactly what to do.
 
 ## Experiments & runs (gated when auth is set; needs database)
 

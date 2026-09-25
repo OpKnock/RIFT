@@ -13,7 +13,7 @@ dependencies = []
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
 supabase = ["supabase>=2.0.0"]
-qiskit = ["qiskit>=2.0.0", "qiskit-ibm-runtime>=0.30.0"]
+qiskit = ["qiskit>=2.0.0", "qiskit-aer>=0.15", "qiskit-ibm-runtime>=0.30.0"]
 physio = ["wfdb>=4.1"]
 
 [project.scripts]
