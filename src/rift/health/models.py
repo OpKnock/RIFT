@@ -41,13 +41,15 @@ class EHRRecord:
         }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class WearableObservation:
     """One timestamped wearable sample. 
     
     For longitudinal data, day_index is days since study epoch.
     For ICU/acute data, time_offset_hours is hours from ICU admission (ICULOS).
     patient_id preserves subject identity across multi-patient datasets.
+    
+    outcome carries the clinical outcome label (e.g., sepsis_label) for validation.
     
     provenance names the origin (e.g. source adapter + file/device id);
     empty means unrecorded origin, which Guardian treats as a flag, never
@@ -62,6 +64,7 @@ class WearableObservation:
     activity_load: float | None = None
     heart_rate: float | None = None  # instantaneous/generic HR (NOT resting_hr)
     rr_sd: float | None = None       # RR interval SD (NOT hrv_rmssd)
+    outcome: float | None = None     # clinical outcome label (e.g., sepsis_label)
     stale: bool = False  # True when carried forward from an older sample
     provenance: str = ""
 
@@ -76,12 +79,13 @@ class WearableObservation:
             "activity_load": self.activity_load,
             "heart_rate": self.heart_rate,
             "rr_sd": self.rr_sd,
+            "outcome": self.outcome,
             "stale": self.stale,
             "provenance": self.provenance,
         }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class PatientState:
     """Synchronized twin state at one replay time. All numerics or None."""
     day_index: int = 0

@@ -92,10 +92,14 @@ class DigitalTwin:
         else:
             state = PatientState(
                 day_index=day_index,
+                patient_id=latest.patient_id,
+                time_offset_hours=latest.time_offset_hours,
                 resting_hr=latest.resting_hr,
                 hrv_rmssd=latest.hrv_rmssd,
                 sleep_hours=latest.sleep_hours,
                 activity_load=latest.activity_load,
+                heart_rate=latest.heart_rate,
+                rr_sd=latest.rr_sd,
                 data_quality=self.stream.completeness_at(day_index),
                 stale_days=self.stream.stale_days_at(day_index),
                 provenance=latest.provenance,

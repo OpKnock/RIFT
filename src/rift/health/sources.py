@@ -19,7 +19,7 @@ import json
 from datetime import datetime, timezone
 
 from .models import WearableObservation
-from .observations import normalize_batch, CanonicalObservation
+from .observations import normalize_batch, CanonicalObservation, OUTCOME_METRICS
 from .wearable import FIELDS, WearableStream
 
 
@@ -168,6 +168,10 @@ def _canonical_to_wearable(observations: list[CanonicalObservation]) -> list[Wea
         elif obs.metric == "skin_temp":
             # Skin temp stored in provenance (no wearable field)
             day_data["provenance_parts"][-1] += " (skin_temp stored in provenance)"
+        elif obs.metric in OUTCOME_METRICS:
+            # Outcome metrics (e.g., sepsis_label) stored in outcome field
+            day_data["outcome"] = obs.value
+            day_data["provenance_parts"][-1] += f" (stored as outcome: {obs.metric})"
         # Ignore unknown metrics (they're already validated by canonical pipeline)
     
     # Build WearableObservation list
@@ -184,6 +188,7 @@ def _canonical_to_wearable(observations: list[CanonicalObservation]) -> list[Wea
             activity_load=day_data.get("activity_load"),
             heart_rate=day_data.get("heart_rate"),
             rr_sd=day_data.get("rr_sd"),
+            outcome=day_data.get("outcome"),
             provenance=provenance,
         ))
     

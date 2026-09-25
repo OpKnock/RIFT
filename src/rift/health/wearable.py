@@ -31,9 +31,9 @@ class WearableStream:
     """
 
     def __init__(self, observations: list[WearableObservation]):
-        self._obs = sorted(observations, key=lambda o: o.day_index)
-        if self._obs and any(b.day_index <= a.day_index for a, b in zip(self._obs, self._obs[1:])):
-            raise ValueError("duplicate day_index in wearable stream")
+        self._obs = sorted(observations, key=lambda o: (o.patient_id, o.day_index))
+        if self._obs and any(b.day_index <= a.day_index and b.patient_id == a.patient_id for a, b in zip(self._obs, self._obs[1:])):
+            raise ValueError("duplicate day_index in wearable stream for same patient")
 
     @property
     def start_day(self) -> int | None:
@@ -65,6 +65,94 @@ class WearableStream:
             return 0.0
         present = sum(1 for f in REQUIRED_FIELDS if getattr(latest, f) is not None)
         return present / len(REQUIRED_FIELDS)
+
+
+class MultiPatientStream:
+    """Multi-patient wearable stream that delegates to patient-specific streams.
+    
+    Provides a unified interface for multi-patient cohorts while maintaining
+    patient-specific timelines and staleness calculations.
+    """
+
+    def __init__(self, observations: list[WearableObservation]):
+        # Group observations by patient_id
+        by_patient: dict[str, list[WearableObservation]] = {}
+        for obs in observations:
+            pid = obs.patient_id or "unknown"
+            if pid not in by_patient:
+                by_patient[pid] = []
+            by_patient[pid].append(obs)
+        
+        # Create patient-specific streams
+        self._streams: dict[str, WearableStream] = {}
+        for pid, obs in by_patient.items():
+            self._streams[pid] = WearableStream(obs)
+        
+        # Global ordering for iteration
+        self._all_obs = sorted(observations, key=lambda o: (o.patient_id, o.day_index))
+
+    @property
+    def patient_ids(self) -> list[str]:
+        return sorted(self._streams.keys())
+
+    @property
+    def start_day(self) -> int | None:
+        if not self._streams:
+            return None
+        return min(s.start_day for s in self._streams.values() if s.start_day is not None)
+
+    @property
+    def end_day(self) -> int | None:
+        if not self._streams:
+            return None
+        return max(s.end_day for s in self._streams.values() if s.end_day is not None)
+
+    def get_stream(self, patient_id: str) -> WearableStream | None:
+        """Get the stream for a specific patient."""
+        return self._streams.get(patient_id)
+
+    def observations_upto(self, day_index: int) -> list[WearableObservation]:
+        """Get all observations up to day_index across all patients."""
+        result = []
+        for stream in self._streams.values():
+            result.extend(stream.observations_upto(day_index))
+        return sorted(result, key=lambda o: (o.patient_id, o.day_index))
+
+    def latest_at(self, day_index: int) -> WearableObservation | None:
+        """Get the latest observation across all patients up to day_index."""
+        latest = None
+        for stream in self._streams.values():
+            obs = stream.latest_at(day_index)
+            if obs is not None:
+                if latest is None or obs.day_index > latest.day_index:
+                    latest = obs
+        return latest
+
+    def stale_days_at(self, day_index: int) -> int:
+        """Maximum staleness across all patients."""
+        if not self._streams:
+            return day_index
+        return max(s.stale_days_at(day_index) for s in self._streams.values())
+
+    def completeness_at(self, day_index: int) -> float:
+        """Average completeness across all patients."""
+        if not self._streams:
+            return 0.0
+        return sum(s.completeness_at(day_index) for s in self._streams.values()) / len(self._streams)
+
+    def observations_upto_patient(self, patient_id: str, day_index: int) -> list[WearableObservation]:
+        """Get observations up to day_index for a specific patient."""
+        stream = self._streams.get(patient_id)
+        if stream is None:
+            return []
+        return stream.observations_upto(day_index)
+
+    def latest_at_patient(self, patient_id: str, day_index: int) -> WearableObservation | None:
+        """Get latest observation for a specific patient up to day_index."""
+        stream = self._streams.get(patient_id)
+        if stream is None:
+            return None
+        return stream.latest_at(day_index)
 
 
 def field_mads(prior: list[WearableObservation]) -> dict[str, float | None]:

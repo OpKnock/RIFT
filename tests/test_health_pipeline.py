@@ -31,7 +31,7 @@ def test_wearable_replay_and_staleness():
     assert 0.0 < stream.completeness_at(6) < 1.0  # HRV missing
     assert stream.completeness_at(5) == 1.0
     try:
-        W.WearableStream([WearableObservation(1), WearableObservation(1)])
+        W.WearableStream([WearableObservation(day_index=1), WearableObservation(day_index=1)])
         raise AssertionError("duplicate days must be rejected")
     except ValueError:
         pass
