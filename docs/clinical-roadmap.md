@@ -36,7 +36,16 @@ Mission: help clinicians make safer, better-informed decisions under uncertainty
 | 24 | Reproducibility | DONE | Seeds, fingerprints, manifests, `constraints.txt`, deterministic IDs | — |
 | 25 | Publication | EXTERNAL | `evidence-sheet.md` artifact pattern | Papers, peer review |
 
-## Completed this cycle (code-addressable)
+## Completed in the web-gathering cycle (code-addressable + executed)
+
+- Real PhysioNet ingestion executed: CHFDB `chf01` 250 Hz bytes → 333 reference beats → HR 66.5 bpm / HRV 39.6 ms through the repo's own adapter (`docs/real-data-ingestion.md`). Phase 2 → PARTIAL (live source still external).
+- Qiskit Aer QAOA backend: real SDK execution with shot sampling, matches exact on the reference instance; IBM hardware path implemented and fail-closed with verified setup steps (`src/rift/qpu.py`, `tests/test_qpu_aer.py`). Phase 11 → PARTIAL (first hardware run external).
+- Crash-safe ledgers: `JsonlStore` (fsync append, strict replay) backs prospective + review ledgers via `RIFT_PROSPECTIVE_LEDGER` / `RIFT_REVIEWS_LEDGER` (`tests/test_durable.py`). Phases 14/15 → PARTIAL (deployment + backup ops external).
+- Abstention-harm analysis module (`health/abstention.py`, `tests/test_abstention.py`). Phase 13 → PARTIAL (harm study external).
+- Threat model, incident runbook with backup/restore (`docs/threat-model.md`, `docs/incident-runbook.md`). Phases 19/20 → PARTIAL (pen test, drills, operated RTO external).
+- External gates doc with live-verified links: IBM Open Plan terms, PhysioNet credentialing, FDA Q-Sub/software guidance (`docs/external-gates.md`). Phase 17 → PARTIAL (professionals + submission external).
+
+## Completed in the previous cycle (code-addressable)
 
 - Benchmark battery: simulated annealing + tabu search vs QAOA sim + pre-registered methodology doc (`docs/benchmark-methodology.md`, `tests/test_benchmark_heuristics.py`). Phase 9 → PARTIAL (MILP/CP-SAT + hardware external).
 - Clinician review actions with audit trail: append-only hash-chained ledger, `GET/POST /api/twin/reviews`, dashboard CLINICIAN REVIEW panel, review counts in `/metrics` (`rift_clinician_reviews_total`). Phase 14 → PARTIAL (durable persistence + live tracking external).

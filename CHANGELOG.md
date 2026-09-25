@@ -4,6 +4,7 @@ All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system,
 
 ## [Unreleased]
 ### Added
+- Web-gathering cycle: executed real PhysioNet CHFDB pull through the repo adapter (HR 66.5/HRV 39.6, `docs/real-data-ingestion.md`); Qiskit Aer QAOA backend + fail-closed IBM hardware path (`qpu.py`); crash-safe JSONL ledgers (`durable.py`, `RIFT_PROSPECTIVE_LEDGER`/`RIFT_REVIEWS_LEDGER`); abstention-harm analysis (`health/abstention.py`); threat model, incident runbook, external-gates doc with verified links; `qiskit-aer`/`qiskit-ibm-runtime` pins.
 - Clinical-roadmap cycle: Phase-0 source audit (`docs/clinical-audit-phase0.md`), living roadmap with per-phase status (`docs/clinical-roadmap.md`), pre-registered benchmark methodology (`docs/benchmark-methodology.md`), study-protocol template, QMS skeleton, requirements traceability matrix.
 - Classical optimizer baselines (`benchmark.py`): seeded simulated annealing + tabu search join exact enumeration and QAOA simulation in `benchmark_suite` (4 methods, deterministic, gaps reported).
 - Clinician review ledger (`health/reviews.py`): append-only hash-chained ACCEPT/REJECT/OVERRIDE/REQUEST_REVIEW with rationale rules, `GET/POST /api/twin/reviews`, dashboard CLINICIAN REVIEW panel, `rift_clinician_reviews_total` metric.

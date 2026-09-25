@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import time
 
 ACTIONS = ("ACCEPT", "REJECT", "OVERRIDE", "REQUEST_REVIEW")
@@ -38,12 +39,26 @@ def _canonical(action: str, evidence_id: str, reviewer_id: str,
 
 
 class ReviewLedger:
-    """Append-only clinician-judgment log with tamper-evident chaining."""
+    """Append-only clinician-judgment log with tamper-evident chaining.
 
-    def __init__(self) -> None:
+    Pass store_path (or set RIFT_REVIEWS_LEDGER) for crash-safe JSONL
+    durability: every record is fsynced on append and replayed on startup.
+    Without it the ledger is demonstration-grade in-memory only.
+    """
+
+    def __init__(self, store_path: str | None = None) -> None:
+        from ..durable import JsonlStore
         self._entries: dict[str, dict] = {}
         self._order: list[str] = []
         self._head_hash = "GENESIS"
+        self._store = JsonlStore(store_path) if store_path else None
+        if self._store is not None:
+            for entry in self._store.load():
+                rid = entry.get("review_id")
+                if isinstance(rid, str) and rid and rid not in self._entries:
+                    self._entries[rid] = entry
+                    self._order.append(rid)
+                    self._head_hash = rid
 
     def record(self, *, action: str, evidence_id: str, reviewer_id: str,
                rationale: str = "", supersedes: str | None = None) -> dict:
@@ -78,6 +93,8 @@ class ReviewLedger:
             self._entries[review_id] = entry
             self._order.append(review_id)
             self._head_hash = review_id
+            if self._store is not None:
+                self._store.append(entry)
         return dict(self._entries[review_id])
 
     def list(self, limit: int = MAX_REVIEWS_LISTED) -> list[dict]:
@@ -96,9 +113,16 @@ class ReviewLedger:
         return [dict(self._entries[rid]) for rid in self._order]
 
     def reset(self) -> None:
+        """Clear memory only. The durable file (if any) is never wiped by
+        reset: audit data must be deleted by explicit operator action."""
         self._entries.clear()
         self._order.clear()
         self._head_hash = "GENESIS"
 
+    @property
+    def durable(self) -> bool:
+        """True when backed by a crash-safe file, False when in-memory demo."""
+        return self._store is not None
 
-ledger = ReviewLedger()
+
+ledger = ReviewLedger(store_path=os.environ.get("RIFT_REVIEWS_LEDGER") or None)
