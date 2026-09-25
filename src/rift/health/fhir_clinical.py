@@ -11,10 +11,12 @@ FHIR server is configured.
 from __future__ import annotations
 
 import json
+import os
 import time
 import urllib.request
 import urllib.error
 from datetime import date
+from typing import Optional
 
 from .ehr import KNOWN_CONDITIONS, KNOWN_MEDICATIONS
 
@@ -172,27 +174,65 @@ class FhirError(Exception):
 
 
 def _private_fetch_allowed() -> bool:
-    import os as _os
+    return os.getenv("RIFT_ALLOW_PRIVATE_FETCH", "false").strip().lower() in ("1", "true", "yes")
 
-    return _os.getenv("RIFT_ALLOW_PRIVATE_FETCH", "false").strip().lower() in ("1", "true", "yes")
+
+def _https_required() -> bool:
+    """Check if HTTPS is required (production mode).
+    
+    HTTPS is required unless explicitly disabled for development/testing.
+    """
+    return os.getenv("RIFT_ALLOW_HTTP", "false").strip().lower() not in ("1", "true", "yes")
+
+
+def _get_trusted_hosts() -> set[str]:
+    """Get the set of trusted FHIR hosts from environment.
+    
+    In production, only hosts in this allowlist are permitted.
+    For development/testing, this can be empty (allow all public hosts).
+    
+    Format: comma-separated hostnames, e.g., "fhir.epic.com,fhir.cerner.com"
+    """
+    hosts_env = os.getenv("RIFT_TRUSTED_FHIR_HOSTS", "").strip()
+    if not hosts_env:
+        return set()
+    return {h.strip().lower() for h in hosts_env.split(",") if h.strip()}
 
 
 def checked_open(url: str, token: str | None, timeout_s: int):
-    """SSRF-hardened fetch primitive: https/http only, no redirects, no
+    """SSRF-hardened fetch primitive: HTTPS only in production, no redirects, no
     private-network targets unless RIFT_ALLOW_PRIVATE_FETCH=true (dev/test).
-
+    
     Pagination next-links come from remote servers, so every hop — not just
     the first URL — passes through this gate.
+    
+    In production mode:
+    - HTTPS is required
+    - Only trusted hosts from RIFT_TRUSTED_FHIR_HOSTS are permitted
     """
     import ipaddress as _ipaddress
     import socket as _socket
     from urllib.parse import urlparse as _urlparse
 
     parsed = _urlparse(url)
+    
+    # Enforce HTTPS in production
+    if _https_required() and parsed.scheme != "https":
+        raise FhirError(f"security: refusing non-HTTPS fetch target {parsed.scheme!r} (set RIFT_ALLOW_HTTP=true for dev/test only)")
+    
     if parsed.scheme not in ("http", "https"):
         raise FhirError(f"security: refusing non-HTTP(S) fetch target {parsed.scheme!r}")
     if not parsed.hostname:
         raise FhirError("security: fetch target has no hostname")
+    
+    # Check trusted hosts in production
+    trusted_hosts = _get_trusted_hosts()
+    if trusted_hosts and parsed.hostname.lower() not in trusted_hosts:
+        raise FhirError(
+            f"security: host {parsed.hostname!r} not in trusted FHIR host allowlist "
+            f"(configure RIFT_TRUSTED_FHIR_HOSTS for production)"
+        )
+    
     try:
         infos = _socket.getaddrinfo(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80),
                                     type=_socket.SOCK_STREAM)

@@ -1,18 +1,22 @@
 """Scrape a tiny slice of the public BIDSleep PhysioNet dataset for RIFT.
 
-Fetches hr.csv for a few nights from the openly licensed
-bidsleep-dataset (ODC Attribution License v1.0) and converts to the
-strict PublicDatasetSource CSV schema. No clinical claim: this
-demonstrates the real-data seam, not a validated clinical dataset.
+Fetches hr.csv and motion.csv for a few nights from the openly licensed
+bidsleep-dataset (ODC Attribution License v1.0) and converts to a
+provenance-rich CSV schema. No clinical claim: this demonstrates the
+real-data seam with proper identity preservation, not a validated clinical dataset.
 
 Run: python -m rift.health.bidsleep_scrape --nights 3 --out data/public_real_bidsleep.csv
 """
 from __future__ import annotations
 
 import csv
+import hashlib
+import json
 import statistics
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import TypedDict
 
 BASE = "https://physionet.org/files/bidsleep-dataset/1.0.0"
 # Deterministic slice: 6 nights across 3 subjects — all verified live.
@@ -24,13 +28,51 @@ NIGHTS = [
 ]
 
 
-def fetch_hr_median(subject: str, night: str) -> tuple[float | None, int]:
-    url = f"{BASE}/{subject}/{night}/hr.csv"
+class FetchResult(TypedDict):
+    success: bool
+    url: str
+    http_status: int | None
+    retrieved_at: str
+    content_sha256: str | None
+    row_count: int
+    error: str | None
+
+
+def fetch_with_provenance(url: str, timeout: int = 30) -> tuple[FetchResult, str]:
+    """Fetch a URL and return (provenance_result, text_content).
+    
+    Fails closed: any exception results in success=False with error details.
+    """
+    result: FetchResult = {
+        "success": False,
+        "url": url,
+        "http_status": None,
+        "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        "content_sha256": None,
+        "row_count": 0,
+        "error": None,
+    }
+    text = ""
     try:
-        with urllib.request.urlopen(url, timeout=30) as resp:  # nosec B310 -- URL is fixed PhysioNet base + validated subject/night, never user input
-            text = resp.read().decode()
-    except Exception:
-        return None, 0
+        request = urllib.request.Request(url, headers={"Accept": "text/csv"})
+        with urllib.request.urlopen(request, timeout=timeout) as resp:  # nosec B310 -- URL is fixed PhysioNet base + validated subject/night
+            result["http_status"] = resp.getcode()
+            content = resp.read()
+            result["content_sha256"] = hashlib.sha256(content).hexdigest()
+            text = content.decode(errors="replace")
+            result["success"] = True
+    except urllib.error.HTTPError as exc:
+        result["http_status"] = exc.code
+        result["error"] = f"HTTP {exc.code}: {exc.reason}"
+    except urllib.error.URLError as exc:
+        result["error"] = f"URL error: {exc.reason}"
+    except Exception as exc:  # pragma: no cover - defensive
+        result["error"] = f"{type(exc).__name__}: {exc}"
+    return result, text
+
+
+def parse_hr_csv(text: str) -> tuple[list[float], int]:
+    """Parse hr.csv and return (hr_values, valid_row_count)."""
     hrs = []
     for line in text.splitlines():
         line = line.strip()
@@ -43,78 +85,134 @@ def fetch_hr_median(subject: str, night: str) -> tuple[float | None, int]:
             hrs.append(float(parts[1]))
         except ValueError:
             continue
-    if not hrs:
-        return None, 0
-    return float(statistics.median(hrs)), len(hrs)
+    return hrs, len(hrs)
 
 
-def fetch_motion_mean(subject: str, night: str, max_rows: int = 8000) -> tuple[float | None, int]:
-    """Mean acceleration magnitude from motion.csv (sampled, real sensor data)."""
-    url = f"{BASE}/{subject}/{night}/motion.csv"
-    try:
-        with urllib.request.urlopen(url, timeout=30) as resp:  # nosec B310 -- fixed PhysioNet base
-            # Stream-decode to avoid loading 30MB full file when only a sample is needed
-            import math as _math
-            mags = []
-            # Read header + up to max_rows lines
-            header = resp.readline().decode(errors="replace")
-            for _ in range(max_rows):
-                line = resp.readline()
-                if not line:
-                    break
-                try:
-                    parts = line.decode(errors="replace").strip().split(",")
-                    if len(parts) < 4:
-                        continue
-                    x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
-                    mags.append(_math.sqrt(x*x + y*y + z*z))
-                except ValueError:
-                    continue
-            if not mags:
-                return None, 0
-            # Scale magnitude (~1.0 for still) to activity_load 0-100 index
-            mean_mag = statistics.mean(mags)
-            # Map 0.9-1.5 g range → 20-80 index, clamped
-            activity = max(0.0, min(100.0, (mean_mag - 0.9) * 100.0 + 20.0))
-            return float(activity), len(mags)
-    except Exception:
-        return None, 0
+def parse_motion_csv(text: str, max_rows: int = 8000) -> tuple[list[float], int]:
+    """Parse motion.csv and return (magnitudes, valid_row_count)."""
+    import math
+    mags = []
+    lines = text.splitlines()
+    if not lines:
+        return mags, 0
+    # Skip header
+    for line in lines[1:max_rows+1]:
+        try:
+            parts = line.strip().split(",")
+            if len(parts) < 4:
+                continue
+            x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+            mags.append(math.sqrt(x*x + y*y + z*z))
+        except ValueError:
+            continue
+    return mags, len(mags)
 
 
 def scrape(out_path: str = "data/public_real_bidsleep.csv", nights=None) -> Path:
+    """Scrape BIDSleep data with full provenance tracking.
+    
+    Output CSV schema:
+    subject_id,recording_id,date,metric,value,unit,source,provenance_json
+    
+    Where provenance_json contains: url, http_status, retrieved_at, content_sha256, row_count
+    """
     target = nights or NIGHTS
     path = Path(out_path)
     path.parent.mkdir(parents=True, exist_ok=True)
+    
+    fieldnames = ["subject_id", "recording_id", "date", "metric", "value", "unit", "source", "provenance"]
     rows = []
-    for idx, (subject, night) in enumerate(target):
-        median_hr, n = fetch_hr_median(subject, night)
-        activity, m = fetch_motion_mean(subject, night)
+    all_provenance = []
+    
+    for subject, night in target:
+        recording_id = f"{subject}_night{night}"
+        # Use a nominal date for the recording (BIDSleep doesn't expose real dates)
+        recording_date = f"2024-01-{int(night):02d}"  # placeholder date per night
+        
+        # Fetch HR
+        hr_url = f"{BASE}/{subject}/{night}/hr.csv"
+        hr_prov, hr_text = fetch_with_provenance(hr_url)
+        
+        # Fetch motion
+        motion_url = f"{BASE}/{subject}/{night}/motion.csv"
+        motion_prov, motion_text = fetch_with_provenance(motion_url)
+        
+        # Both must succeed for this recording to be included (fail closed)
+        if not hr_prov["success"]:
+            raise RuntimeError(f"Failed to fetch HR for {subject}/{night}: {hr_prov['error']}")
+        if not motion_prov["success"]:
+            raise RuntimeError(f"Failed to fetch motion for {subject}/{night}: {motion_prov['error']}")
+        
+        hrs, hr_count = parse_hr_csv(hr_text)
+        mags, motion_count = parse_motion_csv(motion_text)
+        
+        if not hrs:
+            raise RuntimeError(f"No valid HR samples for {subject}/{night}")
+        if not mags:
+            raise RuntimeError(f"No valid motion samples for {subject}/{night}")
+        
+        # Median HR (instantaneous heart rate, NOT resting HR)
+        median_hr = float(statistics.median(hrs))
+        # Mean acceleration magnitude (raw sensor metric, NOT clinical activity_load)
+        mean_mag = float(statistics.mean(mags))
+        
+        # Provenance for HR
+        hr_prov["row_count"] = hr_count
+        provenance_json = json.dumps(hr_prov, separators=(",", ":"))
         rows.append({
-            "day_index": idx,
-            "resting_hr": f"{median_hr:.1f}" if median_hr is not None else "",
-            "hrv_rmssd": "",
-            "sleep_hours": "",
-            "activity_load": f"{activity:.1f}" if activity is not None else "",
-            "_source": f"{BASE}/{subject}/{night}/hr.csv ({n} samples) + motion.csv ({m} samples)",
+            "subject_id": subject,
+            "recording_id": recording_id,
+            "date": recording_date,
+            "metric": "heart_rate",
+            "value": f"{median_hr:.1f}",
+            "unit": "bpm",
+            "source": "physionet_bidsleep",
+            "provenance": provenance_json,
         })
-        print(f"[{idx}] {subject}/{night}: median HR {median_hr} from {n} samples, activity {activity} from {m} motion samples")
+        
+        # Provenance for motion
+        motion_prov["row_count"] = motion_count
+        provenance_json = json.dumps(motion_prov, separators=(",", ":"))
+        rows.append({
+            "subject_id": subject,
+            "recording_id": recording_id,
+            "date": recording_date,
+            "metric": "accel_magnitude_mean",
+            "value": f"{mean_mag:.3f}",
+            "unit": "g",
+            "source": "physionet_bidsleep",
+            "provenance": provenance_json,
+        })
+        
+        all_provenance.append({
+            "subject_id": subject,
+            "recording_id": recording_id,
+            "hr": hr_prov,
+            "motion": motion_prov,
+        })
+        
+        print(f"[{subject}/{night}] HR median {median_hr:.1f} bpm ({hr_count} samples), "
+              f"accel mean {mean_mag:.3f} g ({motion_count} samples)")
+    
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=[
-            "day_index", "resting_hr", "hrv_rmssd", "sleep_hours", "activity_load"])
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
-            writer.writerow({k: row[k] for k in writer.fieldnames})
+            writer.writerow(row)
+    
     # Provenance sidecar
     sidecar = path.with_suffix(".provenance.json")
-    import json as _json
-    sidecar.write_text(_json.dumps({
+    sidecar.write_text(json.dumps({
         "source": "PhysioNet bidsleep-dataset v1.0.0",
         "license": "Open Data Commons Attribution License v1.0",
         "doi": "10.13026/a0sy-7t69",
-        "nights": target,
-        "note": "Median HR from hr.csv + mean activity from motion.csv per night; HRV/sleep left blank to demonstrate missingness handling, not imputed.",
+        "recordings": all_provenance,
+        "note": "Instantaneous heart_rate from hr.csv + mean accel_magnitude_mean from motion.csv per night. "
+                "HRV/sleep not available in this dataset. Subject identity preserved. "
+                "accel_magnitude_mean is a raw sensor metric, not a clinical activity_load index.",
     }, indent=2), encoding="utf-8")
-    print(f"Wrote {path} and {sidecar}")
+    
+    print(f"Wrote {path} ({len(rows)} rows) and {sidecar}")
     return path
 
 

@@ -483,6 +483,7 @@ def test_fhir_pagination_auth_retry_manifest(monkeypatch):
     from rift.health import fhir_clinical as F
 
     monkeypatch.setenv("RIFT_ALLOW_PRIVATE_FETCH", "true")
+    monkeypatch.setenv("RIFT_ALLOW_HTTP", "true")
 
     calls = {"n": 0, "auth": []}
 
@@ -576,12 +577,14 @@ def test_fhir_private_fetch_opt_in_is_explicit(monkeypatch):
     thread.start()
     try:
         monkeypatch.delenv("RIFT_ALLOW_PRIVATE_FETCH", raising=False)
+        monkeypatch.delenv("RIFT_ALLOW_HTTP", raising=False)
         try:
             F.fetch_bundle(f"http://127.0.0.1:{port}/x", timeout_s=5, max_retries=0)
             raise AssertionError("loopback must be refused by default")
         except F.FhirError:
             pass
         monkeypatch.setenv("RIFT_ALLOW_PRIVATE_FETCH", "true")
+        monkeypatch.setenv("RIFT_ALLOW_HTTP", "true")
         assert F.fetch_bundle(f"http://127.0.0.1:{port}/x", timeout_s=5)["resourceType"] == "Bundle"
     finally:
         server.shutdown()

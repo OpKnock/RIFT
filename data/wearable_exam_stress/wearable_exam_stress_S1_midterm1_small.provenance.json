@@ -1,0 +1,62 @@
+{
+  "source": "PhysioNet Wearable Exam Stress v1.0.0",
+  "license": "ODC Attribution v1.0",
+  "subjects": [
+    "S1"
+  ],
+  "recordings": [
+    {
+      "subject": "S1",
+      "exam": "midterm_1",
+      "modality": "HR",
+      "prov": {
+        "url": "https://physionet.org/files/wearable-exam-stress/1.0.0/data/S1/midterm_1/HR.csv",
+        "success": true,
+        "error": null,
+        "sha256": "eef681bc663c699bc084c590210ddd2309f975064b357adf3b0ebe457f900f35",
+        "rows": 11170,
+        "modality": "HR"
+      }
+    },
+    {
+      "subject": "S1",
+      "exam": "midterm_1",
+      "modality": "IBI",
+      "prov": {
+        "url": "https://physionet.org/files/wearable-exam-stress/1.0.0/data/S1/midterm_1/IBI.csv",
+        "success": true,
+        "error": null,
+        "sha256": "864a17398855d16982485434f8faa0ad5d334e010a9ed8c3beaa3ef19b66fc82",
+        "rows": 300,
+        "modality": "IBI"
+      }
+    },
+    {
+      "subject": "S1",
+      "exam": "midterm_1",
+      "modality": "EDA",
+      "prov": {
+        "url": "https://physionet.org/files/wearable-exam-stress/1.0.0/data/S1/midterm_1/EDA.csv",
+        "success": true,
+        "error": null,
+        "sha256": "7b9439f800322a71fd86d47d3b07ba40597b26a546ebf75e83f65975f25da1c4",
+        "rows": 44713,
+        "modality": "EDA"
+      }
+    },
+    {
+      "subject": "S1",
+      "exam": "midterm_1",
+      "modality": "TEMP",
+      "prov": {
+        "url": "https://physionet.org/files/wearable-exam-stress/1.0.0/data/S1/midterm_1/TEMP.csv",
+        "success": true,
+        "error": null,
+        "sha256": "4ca13a95bdee07db24d78b94a3bbea157523dd643579e0bf4dd4458bd7d76a14",
+        "rows": 44713,
+        "modality": "TEMP"
+      }
+    }
+  ],
+  "note": "Small modalities only (HR, IBI, EDA, TEMP). Skipped ACC/BVP (large). Subject identity preserved. No clinical outcomes."
+}

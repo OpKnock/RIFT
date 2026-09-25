@@ -22,7 +22,11 @@ from datetime import datetime, timezone
 # readings use heart_rate; R-R interval SD uses rr_sd. The twin's risk
 # path consumes resting_hr/hrv_rmssd only — generic readings are preserved
 # at observation level but never silently relabeled (see adapters.py).
-METRICS = ("resting_hr", "hrv_rmssd", "sleep_hours", "activity_load", "heart_rate", "rr_sd")
+METRICS = (
+    "resting_hr", "hrv_rmssd", "sleep_hours", "activity_load",
+    "heart_rate", "rr_sd",
+    "eda", "skin_temp",  # wearable exam stress dataset
+)
 EXPECTED_UNITS = {
     "resting_hr": "bpm",
     "hrv_rmssd": "ms",
@@ -30,6 +34,8 @@ EXPECTED_UNITS = {
     "activity_load": "index",
     "heart_rate": "bpm",
     "rr_sd": "ms",
+    "eda": "µS",
+    "skin_temp": "°C",
 }
 
 # Accepted unit aliases per metric: alias -> multiplier to canonical unit.
@@ -40,6 +46,8 @@ UNIT_ALIASES = {
     "activity_load": {"index": 1.0, "points": 1.0, "steps": 0.01},
     "heart_rate": {"bpm": 1.0, "beats_per_minute": 1.0, "/min": 1.0, "beats/min": 1.0},
     "rr_sd": {"ms": 1.0, "millisecond": 1.0, "s": 1000.0},
+    "eda": {"µS": 1.0, "uS": 1.0, "microsiemens": 1.0},
+    "skin_temp": {"°C": 1.0, "C": 1.0, "celsius": 1.0, "K": 1.0},
 }
 
 
