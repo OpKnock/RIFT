@@ -45,6 +45,7 @@ IMPOSSIBLE_MESSAGES = {
 # assumptions, so it withholds rather than warns.
 STATE_SCHEMA_FIELDS = frozenset({
     "day_index", "resting_hr", "hrv_rmssd", "sleep_hours", "activity_load",
+    "heart_rate", "rr_sd",
     "data_quality", "stale_days", "provenance",
 })
 

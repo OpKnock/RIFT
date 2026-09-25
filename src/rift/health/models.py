@@ -11,6 +11,8 @@ PHYSIOLOGICAL_BOUNDS = {
     "sleep_hours": (0.0, 24.0),       # h/day
     "activity_load": (0.0, 200.0),    # demo exertion index
     "age": (0.0, 120.0),              # years
+    "heart_rate": (25.0, 220.0),      # bpm (instantaneous/generic)
+    "rr_sd": (0.0, 300.0),            # ms (RR interval SD)
 }
 
 
@@ -52,6 +54,8 @@ class WearableObservation:
     hrv_rmssd: float | None = None
     sleep_hours: float | None = None
     activity_load: float | None = None
+    heart_rate: float | None = None  # instantaneous/generic HR (NOT resting_hr)
+    rr_sd: float | None = None       # RR interval SD (NOT hrv_rmssd)
     stale: bool = False  # True when carried forward from an older sample
     provenance: str = ""
 
@@ -62,6 +66,8 @@ class WearableObservation:
             "hrv_rmssd": self.hrv_rmssd,
             "sleep_hours": self.sleep_hours,
             "activity_load": self.activity_load,
+            "heart_rate": self.heart_rate,
+            "rr_sd": self.rr_sd,
             "stale": self.stale,
             "provenance": self.provenance,
         }
@@ -75,6 +81,8 @@ class PatientState:
     hrv_rmssd: float | None = None
     sleep_hours: float | None = None
     activity_load: float | None = None
+    heart_rate: float | None = None
+    rr_sd: float | None = None
     data_quality: float = 1.0  # 0..1 fraction of expected fields present+fresh
     stale_days: int = 0
     provenance: str = ""  # origin chain of the synchronized observation
@@ -86,6 +94,8 @@ class PatientState:
             "hrv_rmssd": self.hrv_rmssd,
             "sleep_hours": self.sleep_hours,
             "activity_load": self.activity_load,
+            "heart_rate": self.heart_rate,
+            "rr_sd": self.rr_sd,
             "data_quality": self.data_quality,
             "stale_days": self.stale_days,
             "provenance": self.provenance,
@@ -99,6 +109,8 @@ class PersonalBaseline:
     hrv_rmssd: float | None = None
     sleep_hours: float | None = None
     activity_load: float | None = None
+    heart_rate: float | None = None
+    rr_sd: float | None = None
     window_days: int = 0
 
     def to_dict(self) -> dict:
@@ -107,6 +119,8 @@ class PersonalBaseline:
             "hrv_rmssd": self.hrv_rmssd,
             "sleep_hours": self.sleep_hours,
             "activity_load": self.activity_load,
+            "heart_rate": self.heart_rate,
+            "rr_sd": self.rr_sd,
             "window_days": self.window_days,
         }
 

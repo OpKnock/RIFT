@@ -62,12 +62,25 @@ class LiveIngestSource(WearableSource):
 
 
 # Legacy schema for backward compatibility (day_index + FIELDS)
-LEGACY_CSV_SCHEMA = ("day_index",) + FIELDS
+# Supports both old 4-field format and new 6-field format for backward compat
+LEGACY_CSV_SCHEMA_V1 = ("day_index", "resting_hr", "hrv_rmssd", "sleep_hours", "activity_load")
+LEGACY_CSV_SCHEMA_V2 = ("day_index",) + FIELDS
 
 # New provenance-rich schema (one row per metric per recording)
 PUBLIC_DATASET_CSV_SCHEMA = (
     "subject_id", "recording_id", "date", "metric", "value", "unit", "source", "provenance"
 )
+
+
+def _detect_legacy_schema(fieldnames: list[str]) -> tuple[str, ...] | None:
+    """Detect which legacy schema version the CSV uses."""
+    # Check for V1 (original 4 fields)
+    if all(f in fieldnames for f in LEGACY_CSV_SCHEMA_V1):
+        return LEGACY_CSV_SCHEMA_V1
+    # Check for V2 (new 6 fields)
+    if all(f in fieldnames for f in LEGACY_CSV_SCHEMA_V2):
+        return LEGACY_CSV_SCHEMA_V2
+    return None
 
 
 def _parse_iso_date(text: str) -> int:
@@ -123,17 +136,17 @@ def _canonical_to_wearable(observations: list[CanonicalObservation]) -> list[Wea
         
         # Map canonical metrics to wearable fields with explicit provenance
         if obs.metric == "heart_rate":
-            # Explicitly mark as instantaneous HR, not clinical resting HR
-            day_data["resting_hr"] = obs.value
-            day_data["provenance_parts"][-1] += " (mapped: heart_rate→resting_hr, NOTE: instantaneous HR)"
+            # Store as heart_rate (instantaneous/generic), NOT resting_hr
+            day_data["heart_rate"] = obs.value
+            day_data["provenance_parts"][-1] += " (stored as heart_rate: instantaneous/generic HR)"
         elif obs.metric == "resting_hr":
             day_data["resting_hr"] = obs.value
         elif obs.metric == "hrv_rmssd":
             day_data["hrv_rmssd"] = obs.value
         elif obs.metric == "rr_sd":
-            # RR interval SD maps to HRV RMSSD
-            day_data["hrv_rmssd"] = obs.value
-            day_data["provenance_parts"][-1] += " (mapped: rr_sd→hrv_rmssd)"
+            # Store as rr_sd (RR interval SD), NOT hrv_rmssd
+            day_data["rr_sd"] = obs.value
+            day_data["provenance_parts"][-1] += " (stored as rr_sd: RR interval SD)"
         elif obs.metric == "sleep_hours":
             day_data["sleep_hours"] = obs.value
         elif obs.metric == "activity_load":
@@ -161,6 +174,8 @@ def _canonical_to_wearable(observations: list[CanonicalObservation]) -> list[Wea
             hrv_rmssd=day_data.get("hrv_rmssd"),
             sleep_hours=day_data.get("sleep_hours"),
             activity_load=day_data.get("activity_load"),
+            heart_rate=day_data.get("heart_rate"),
+            rr_sd=day_data.get("rr_sd"),
             provenance=provenance,
         ))
     
@@ -171,7 +186,7 @@ class PublicDatasetSource(WearableSource):
     """CSV-backed source for public datasets sharing the normalized pipeline.
 
     Supports two schemas:
-    1. Legacy: day_index,resting_hr,hrv_rmssd,sleep_hours,activity_load
+    1. Legacy: day_index + FIELDS (v1: 4 fields, v2: 6 fields)
     2. Provenance-rich: subject_id,recording_id,date,metric,value,unit,source,provenance
     
     The provenance-rich schema feeds through the canonical observation pipeline
@@ -189,13 +204,15 @@ class PublicDatasetSource(WearableSource):
             fieldnames = reader.fieldnames or []
             
             # Detect schema
-            if fieldnames == list(LEGACY_CSV_SCHEMA):
-                observations = self._load_legacy_schema(reader)
+            legacy_schema = _detect_legacy_schema(fieldnames)
+            if legacy_schema:
+                observations = self._load_legacy_schema(reader, legacy_schema)
             elif fieldnames == list(PUBLIC_DATASET_CSV_SCHEMA):
                 observations = self._load_provenance_schema(reader)
             else:
                 raise ValueError(
-                    f"dataset CSV must have header {','.join(LEGACY_CSV_SCHEMA)} (legacy) "
+                    f"dataset CSV must have header {','.join(LEGACY_CSV_SCHEMA_V1)} (legacy v1) "
+                    f"or {','.join(LEGACY_CSV_SCHEMA_V2)} (legacy v2) "
                     f"or {','.join(PUBLIC_DATASET_CSV_SCHEMA)} (provenance-rich); "
                     f"got {','.join(fieldnames)}"
                 )
@@ -207,7 +224,7 @@ class PublicDatasetSource(WearableSource):
             raise ValueError("dataset CSV day_index values must be unique")
         self._obs = sorted(observations, key=lambda o: o.day_index)
 
-    def _load_legacy_schema(self, reader: csv.DictReader) -> list[WearableObservation]:
+    def _load_legacy_schema(self, reader: csv.DictReader, schema: tuple[str, ...]) -> list[WearableObservation]:
         """Load legacy schema (day_index + FIELDS) - bypasses canonical pipeline for backward compat."""
         observations: list[WearableObservation] = []
         for line_no, row in enumerate(reader, start=2):
@@ -216,7 +233,7 @@ class PublicDatasetSource(WearableSource):
             except (ValueError, AttributeError) as exc:
                 raise ValueError(f"line {line_no}: bad day_index") from exc
             observations.append(WearableObservation(
-                day_index=day, **{f: _csv_num(row.get(f), line_no, f) for f in FIELDS},
+                day_index=day, **{f: _csv_num(row.get(f), line_no, f) for f in schema[1:]},
             ))
         return observations
 

@@ -26,6 +26,8 @@ METRICS = (
     "resting_hr", "hrv_rmssd", "sleep_hours", "activity_load",
     "heart_rate", "rr_sd",
     "eda", "skin_temp",  # wearable exam stress dataset
+    "spo2", "temperature", "sbp", "map", "dbp", "resp_rate",
+    "icu_los_hours", "sepsis_label",  # PhysioNet Sepsis Challenge 2019
 )
 EXPECTED_UNITS = {
     "resting_hr": "bpm",
@@ -36,6 +38,14 @@ EXPECTED_UNITS = {
     "rr_sd": "ms",
     "eda": "µS",
     "skin_temp": "°C",
+    "spo2": "%",
+    "temperature": "C",
+    "sbp": "mmHg",
+    "map": "mmHg",
+    "dbp": "mmHg",
+    "resp_rate": "breaths/min",
+    "icu_los_hours": "hours",
+    "sepsis_label": "binary",
 }
 
 # Accepted unit aliases per metric: alias -> multiplier to canonical unit.
@@ -48,6 +58,14 @@ UNIT_ALIASES = {
     "rr_sd": {"ms": 1.0, "millisecond": 1.0, "s": 1000.0},
     "eda": {"µS": 1.0, "uS": 1.0, "microsiemens": 1.0},
     "skin_temp": {"°C": 1.0, "C": 1.0, "celsius": 1.0, "K": 1.0},
+    "spo2": {"%": 1.0, "percent": 1.0},
+    "temperature": {"C": 1.0, "celsius": 1.0, "K": 1.0},
+    "sbp": {"mmHg": 1.0},
+    "map": {"mmHg": 1.0},
+    "dbp": {"mmHg": 1.0},
+    "resp_rate": {"breaths/min": 1.0, "bpm": 1.0},
+    "icu_los_hours": {"hours": 1.0, "h": 1.0},
+    "sepsis_label": {"binary": 1.0},
 }
 
 

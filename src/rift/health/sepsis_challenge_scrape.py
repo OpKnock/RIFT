@@ -1,5 +1,5 @@
 """Scrape PhysioNet Sepsis Challenge 2019 dataset for RIFT external validation.
-~40,000 patients with sepsis outcome labels. Open access (ODC Attribution v1.0).
+~40,000 patients with sepsis outcome labels. Open access (CC BY 4.0).
 """
 from __future__ import annotations
 
@@ -105,7 +105,11 @@ def scrape_sample(out_dir: str = "data/physionet_sepsis",
                   training_set: str = "training_setA",
                   max_patients: int = 100,
                   max_hours: int = 24) -> Path:
-    """Scrape a sample of the sepsis challenge dataset."""
+    """Scrape a sample of the sepsis challenge dataset.
+    
+    Each row's SepsisLabel is preserved at its actual hour (no future leakage).
+    Metrics use canonical names matching observations.METRICS.
+    """
     path = Path(out_dir) / training_set
     path.mkdir(parents=True, exist_ok=True)
     
@@ -136,33 +140,24 @@ def scrape_sample(out_dir: str = "data/physionet_sepsis",
         if not rows:
             continue
         
-        # Get sepsis label from last row
-        last_row = rows[-1]
-        sepsis_label = last_row.get("SepsisLabel", "NaN")
-        try:
-            sepsis_counts[int(float(sepsis_label))] += 1
-        except (ValueError, TypeError):
-            pass
+        # Map PhysioNet fields to canonical metric names
+        vital_map = {
+            "HR": ("heart_rate", "bpm"),
+            "O2Sat": ("spo2", "%"),
+            "Temp": ("temperature", "C"),
+            "SBP": ("sbp", "mmHg"),
+            "MAP": ("map", "mmHg"),
+            "DBP": ("dbp", "mmHg"),
+            "Resp": ("resp_rate", "breaths/min"),
+            "ICULOS": ("icu_los_hours", "hours"),
+        }
         
-        # Extract key time series for RIFT
-        # We'll create summary observations per patient per hour
         for hour_idx, row in enumerate(rows):
             rec_id = f"{patient_id}_hour{hour_idx}"
+            date_str = f"2024-01-{hour_idx+1:02d}"
             
-            # Vital signs available
-            vitals = {
-                "HR": ("heart_rate", "bpm"),
-                "O2Sat": ("spo2", "%"),
-                "Temp": ("temperature", "C"),
-                "SBP": ("sbp", "mmHg"),
-                "MAP": ("map", "mmHg"),
-                "DBP": ("dbp", "mmHg"),
-                "Resp": ("resp_rate", "breaths/min"),
-                "HR": ("heart_rate", "bpm"),
-                "ICULOS": ("icu_los_hours", "hours"),
-            }
-            
-            for vital, (metric, unit) in vitals.items():
+            # Vital signs - use each row's actual values
+            for vital, (metric, unit) in vital_map.items():
                 val = row.get(vital, "NaN")
                 if val != "NaN" and val != "":
                     try:
@@ -170,7 +165,7 @@ def scrape_sample(out_dir: str = "data/physionet_sepsis",
                         all_rows.append({
                             "subject_id": patient_id,
                             "recording_id": rec_id,
-                            "date": f"2024-01-{hour_idx+1:02d}",
+                            "date": date_str,
                             "metric": metric,
                             "value": f"{fval:.3f}",
                             "unit": unit,
@@ -180,12 +175,18 @@ def scrape_sample(out_dir: str = "data/physionet_sepsis",
                     except ValueError:
                         pass
             
-            # Sepsis label as outcome
+            # Sepsis label - use EACH ROW'S actual label (no future leakage)
+            sepsis_label = row.get("SepsisLabel", "NaN")
             if sepsis_label != "NaN":
+                try:
+                    sepsis_counts[int(float(sepsis_label))] += 1
+                except (ValueError, TypeError):
+                    pass
+                
                 all_rows.append({
                     "subject_id": patient_id,
                     "recording_id": rec_id,
-                    "date": f"2024-01-{hour_idx+1:02d}",
+                    "date": date_str,
                     "metric": "sepsis_label",
                     "value": sepsis_label,
                     "unit": "binary",
@@ -213,12 +214,13 @@ def scrape_sample(out_dir: str = "data/physionet_sepsis",
     sidecar = csv_path.with_suffix(".provenance.json")
     sidecar.write_text(json.dumps({
         "source": f"PhysioNet Sepsis Prediction Challenge 2019 v1.0.0",
-        "license": "Open Data Commons Attribution License v1.0",
+        "license": "Creative Commons Attribution 4.0",
         "training_set": training_set,
         "patients_scraped": len(all_provenance),
         "sepsis_distribution": sepsis_counts,
         "note": f"Sample of {max_patients} patients, {max_hours} hours each. "
-                f"SepsisLabel outcome available. Open access for validation.",
+                f"Each row's SepsisLabel preserved at its actual hour (no future leakage). "
+                f"Metrics use canonical names. CC BY 4.0 license.",
     }, indent=2), encoding="utf-8")
     
     print(f"Wrote {csv_path} ({len(all_rows)} rows) and {sidecar}")

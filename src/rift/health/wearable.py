@@ -5,7 +5,11 @@ from statistics import median
 
 from .models import WearableObservation
 
-FIELDS = ("resting_hr", "hrv_rmssd", "sleep_hours", "activity_load")
+# Required fields for completeness/staleness calculations (original 4)
+REQUIRED_FIELDS = ("resting_hr", "hrv_rmssd", "sleep_hours", "activity_load")
+
+# All fields including optional new metrics
+FIELDS = ("resting_hr", "hrv_rmssd", "sleep_hours", "activity_load", "heart_rate", "rr_sd")
 
 # Per-field floors for jitter normalization (units of each field).
 # A day-over-day jump smaller than the floor counts as no evidence of noise.
@@ -14,6 +18,8 @@ JITTER_FLOORS = {
     "hrv_rmssd": 1.0,
     "sleep_hours": 0.2,
     "activity_load": 2.0,
+    "heart_rate": 1.0,
+    "rr_sd": 1.0,
 }
 
 
@@ -47,18 +53,18 @@ class WearableStream:
     def stale_days_at(self, day_index: int) -> int:
         """Days since the last real (non-stale, fully present) sample."""
         past = self.observations_upto(day_index)
-        real = [o for o in past if not o.stale and all(getattr(o, f) is not None for f in FIELDS)]
+        real = [o for o in past if not o.stale and all(getattr(o, f) is not None for f in REQUIRED_FIELDS)]
         if not real:
             return len(past)
         return day_index - real[-1].day_index
 
     def completeness_at(self, day_index: int) -> float:
-        """Fraction of expected fields present in the latest sample."""
+        """Fraction of REQUIRED fields present in the latest sample."""
         latest = self.latest_at(day_index)
         if latest is None:
             return 0.0
-        present = sum(1 for f in FIELDS if getattr(latest, f) is not None)
-        return present / len(FIELDS)
+        present = sum(1 for f in REQUIRED_FIELDS if getattr(latest, f) is not None)
+        return present / len(REQUIRED_FIELDS)
 
 
 def field_mads(prior: list[WearableObservation]) -> dict[str, float | None]:
@@ -121,6 +127,9 @@ def trend_terms(
         return terms
     if today.resting_hr is not None and yesterday.resting_hr is not None:
         terms["hr_slope"] = today.resting_hr - yesterday.resting_hr
+    if today.heart_rate is not None and yesterday.heart_rate is not None:
+        # Also track generic HR trend separately
+        terms["generic_hr_slope"] = today.heart_rate - yesterday.heart_rate
     if today.sleep_hours is not None and yesterday.sleep_hours is not None:
         terms["sleep_delta"] = today.sleep_hours - yesterday.sleep_hours
     return terms
