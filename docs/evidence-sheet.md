@@ -61,7 +61,7 @@ robustness/uncertainty → Guardian display-safety → clinician dashboard.
 ## Reproduce in 2 minutes
 
 ```bash
-pip install -e ".[dev]" && pytest -q && python -m rift.cli twin-demo
+pip install -e ".[dev]" -c constraints.txt && pytest -q && python -m rift.cli twin-demo
 python -m rift.cli serve  # http://127.0.0.1:8080 ; /api/twin/evidence
 ```
 

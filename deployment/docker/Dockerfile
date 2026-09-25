@@ -13,10 +13,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY pyproject.toml ./
+# Install Python dependencies, pinned to constraints.txt so the image
+# resolves the same versions CI tested (build context must be the repo root).
+COPY pyproject.toml constraints.txt ./
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    pip install --no-cache-dir -e '.[supabase]'
+    pip install --no-cache-dir -c constraints.txt -e '.[supabase]'
 
 # Production stage
 FROM python:3.11-slim as production
