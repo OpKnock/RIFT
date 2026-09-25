@@ -105,16 +105,17 @@ spec:
                 secretKeyRef:
                   name: rift-secrets
                   key: api-token
-            # Verified-JWT identity (production mode). Optional so the
-            # manifest applies without it; set rift-secrets/supabase-jwt-secret
-            # to enable cryptographically verified identity instead of
-            # caller-asserted user_id.
+            # Verified-JWT identity. Production REQUIRES
+            # rift-secrets/supabase-jwt-secret (no optional flag): the
+            # manifest fails closed rather than running on caller-asserted
+            # user_id alone.
             - name: RIFT_SUPABASE_JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: rift-secrets
                   key: supabase-jwt-secret
-                  optional: true
+            - name: RIFT_RATE_LIMIT_ENABLED
+              value: "true"
             - name: RIFT_REQUIRE_USER_ID
               value: "true"
             - name: RIFT_ALLOW_PRIVATE_FETCH
@@ -220,16 +221,17 @@ spec:
                 secretKeyRef:
                   name: rift-secrets
                   key: api-token
-            # Verified-JWT identity (production mode). Optional so the
-            # manifest applies without it; set rift-secrets/supabase-jwt-secret
-            # to enable cryptographically verified identity instead of
-            # caller-asserted user_id.
+            # Verified-JWT identity. Production REQUIRES
+            # rift-secrets/supabase-jwt-secret (no optional flag): the
+            # manifest fails closed rather than running on caller-asserted
+            # user_id alone.
             - name: RIFT_SUPABASE_JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: rift-secrets
                   key: supabase-jwt-secret
-                  optional: true
+            - name: RIFT_RATE_LIMIT_ENABLED
+              value: "true"
             - name: RIFT_REQUIRE_USER_ID
               value: "true"
             - name: RIFT_ALLOW_PRIVATE_FETCH

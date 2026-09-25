@@ -223,6 +223,99 @@ def test_timeline_buckets_are_patient_scoped():
         ("A", 0), ("A", 1), ("B", 0), ("B", 1)}
 
 
+def test_metrics_endpoint_exposes_prometheus():
+    import threading
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    from rift.api import Handler
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/metrics", timeout=5) as resp:
+            assert resp.getcode() == 200
+            body = resp.read().decode()
+        assert "rift_requests_total" in body
+        assert "rift_failure_rate" in body
+        assert "rift_guardian_reject_rate" in body
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
+def test_public_source_rejects_missing_identity_fields(tmp_path):
+    from rift.health.sources import PublicDatasetSource
+
+    p = tmp_path / "missing.csv"
+    p.write_text(
+        "subject_id,recording_id,date,metric,value,unit,source,provenance\n"
+        ",R1,2024-01-01T00:00:00+00:00,heart_rate,80,bpm,src,\"{}\"\n",
+        encoding="utf-8",
+    )
+    try:
+        PublicDatasetSource(str(p))
+        raise AssertionError("missing subject_id must fail closed")
+    except ValueError as exc:
+        assert "missing required field" in str(exc)
+
+    p2 = tmp_path / "missing2.csv"
+    p2.write_text(
+        "subject_id,recording_id,date,metric,value,unit,source,provenance\n"
+        "P1,R1,,heart_rate,80,bpm,src,\"{}\"\n",
+        encoding="utf-8",
+    )
+    try:
+        PublicDatasetSource(str(p2))
+        raise AssertionError("missing date must fail closed")
+    except ValueError as exc:
+        assert "missing required field" in str(exc)
+
+
+def test_hourly_timeline_preserves_acute_resolution():
+    from rift.health.observations import normalize_batch
+    from rift.health.timeline import to_hourly_rows
+
+    raw = []
+    for hour in (1, 2, 3):
+        raw.append({"patient_id": "P1", "timestamp": f"2024-01-01T{hour:02d}:00:00+00:00",
+                    "source": "icu", "metric": "heart_rate", "value": 90 + hour,
+                    "unit": "bpm", "quality": 1.0, "provenance": "icu"})
+        raw.append({"patient_id": "P1", "timestamp": f"2024-01-01T{hour:02d}:00:00+00:00",
+                    "source": "icu", "metric": "sepsis_label", "value": 1 if hour == 3 else 0,
+                    "unit": "binary", "quality": 1.0, "provenance": "icu"})
+    accepted, issues = normalize_batch(raw)
+    assert not issues
+    rows = to_hourly_rows(accepted)
+    assert len(rows) == 3  # no daily collapse
+    assert [r["features"]["heart_rate"] for r in rows] == [91.0, 92.0, 93.0]
+    assert [r["outcome"] for r in rows] == [0, 0, 1]
+
+
+def test_k8s_production_requires_jwt_and_ratelimit():
+    from pathlib import Path
+
+    text = Path("deployment/kubernetes/production.yaml").read_text()
+    assert "RIFT_SUPABASE_JWT_SECRET" in text
+    assert "optional: true" not in text.split("RIFT_SUPABASE_JWT_SECRET")[1].split("- name:")[0]
+    assert "RIFT_RATE_LIMIT_ENABLED" in text
+
+
+def test_docker_compose_and_dockerfile_paths():
+    from pathlib import Path
+
+    compose = Path("deployment/docker/docker-compose.yml").read_text()
+    assert "context: ../.." in compose
+    assert "deployment/docker/Dockerfile" in compose
+    assert "../../src:/app/src:ro" in compose
+    dockerfile = Path("deployment/docker/Dockerfile").read_text()
+    assert "0.0.0.0" in dockerfile
+    assert 'CMD ["python", "-m", "rift.api"]' not in dockerfile
+
+
 def test_multi_patient_stream_keeps_patients_separate():
     from rift.health.models import WearableObservation
     from rift.health.wearable import MultiPatientStream

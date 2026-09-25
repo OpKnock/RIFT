@@ -49,11 +49,18 @@ def field_drift(reference: list[float], current: list[float]) -> dict:
             f"mean moved {abs(cur_mean - ref_mean):.2f} off a constant baseline")
     if len(current) >= 2:
         cur_sd = pstdev(current)
-        ratio = (cur_sd ** 2 / ref_sd ** 2) if ref_sd > 0 else (float("inf") if cur_sd > 0 else 1.0)
-        result["variance_ratio"] = ratio
-        if ratio >= VARIANCE_RATIO_THRESHOLD or (ratio > 0 and 1 / ratio >= VARIANCE_RATIO_THRESHOLD):
+        if ref_sd > 0 and cur_sd == 0:
+            # Variance collapse to a constant is extreme drift, not ratio 0.
+            result["variance_ratio"] = 0.0
             result["drifted"] = True
-            result["reasons"].append(f"variance ratio {ratio:.2f} breaches {VARIANCE_RATIO_THRESHOLD}")
+            result["reasons"].append(
+                f"variance collapsed to constant (ref sd {ref_sd:.2f} -> 0)")
+        else:
+            ratio = (cur_sd ** 2 / ref_sd ** 2) if ref_sd > 0 else (float("inf") if cur_sd > 0 else 1.0)
+            result["variance_ratio"] = ratio
+            if ratio >= VARIANCE_RATIO_THRESHOLD or (ratio > 0 and 1 / ratio >= VARIANCE_RATIO_THRESHOLD):
+                result["drifted"] = True
+                result["reasons"].append(f"variance ratio {ratio:.2f} breaches {VARIANCE_RATIO_THRESHOLD}")
     return result
 
 

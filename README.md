@@ -9,7 +9,7 @@
 
 > **Don't just predict the future. Search it. Break it. Verify it.**
 
-**v1.0.0 final product** • Research-grade twin, production platform, evidence-gated deployment — not a prototype anymore.
+**v1.0.0** • Production-oriented engineering, evidence-gated research platform — not clinically validated or production-deployed.
 
 RIFT is a decision-intelligence engine for testing interventions before they are trusted. It enumerates counterfactual futures, searches adversarial conditions, ranks robust policies, and keeps hard safety verification outside the optimizer.
 
@@ -112,7 +112,7 @@ endpoint is unchanged.
 
 ## Persistence
 
-Supabase migrations under `backend/supabase/migrations/` provide experiment/run tables (`001`), production hardening with explicit grants and metadata (`002`), a service-role-only billing mirror (`003`), the first-class experiment model with lifecycle, reproducibility, and webhook idempotency (`004`), and run ownership (`005`). `src/rift/supabase_store.py` is the optional server-side adapter; `src/rift/settings.py` centralizes env handling; `src/rift/experiments.py` defines serializable specs with fingerprints.
+Supabase migrations under `backend/supabase/migrations/` provide experiment/run tables (`001`), production hardening with explicit grants and metadata (`002`), a service-role-only billing mirror (`003`), the first-class experiment model with lifecycle, reproducibility, and webhook idempotency (`004`), run ownership (`005`), the model registry (`006`), and observation persistence (`007`). `src/rift/supabase_store.py` is the optional server-side adapter; `src/rift/settings.py` centralizes env handling; `src/rift/experiments.py` defines serializable specs with fingerprints. No live Supabase project is evidenced in this repository — see `docs/release-checklist.md` for the unproven gates.
 
 A live Supabase project is **not** hard-coded into the repository. Configure `RIFT_SUPABASE_URL` and `RIFT_SUPABASE_KEY` only in a trusted server environment (legacy `SUPABASE_*` names accepted as fallback). Never expose a service-role key to the browser. See `docs/supabase-setup.md`.
 
@@ -134,6 +134,6 @@ RIFT is a research and simulation system. It does not autonomously control real 
 
 ## Status
 
-**v1.0.0 — Patient Digital Twin final product** • Evidence-gated, production-platform ready (see `docs/evidence-sheet.md`).
+**v1.0.0 — Patient Digital Twin research platform** • Evidence-gated; clinical validation and production deployment remain open gates (see `docs/evidence-sheet.md` and `docs/release-checklist.md`).
 
 The release candidate is intended to be demo-ready when the repository CI gate is green. Quantum hardware, hosted Supabase, CodeRabbit, and billing are optional external integrations rather than hidden dependencies.

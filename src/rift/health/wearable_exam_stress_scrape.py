@@ -12,8 +12,15 @@ from pathlib import Path
 from typing import TypedDict
 
 BASE = "https://physionet.org/files/wearable-exam-stress/1.0.0"
-SUBJECTS = [f"S{i}" for i in range(1, 10)]  # S1-S9
+# Official dataset describes 10 participants; S10 is included but a missing
+# directory fails closed per-recording (see strict mode below) instead of
+# silently producing a smaller cohort.
+SUBJECTS = [f"S{i}" for i in range(1, 11)]  # S1-S10
 EXAMS = ["midterm_1", "midterm_2", "Final"]
+# Distinct nominal dates per exam so sessions never collapse into one bucket.
+# The source date-shifts timestamps but preserves time-of-day; we preserve
+# session identity explicitly via recording_id + date.
+EXAM_DATES = {"midterm_1": "2024-01-01", "midterm_2": "2024-02-01", "Final": "2024-03-01"}
 MODALITIES = ["ACC", "BVP", "EDA", "HR", "IBI", "TEMP"]
 
 
@@ -106,34 +113,41 @@ def scrape(out_dir: str = "data/wearable_exam_stress") -> Path:
     # Canonical metric names per observations.METRICS. ACC/BVP have no
     # validated canonical mapping and are skipped so output always loads
     # via PublicDatasetSource (fail-closed downstream would reject them).
+    # IBI mean is NOT RR SD / RMSSD — it is stored as explicit ibi_mean.
     CANONICAL_MAP = {
         "EDA": "eda",
         "HR": "heart_rate",
-        "IBI": "rr_sd",
+        "IBI": "ibi_mean",
         "TEMP": "skin_temp",
     }
     
+    strict_missing: list[str] = []
+
     for subject in SUBJECTS:
         for exam in EXAMS:
             recording_id = f"{subject}_{exam}"
-            recording_date = "2024-01-01"  # nominal
+            recording_date = EXAM_DATES[exam]
             
+            succeeded_here: set[str] = set()
             for modality in MODALITIES:
                 url = f"{BASE}/data/{subject}/{exam}/{modality}.csv"
                 prov, text = fetch_with_provenance(url)
-                
-                if not prov["success"]:
-                    print(f"  [{recording_id}/{modality}] Failed: {prov['error']}")
-                    continue
-                
-                mean_val, count = parse_csv_metric(text, modality)
-                if mean_val is None:
-                    print(f"  [{recording_id}/{modality}] No valid data")
-                    continue
-                
+
                 if modality not in CANONICAL_MAP:
                     print(f"  [{recording_id}/{modality}] skipped: no canonical metric (would fail validation)")
                     continue
+
+                if not prov["success"]:
+                    print(f"  [{recording_id}/{modality}] Failed: {prov['error']}")
+                    strict_missing.append(f"{recording_id}/{modality}: {prov['error']}")
+                    continue
+
+                mean_val, count = parse_csv_metric(text, modality)
+                if mean_val is None:
+                    print(f"  [{recording_id}/{modality}] No valid data")
+                    strict_missing.append(f"{recording_id}/{modality}: no valid data")
+                    continue
+                succeeded_here.add(modality)
 
                 prov["row_count"] = count
                 prov["modality"] = modality
@@ -159,7 +173,18 @@ def scrape(out_dir: str = "data/wearable_exam_stress") -> Path:
                 })
                 
                 print(f"  [{recording_id}/{modality}] mean={mean_val:.3f} {units.get(modality, '')} ({count} samples)")
-    
+
+            missing_required = [m for m in CANONICAL_MAP if m not in succeeded_here]
+            if missing_required:
+                strict_missing.append(f"{recording_id}: missing required modalities {missing_required}")
+
+    if strict_missing:
+        raise RuntimeError(
+            "incomplete exam-stress extraction: "
+            + "; ".join(strict_missing)
+            + " — refusing to write partial validation cohort"
+        )
+
     # Write CSV
     csv_path = path / "wearable_exam_stress.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as handle:

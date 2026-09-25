@@ -122,12 +122,13 @@ def _canonical_to_wearable(observations: list[CanonicalObservation]) -> list[Wea
             day_index = (dt - epoch).days
             # time_offset_hours from epoch for relative time
             time_offset_hours = (dt - epoch).total_seconds() / 3600.0
-        except ValueError:
-            # Fallback: use a hash-based day_index
-            # Not for security; usedforsecurity=False suppresses Bandit B324
-            import hashlib
-            day_index = int(hashlib.md5(obs.timestamp.encode(), usedforsecurity=False).hexdigest(), 16) % 10000
-            time_offset_hours = float(day_index * 24)
+        except ValueError as exc:
+            # Fail-closed: unparseable timestamps must never become
+            # manufactured day indices via hashing.
+            raise ValueError(
+                f"unparseable timestamp {obs.timestamp!r} for patient "
+                f"{obs.patient_id!r}: refusing to invent timeline position"
+            ) from exc
         
         patient_id = obs.patient_id or "unknown"
         key = (patient_id, day_index)
@@ -270,11 +271,23 @@ class PublicDatasetSource(WearableSource):
             except json.JSONDecodeError:
                 provenance_data = {"raw": row["provenance"]}
             
-            # Build raw observation for canonical pipeline
+            # Build raw observation for canonical pipeline. Missing
+            # identity/timestamp/source are rejected downstream (fail-closed);
+            # we must not invent plausible defaults here.
+            for _required, _label in (
+                (row.get("subject_id"), "subject_id"),
+                (row.get("date"), "date"),
+                (row.get("source"), "source"),
+            ):
+                if not isinstance(_required, str) or not _required.strip():
+                    raise ValueError(
+                        f"line {line_no}: missing required field {_label!r}; "
+                        f"refusing to manufacture identity/timestamp/source"
+                    )
             raw_items.append({
-                "patient_id": row.get("subject_id", "unknown"),
-                "timestamp": row.get("date", "2024-01-01"),  # ISO date
-                "source": row.get("source", "public_dataset"),
+                "patient_id": row.get("subject_id", "").strip(),
+                "timestamp": row.get("date", "").strip(),
+                "source": row.get("source", "").strip(),
                 "metric": row.get("metric", ""),
                 "value": row.get("value", ""),
                 "unit": row.get("unit", ""),
