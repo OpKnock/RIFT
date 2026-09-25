@@ -1,6 +1,11 @@
-# Public dataset example (synthetic, format demo)
+# Public dataset examples
 
-`public_example.csv` is a **format example**, not real patient data.
+`public_example.csv` is a **synthetic format example**, not real patient data.
+`public_real_bidsleep.csv` is a **tiny real-data example** scraped from the
+public BIDSleep PhysioNet dataset (3 nights, median HR only) to prove the
+`PublicDatasetSource` → `DigitalTwin` path works on independently published
+open data. Other fields are blank — the twin handles missingness via
+baseline imputation and input-quality flags, as tested.
 It re-uses the synthetic 60-day external series (seed 123) written as the
 strict CSV schema `PublicDatasetSource` expects:
 

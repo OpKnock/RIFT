@@ -1,0 +1,20 @@
+{
+  "source": "PhysioNet bidsleep-dataset v1.0.0",
+  "license": "Open Data Commons Attribution License v1.0",
+  "doi": "10.13026/a0sy-7t69",
+  "nights": [
+    [
+      "Bidslab00",
+      "1"
+    ],
+    [
+      "Bidslab01",
+      "1"
+    ],
+    [
+      "Bidslab02",
+      "1"
+    ]
+  ],
+  "note": "Median HR per night; other fields left blank to demonstrate missingness handling, not imputed."
+}
