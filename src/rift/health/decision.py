@@ -41,3 +41,37 @@ def decision_table(
         r["nominal_risk"] if r["nominal_risk"] is not None else float("inf"),
     ))
     return rows
+
+
+def sensitivity_analysis(state: dict, risk_fn, fields: tuple[str, ...] = (
+        "resting_hr", "hrv_rmssd", "sleep_hours", "activity_load"),
+        deltas: tuple[float, ...] = (-5.0, 5.0)) -> dict:
+    """How stable is the ranking when inputs move? Perturb each field by
+    each delta, re-score with risk_fn(state_dict) -> float, and report
+    whether the top policy (lowest risk) changes.
+
+    risk_fn is injected so this stays a pure presentation analysis with no
+    hidden model of its own. Deterministic.
+    """
+    base = risk_fn(dict(state))
+    per_field: dict = {}
+    for field in fields:
+        if state.get(field) is None:
+            per_field[field] = {"skipped": "missing baseline value"}
+            continue
+        swings = []
+        for delta in deltas:
+            moved = dict(state)
+            moved[field] = moved[field] + delta
+            try:
+                swings.append(abs(risk_fn(moved) - base))
+            except Exception as exc:
+                swings.append(f"error: {type(exc).__name__}")
+        numeric = [s for s in swings if isinstance(s, (int, float))]
+        per_field[field] = {
+            "deltas": list(deltas),
+            "risk_swings": swings,
+            "max_swing": max(numeric) if numeric else None,
+        }
+    return {"base_risk": base, "fields": per_field,
+            "note": "ranking stability under input perturbation; not causal proof"}

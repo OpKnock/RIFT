@@ -124,3 +124,99 @@ def deployment_gate(model_id: str = DEFAULT_MODEL_ID, evidence: dict | None = No
         "evidence_source": evidence.get("source", "caller-supplied"),
         "reasons": [] if open_gate else reasons,
     }
+
+
+STATUS_LIFECYCLE = ("research", "candidate", "validated", "approved",
+                    "deployed", "retired", "blocked")
+
+AUDIT_LOG: list[dict] = []
+
+
+def promote(model_id: str = DEFAULT_MODEL_ID, target: str = "candidate",
+            evidence: dict | None = None, approver: str = "",
+            notes: str = "") -> dict:
+    """Move a model one lifecycle step forward under evidence rules.
+
+    - Exactly one step at a time (no skipping research → deployed).
+    - research → candidate: any recorded evidence artifact.
+    - candidate → validated: adequate events, calibrated, non-synthetic,
+      clinical review recorded.
+    - validated → approved / approved → deployed: require approver identity
+      plus the validated evidence re-supplied (no stale approvals).
+    - deployed → retired, or any → blocked with a reason in notes.
+    Every decision appends to AUDIT_LOG. Raises ValueError on violation.
+    """
+    if model_id not in REGISTRY:
+        raise KeyError(f"unknown model_id: {model_id!r}")
+    if target not in STATUS_LIFECYCLE:
+        raise ValueError(f"unknown status {target!r}")
+    entry = REGISTRY[model_id]
+    current = entry.get("status", "research")
+    if target == current:
+        raise ValueError(f"already at status {current!r}: transitions must move")
+    order = list(STATUS_LIFECYCLE)
+    if target == "blocked":
+        allowed_from = [s for s in order if s != "blocked"]
+    elif target == "retired":
+        allowed_from = ["deployed", "approved", "validated", "candidate", "research"]
+    else:
+        allowed_from = [order[order.index(target) - 1]] if target in order[1:] else []
+        if target == "research":
+            allowed_from = []
+    if current not in allowed_from:
+        raise ValueError(f"illegal transition {current!r} → {target!r}: one step at a time")
+    evidence = evidence or {}
+    if target in ("validated", "approved", "deployed"):
+        missing = [k for k in ("events", "non_events", "calibrated", "clinical_review", "synthetic")
+                   if k not in evidence]
+        if missing:
+            raise ValueError(f"promotion to {target!r} requires evidence keys: {missing}")
+        if target == "validated" and (
+                evidence["events"] < 100 or evidence["non_events"] < 100
+                or not evidence["calibrated"] or evidence["synthetic"]
+                or not evidence["clinical_review"]):
+            raise ValueError("promotion to 'validated' requires adequate, calibrated, "
+                             "reviewed, non-synthetic evidence")
+    if target in ("approved", "deployed") and not approver.strip():
+        raise ValueError(f"promotion to {target!r} requires an approver identity")
+    if not notes.strip():
+        raise ValueError("promotion requires written notes (why, on what evidence)")
+    previous = current
+    entry["status"] = target
+    if target == "deployed":
+        entry["deployment_gate"] = "open"
+    if target in ("retired", "blocked"):
+        entry["deployment_gate"] = "closed"
+    AUDIT_LOG.append({"model_id": model_id, "from": previous, "to": target,
+                      "approver": approver.strip() or None, "notes": notes.strip()})
+    return {"model_id": model_id, "from": previous, "to": target}
+
+
+def rollback(model_id: str = DEFAULT_MODEL_ID, reason: str = "") -> dict:
+    """Return a deployed/approved model to its previous recorded status.
+
+    Rollback never deletes history: it appends, like every other transition.
+    """
+    if model_id not in REGISTRY:
+        raise KeyError(f"unknown model_id: {model_id!r}")
+    if not reason.strip():
+        raise ValueError("rollback requires a reason")
+    entry = REGISTRY[model_id]
+    current = entry.get("status", "research")
+    previous = None
+    for record in reversed(AUDIT_LOG):
+        if record["model_id"] == model_id and record["to"] == current:
+            previous = record["from"]
+            break
+    if previous is None:
+        raise ValueError(f"no recorded previous status to roll back from {current!r}")
+    entry["status"] = previous
+    entry["deployment_gate"] = "closed"
+    AUDIT_LOG.append({"model_id": model_id, "from": current, "to": previous,
+                      "approver": None, "notes": f"ROLLBACK: {reason.strip()}"})
+    return {"model_id": model_id, "from": current, "to": previous}
+
+
+def get_audit_log(model_id: str | None = None) -> list[dict]:
+    """Copy of the promotion/rollback audit trail, optionally filtered."""
+    return [dict(r) for r in AUDIT_LOG if model_id is None or r["model_id"] == model_id]
