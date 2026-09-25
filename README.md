@@ -11,129 +11,368 @@
 
 **v1.0.0** • Production-oriented engineering, evidence-gated research platform — not clinically validated or production-deployed.
 
-RIFT is a decision-intelligence engine for testing interventions before they are trusted. It enumerates counterfactual futures, searches adversarial conditions, ranks robust policies, and keeps hard safety verification outside the optimizer.
+RIFT is a decision-intelligence engine for testing interventions *before* they are trusted. It enumerates counterfactual futures, attacks candidate policies with adversarial search, optimizes for robustness (not just expected value), and keeps hard safety verification outside the optimizer — so no score can bypass the safety gate.
 
-Its flagship demo is a **Patient Digital Twin**: EHR + replayable wearable
-data → synchronized patient state → FORESIGHT future trajectories →
-counterfactuals → robustness/uncertainty → Guardian → doctor dashboard
-(see [Patient Digital Twin demo](#patient-digital-twin-demo)). The same
-engine also powers the original smart-building Counterfactual Laboratory.
+The engine itself is domain-free. It ships with two frontends:
+
+1. **Patient Digital Twin** (flagship demo) — EHR + wearable data → synchronized patient state → FORESIGHT trajectories → counterfactuals → robustness/uncertainty → Guardian → clinician dashboard.
+2. **Counterfactual Laboratory** (original) — smart-building emergency simulation: live scenario controls, futures, CHAOS perturbations, exact-vs-quantum optimization, Guardian checks.
+
+---
+
+## Table of contents
+
+- [The loop](#the-loop)
+- [Patient Digital Twin demo](#patient-digital-twin-demo)
+- [Counterfactual Laboratory](#counterfactual-laboratory)
+- [Run it](#run-it)
+- [API reference](#api-reference)
+- [Data platform](#data-platform)
+- [FORESIGHT & robustness](#foresight--robustness)
+- [Guardian 2.0](#guardian-20)
+- [Evidence & honesty rules](#evidence--honesty-rules)
+- [Quantum layer](#quantum-layer)
+- [Auth, ownership & rate limiting](#auth-ownership--rate-limiting)
+- [Persistence (Supabase)](#persistence-supabase)
+- [Billing (Lemon Squeezy)](#billing-lemon-squeezy)
+- [Monitoring & ops](#monitoring--ops)
+- [Configuration](#configuration)
+- [Docker & Kubernetes](#docker--kubernetes)
+- [Repository layout](#repository-layout)
+- [Documentation map](#documentation-map)
+- [Quality gates](#quality-gates)
+- [Status & open gates](#status--open-gates)
+- [Safety boundary](#safety-boundary)
+
+---
 
 ## The loop
 
 ```
 WORLD STATE
     ↓
-ORACLE — scenario/world transition model
+ORACLE — scenario / world-transition model
     ↓
-COUNTERFACTUAL FUTURES
+COUNTERFACTUAL FUTURES — branch the present into candidate policies
     ↓
-CHAOS — adversarial perturbation search
+CHAOS — adversarial perturbation search over declared variables
     ↓
-QUBO — policy energy landscape
+QUBO — policy energy landscape (exact robust objective)
     ↓
-CLASSICAL / QUANTUM OPTIMIZER
+CLASSICAL (exact) / QUANTUM (QAOA simulator) OPTIMIZER
     ↓
-GUARDIAN — independent verification
+GUARDIAN — independent verification, unbypassable
     ↓
-ROBUST POLICY
+ROBUST POLICY + assumptions + evidence
 ```
 
-The engine also ships a runnable **Counterfactual Laboratory** built around a smart-building emergency simulation. It exposes live scenario controls, counterfactual futures, adversarial perturbations, robust optimization, a dependency-free QAOA statevector simulator, CVaR-style best-tail optimization, a three-variable policy lab, and independent Guardian checks.
+Design principles (`docs/architecture.md`):
 
-## Run it
+1. Deterministic experiments with explicit seeds.
+2. Pure domain logic independent of HTTP/database.
+3. Pluggable optimizers with explicit backend metadata.
+4. Verification cannot be bypassed by an optimizer score.
+5. Every recommendation exposes assumptions and evidence.
+6. Quantum execution is experimental; no automatic advantage is claimed.
 
-```bash
-python -m venv .venv
-# Windows: .venv\\Scripts\\activate
-# macOS/Linux: source .venv/bin/activate
-pip install -e ".[dev]" -c constraints.txt
-pytest
-rift demo
-rift serve
-```
-
-Then open `http://127.0.0.1:8080`.
-
-The laboratory intentionally uses Python's standard library for the web server, keeping the demo lightweight and dependency-free at runtime.
-
-## Quantum layer — deliberately honest
-
-RIFT represents candidate decisions as QUBOs and exposes a `QuantumOptimizer` interface. The shipped quantum path is a small dependency-free QAOA statevector simulator; exact classical enumeration remains the reference baseline.
-
-QAOA is a hybrid quantum-classical optimization method. RIFT therefore does **not** claim that quantum hardware automatically evaluates every future, provides guaranteed speedup, or beats classical optimization. The research question is empirical: whether quantum optimization provides measurable value on particular policy-search workloads.
-
-The optional Qiskit/IBM adapter is deliberately gated until credentials, backend selection, transpilation, sampling, and result validation are configured.
-
-## Robust optimization
-
-For the current two-variable emergency-routing QUBO, RIFT constructs an exact robust objective over the declared perturbation set and compares exact enumeration with expectation-QAOA and CVaR-QAOA.
-
-The CVaR implementation is explicitly the **lowest-cost probability tail for minimization**. It should not be confused with the conventional worst-loss-tail definition used in some risk-management contexts.
-
-## Multi-variable policy laboratory
-
-RIFT evaluates three binary controls — `route_a`, `route_c`, and `stairwell_b` — across 8 policies using exact robust enumeration. A quadratic projection can then approximate the higher-order robust Boolean objective for QAOA.
-
-The projection is **not** treated as exact. RIFT reports its maximum and mean absolute objective gap against the exact robust objective so the approximation error is visible rather than hidden.
-
-## Guardian verification boundary
-
-Guardian independently verifies the selected policy against the nominal state **and every declared adversarial perturbation**. Optimization results cannot bypass these hard constraints.
-
-This is a simulation safety boundary, not a certification mechanism.
+---
 
 ## Patient Digital Twin demo
 
-RIFT's engine now also drives a healthcare demo: EHR + replayable wearable
-data → synchronized patient twin → FORESIGHT trajectories → counterfactuals
-→ robustness/uncertainty → Guardian → doctor dashboard. See
-`docs/patient-twin.md`.
+EHR + replayable wearable data → synchronized patient state → personal baselines → 24h cardiac-strain risk → FORESIGHT futures → robustness/uncertainty → Guardian verdict → reasons → dashboard (`docs/patient-twin.md`).
+
+```
+EHR ──normalize──┐
+                 ├─→ PatientState(t) ──→ twin.sync ──→ baseline(<t) ──→ deviations
+wearable ─replay─┘          │                  │              │
+  (ReplaySource /           │                  ▼              ▼
+   LiveIngestSource)        │           24h strain risk ──→ contributions
+                            │                  │
+                            │                  ├─→ FORESIGHT: 4 policies ──→ futures
+                            │                  │                    ├─→ 3-day trajectories
+                            │                  │                    └─→ robust ranking
+                            │                  ├─→ uncertainty = quality-base + spread/2
+                            │                  └─→ Guardian (ALLOW / WARN / WITHHOLD) ──→ reasons
+                            └─→ snapshot → history (replayable) → dashboard
+```
+
+Target: next-24h cardiac-strain risk for one synthetic demo patient. **Synthetic data, transparent demo weights, decision support only — never autonomous care, never clinically validated.**
 
 ```bash
 rift serve
 # open http://127.0.0.1:8080
 ```
 
-Target: next-24h cardiac-strain risk for one synthetic demo patient.
-Synthetic data, transparent demo weights, decision support only — never
-autonomous care, never clinically validated. The emergency-lab `/api/demo`
-endpoint is unchanged.
+Key hygiene properties (all tested):
 
-## Product surfaces
+- Baselines use only observations with `day_index < t` — today can never redefine today's "normal" (no leakage).
+- Generic `heart_rate` is never relabeled `resting_hr`; RR-interval SD is never relabeled RMSSD; unit conversions include offsets (300 K → 26.85 °C).
+- `patient_id` is preserved end-to-end: ingestion → timeline → twin state; multi-patient streams never collapse into one.
+- Outcomes (`sepsis_label`) live in a separate channel from features.
 
-- **Patient Digital Twin** — synchronized patient state, FORESIGHT trajectories, what-if policies, robustness, Guardian verdict, evidence.
-- **Counterfactual Laboratory** — branch the present into candidate futures.
-- **CHAOS** — perturb declared variables and expose high-risk futures.
-- **QUANTUM** — compare classical enumeration, QAOA expectation, and QAOA CVaR.
-- **POLICY LAB** — inspect the exact multi-variable robust search and quadratic QAOA projection.
-- **GUARDIAN** — independently verify nominal and adversarial states.
-- **Benchmarking** — expose objective quality and runtime without claiming quantum advantage.
+---
 
-## Persistence
+## Counterfactual Laboratory
 
-Supabase migrations under `backend/supabase/migrations/` provide experiment/run tables (`001`), production hardening with explicit grants and metadata (`002`), a service-role-only billing mirror (`003`), the first-class experiment model with lifecycle, reproducibility, and webhook idempotency (`004`), run ownership (`005`), the model registry (`006`), and observation persistence (`007`). `src/rift/supabase_store.py` is the optional server-side adapter; `src/rift/settings.py` centralizes env handling; `src/rift/experiments.py` defines serializable specs with fingerprints. No live Supabase project is evidenced in this repository — see `docs/release-checklist.md` for the unproven gates.
+The original smart-building emergency simulation (`rift demo`): live scenario controls, counterfactual futures, adversarial perturbations, robust optimization with exact classical baseline vs QAOA expectation vs QAOA-CVaR (lowest-cost tail — not the worst-loss-tail convention), a three-variable policy lab (`route_a`, `route_c`, `stairwell_b`), quadratic projection with reported approximation gap, and independent Guardian checks.
 
-A live Supabase project is **not** hard-coded into the repository. Configure `RIFT_SUPABASE_URL` and `RIFT_SUPABASE_KEY` only in a trusted server environment (legacy `SUPABASE_*` names accepted as fallback). Never expose a service-role key to the browser. See `docs/supabase-setup.md`.
+```bash
+rift demo        # terminal futures + robust ranking
+```
 
-When configured, the server exposes persistence endpoints (`POST /api/experiments`, `GET /api/experiments/{id}`, `POST /api/experiments/{id}/runs`, `POST /api/experiments/{id}/execute` for server-side reproducible runs, `GET /api/experiments/{id}/runs`, `GET /api/runs/{id}`); when absent they return `503 persistence_not_configured` and the engine still runs offline.
+---
 
-## Review and billing integrations
+## Run it
 
-`.coderabbit.yaml` enables CodeRabbit reviews **only if** the CodeRabbit GitHub App is installed on the repository. It does not by itself perform a review. Do not treat this release as CodeRabbit-reviewed unless a CodeRabbit check run is visible on the corresponding PR. See `docs/review.md`. GitHub Actions (`test.yml`) provides the repository's automated test gate.
+```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
+pip install -e ".[dev]" -c constraints.txt
+pytest                                # 223 passing
+rift demo                             # counterfactual lab (terminal)
+rift twin-demo                        # patient twin story (terminal)
+rift serve                            # http://127.0.0.1:8080
+```
 
-Lemon Squeezy billing is implemented as a provider boundary (`src/rift/billing.py`) with `POST /api/billing/checkout` and `POST /api/billing/webhook` (HMAC `X-Signature` verification, fail-closed without a webhook secret, idempotent retries, subscription lifecycle mapping, server-derived entitlements via `GET /api/billing/entitlement`). It is disabled by default and requires `RIFT_LEMON_SQUEEZY_API_KEY`, `RIFT_LEMON_SQUEEZY_STORE_ID`, and `RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET` on the server. No account, credentials, or products are configured in this environment, so no live checkout or webhook delivery has been executed or claimed. See `docs/billing.md`.
+Pinned, reproducible installs: `constraints.txt`. Optional extras: `supabase`, `qiskit`, `physio` (WFDB readers for real ECG datasets).
+
+```bash
+pip install -e ".[dev,supabase,physio]" -c constraints.txt
+```
+
+The API server is standard-library only (`http.server`) — no web framework at runtime.
+
+---
+
+## API reference
+
+Base: `http://127.0.0.1:8080`. Every response carries `X-Request-ID`. Errors are `{"error": "<code>"}` — never stack traces or secrets. Full contract: `docs/api.md`.
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/health` | Liveness + version + persistence/billing status (always open) |
+| `GET /api/meta` | Capabilities, limits, optimizer list |
+| `GET /api/demo` | Emergency-lab demo (unchanged legacy endpoint) |
+| `GET /api/twin/demo?t=<day>` | Twin snapshot: state, risk, trajectories, Guardian, reasons |
+| `GET /api/twin/evidence` | Frozen evidence: backtest, calibration, external validation |
+| `GET/POST /api/twin/prospective` | Lock predictions / reconcile outcomes |
+| `GET /api/ops/monitor` | Ops snapshot + alert evaluation (auth-gated when auth is set) |
+| `GET /metrics` | Prometheus exposition (auth-gated when auth is set) |
+| `POST /api/experiments` | Persist a fingerprinted spec (needs Supabase) |
+| `GET /api/experiments/{id}` | Fetch spec (ownership-checked) |
+| `POST /api/experiments/{id}/runs` | Record a run |
+| `GET /api/experiments/{id}/runs` | List runs, capped at 200 (paginated soon) |
+| `POST /api/experiments/{id}/execute` | Server-side reproducible run (stricter rate budget) |
+| `GET /api/runs/{id}` | Fetch a run (ownership-checked) |
+| `POST /api/billing/checkout` | Lemon Squeezy checkout (needs credentials) |
+| `POST /api/billing/webhook` | HMAC-verified webhook, idempotent, 502-retryable |
+| `GET /api/billing/entitlement` | Server-derived entitlement |
+| `GET /api/billing/status`, `GET /api/persistence/status` | Integration status (no secrets) |
+
+---
+
+## Data platform
+
+All measurements enter through one canonical pipeline (`src/rift/health/observations.py`): strict ISO-8601 UTC timestamps, finite values, known units with offsets, required `patient_id` + `source`, quality in [0, 1]. Rejections carry reasons; nothing is clamped or defaulted.
+
+- **Sources** — FHIR R4 Observation subset, CSV/JSON adapters, replayable `ReplaySource`, append-only `LiveIngestSource`, and `PublicDatasetSource` (provenance-rich CSV; fail-closed on any rejected row; legacy day-index CSV deprecated).
+- **FHIR clinical** (`fhir_clinical.py`) — Patient/Condition/Medication/Encounter/Device parsing, paginated authenticated extraction with retry/backoff + manifests, SSRF-hardened fetching (HTTPS-only in production, host allowlist, no redirects, private-IP refusal, DNS timeout). Tested against a local fixture, not a live hospital server.
+- **Terminology** (`terminology.py`) — versioned registry (LOINC 2.83); unmapped codes rejected with reviewable status, never guessed.
+- **Timeline** (`timeline.py`) — hour/day/week bucketing, median or quality-weighted estimation, per-snapshot coverage report, plus an hourly path (`to_hourly_rows`) so acute ICU data isn't collapsed into daily rows.
+- **Estimators & drift** — median/weighted/EWM comparison with disagreement report; distribution/missingness/source drift with explicit thresholds (including variance-collapse detection).
+- **Real-data seams** (all with provenance sidecars) — BIDSleep sleep recordings, wearable exam-stress sessions, PhysioNet Sepsis Challenge 2019 (ICULOS-relative time, per-row labels, fail-closed cohort), CHFDB congestive-heart-failure ECG via the validated `wfdb` package (`.dat`/`.hea`/`.ecg`, 15 subjects). Real sensor data proves ingestion — it does **not** validate the cardiac-strain model.
+
+---
+
+## FORESIGHT & robustness
+
+- **FORESIGHT** — 4 intervention policies rolled through the bounded transition model into 3-day risk trajectories, robust-ranked under sensor/parameter perturbations.
+- **Robustness** — CHAOS adversarial search, exact robust QUBO objective, uncertainty decomposed into quality/jitter/spread components (labeled heuristic-demo).
+- **Evaluation** — independent outcome rule (breaks self-agreement circularity), rolling backtests with onset lead/lag, noise stress sweeps, Platt calibration repair fit on calibration days only, external no-refit validation on a disjoint synthetic series, threshold tradeoff tables, sample-adequacy gate (100/100 events bar; current 5/54 → `limited`).
+
+---
+
+## Guardian 2.0
+
+Staged enforcement INPUT → STATE → MODEL → COUNTERFACTUAL → OUTPUT → DEPLOYMENT. Every check emits `{rule_id, stage, severity, action, message, evidence}`. `WITHHOLD` blocks display; `WARN` travels as a warning.
+
+| Rule | Stage | Effect |
+|---|---|---|
+| G-001 impossible physiology | STATE | WITHHOLD |
+| G-002 missing fields | INPUT | WARN |
+| G-003 stale data | INPUT | WARN |
+| G-004 unrecorded provenance | INPUT | WARN |
+| G-005 implausible HR shift | STATE | WITHHOLD |
+| G-006 unsupported output fields | OUTPUT | WITHHOLD |
+| G-007 treatment instructions | OUTPUT | WITHHOLD |
+| G-008 excessive uncertainty | OUTPUT | WARN |
+| G-009 low input quality | OUTPUT | WARN |
+| G-010 OOD population scope | MODEL | WARN |
+| G-011 unestimated metrics | INPUT | WARN |
+| G-012 feature-schema drift | INPUT | WITHHOLD (missing) / WARN (additive) |
+| G-013 counterfactual assumption ledgers | COUNTERFACTUAL | WITHHOLD |
+| G-014 optimization-output verification | COUNTERFACTUAL | WITHHOLD |
+| G-015 model identity/digest | MODEL | WITHHOLD |
+| G-016 deployment inversion | DEPLOYMENT | WITHHOLD |
+
+Guardian is a display-safety layer, not a certification mechanism and not a substitute for clinical review.
+
+---
+
+## Evidence & honesty rules
+
+- `GET /api/twin/evidence` serves the frozen synthetic evidence bundle (backtest, calibration repair, external validation, adequacy verdict). See `docs/evidence-sheet.md`.
+- Sample-adequacy gate: good point estimates cannot upgrade a thin-evidence claim.
+- Overclaim-language regression guard: the codebase refuses to call synthetic metrics clinical.
+- Model registry pins weights digests; promotion requires evidence + approver + notes; rollback walks the audit chain; deployment gate stays closed without validated, calibrated, reviewed, non-synthetic evidence.
+- Predictions carry deterministic IDs over the complete input context; prospective locks are immutable (durable storage is a known open gate — current ledger is in-memory).
+
+---
+
+## Quantum layer
+
+Candidate decisions are represented as QUBOs with a `QuantumOptimizer` interface. The shipped path is a dependency-free QAOA statevector simulator; exact classical enumeration is always the reference baseline. No hardware speedup is claimed. The optional Qiskit/IBM adapter is gated until credentials, backend selection, transpilation, sampling, and result validation are configured (`qpu.py` raises `NotImplementedError` by design).
+
+---
+
+## Auth, ownership & rate limiting
+
+- **Open dev mode** (nothing set): frictionless local use.
+- **Service-token mode** (`RIFT_API_TOKEN`): bearer gate on persistence/checkout/entitlement + ops endpoints (`/metrics`, `/api/ops/monitor`).
+- **Verified JWT mode** (`RIFT_SUPABASE_JWT_SECRET`): identity is the token `sub`; spoofed `user_id` ignored; `none`/foreign algorithms, bad signatures, expired tokens → 401.
+- Per-row ownership enforced server-side (`owner_mismatch` fails closed); cross-user reads → 403.
+- In-process fixed-window rate limiting (`RIFT_RATE_LIMIT_ENABLED=true`), stricter `.../execute` scope, `429 + Retry-After`; edge rules still required in production.
+
+---
+
+## Persistence (Supabase)
+
+Seven additive, idempotent, RLS-safe migrations (`backend/supabase/migrations/001→007`): experiments/runs, hardening, billing mirror, experiment model + webhook idempotency constraint, run ownership, model registry + prediction audit, observations. `src/rift/supabase_store.py` is the optional server-side adapter; unconfigured servers return `503 persistence_not_configured` and the engine runs offline. No live project is evidenced in this repo — see the release checklist.
+
+---
+
+## Billing (Lemon Squeezy)
+
+Provider boundary (`src/rift/billing.py`): checkout, HMAC `X-Signature` verification (`hmac.compare_digest`), idempotent webhook with DB unique constraint, check-then-resume subscription mirror (recorded-but-unprocessed events resume on retry; failures answer 502 so the provider retries), server-derived entitlements. Disabled by default; needs `RIFT_LEMON_SQUEEZY_*` server env. No live transactions claimed. See `docs/billing.md`.
+
+---
+
+## Monitoring & ops
+
+In-process collector (request/latency/failure counters, prediction distribution, Guardian action rates, missingness) with linear-interpolation percentiles. Single Prometheus vocabulary (`EXPORTED_METRICS` / `render_prometheus`) shared by `/metrics`, alert rules, and the Grafana dashboard — enforced by a contract test. Alertmanager routing, Prometheus + Grafana configs under `monitoring/` and `deployment/docker/`. Delivery (PagerDuty/Slack) is intentionally absent: alerting without an operator would be theater.
+
+---
+
+## Configuration
+
+Copy `.env.example` to `.env` (never commit secrets). Everything optional; engine runs offline empty.
+
+| Variable | Purpose |
+|---|---|
+| `RIFT_SUPABASE_URL` / `RIFT_SUPABASE_KEY` | Persistence (service-role stays server-side) |
+| `RIFT_API_TOKEN` | Service-token gate |
+| `RIFT_REQUIRE_USER_ID` | Require caller `user_id` scoping |
+| `RIFT_SUPABASE_JWT_SECRET` (+`_AUD`/`_ISSUER`/`_LEEWAY_S`) | Verified JWT identity |
+| `RIFT_RATE_LIMIT_ENABLED`, `RIFT_RATE_LIMIT_*`, `RIFT_TRUST_PROXY` | In-process rate limiting |
+| `RIFT_LEMON_SQUEEZY_*` | Billing (all four required to enable) |
+| `RIFT_MAX_POLICY_VARIABLES` / `MAX_PERTURBATIONS` / `MAX_PAYLOAD_BYTES` | Compute/input bounds |
+| `RIFT_ALLOW_PRIVATE_FETCH`, `RIFT_ALLOW_HTTP`, `RIFT_TRUSTED_FHIR_HOSTS` | FHIR fetch safety |
+| `QUANTUM_BACKEND` | `none` (default) |
+
+---
+
+## Docker & Kubernetes
+
+- **Production image** (`deployment/docker/Dockerfile`): multi-stage, non-root `rift` user, constraints-pinned, healthchecked, binds `0.0.0.0`. Built + smoke-tested in CI:
+  `docker build -f deployment/docker/Dockerfile -t rift:ci .`
+- **Demo image** (`Dockerfile`, repo root): simple single-stage local build.
+- **Compose** (`deployment/docker/docker-compose.yml`): API + Prometheus + Grafana + Alertmanager for local observability.
+- **Kubernetes** (`deployment/kubernetes/`): staging manifest + production blue/green with HPA/PDB, probes, TLS ingress, required JWT secret + rate limiting in prod, least-privilege (no workload RBAC — secrets arrive via `secretKeyRef`).
+- **CI template** (`deployment/github-actions/ci.yml`): full pipeline template, explicitly not active proof. Active CI is `.github/workflows/test.yml` (+ weekly/manual `physio-integration.yml` for real WFDB extraction).
+
+---
+
+## Repository layout
+
+```
+src/rift/                  # domain-free engine: counterfactuals, CHAOS, QUBO,
+                           # QAOA simulator, CVaR, verifier, runner, experiments,
+                           # auth, billing boundary, api.py, cli.py
+src/rift/health/           # patient twin: observations, adapters, timeline,
+                           # baseline, transition, risk, twin, FORESIGHT,
+                           # robustness, Guardian, evaluate, evidence, registry,
+                           # training, FHIR, drift, monitoring, scrapers
+web/                       # dashboard: index.html + app.js + styles.css
+backend/supabase/migrations/  # 001→007, additive + idempotent + RLS
+tests/                     # 223 tests incl. test_internal_audit_regression.py
+docs/                      # architecture, PRD, api, patient-twin, evidence-sheet,
+                           # security, deployment, billing, roadmap, ... (17 files)
+monitoring/                # Prometheus rules + config (single metric contract)
+deployment/                # docker, kubernetes (staging/production), CI template
+scripts/                   # validate_migrations, secret_scan, check_versions,
+                           # check_phase_matrix (+ archive/ retired tooling)
+data/                      # synthetic examples + provenance-tracked public samples
+constraints.txt            # pinned research environment
+```
+
+---
+
+## Documentation map
+
+| Document | What it is |
+|---|---|
+| `docs/evidence-sheet.md` | One-page frozen evidence + standing limitations |
+| `docs/patient-twin.md` | Twin pipeline, Guardian registry, forecasting hygiene |
+| `docs/architecture.md` | Module boundaries, principles, endpoint plan |
+| `docs/PRD.md` | Product requirements, non-goals, roadmap |
+| `docs/api.md` | Full API contract |
+| `docs/security.md` | Auth modes, residual risks |
+| `docs/deployment.md` | Local/Docker/prod edge checklist |
+| `docs/supabase-setup.md` | Migration + RLS setup |
+| `docs/billing.md` | Manual Lemon Squeezy connection |
+| `docs/roadmap.md` | Research roadmap, honest pending items |
+| `docs/release-checklist.md` | Evidence-gated release boxes (incl. scientific gates) |
+| `docs/demo-script.md` | 5-minute judged demo walkthrough |
+| `docs/design-system.md` | UI tokens and conventions |
+| `docs/review.md`, `docs/experiments.md`, `docs/agents.md` | Review, experiment, agent notes |
+| `docs/phase-matrix.json` | 21/21 COMPLETE = code-scope (blockers listed inside) |
+| `CHANGELOG.md` | Full history from v0.6.0 through v1.0.0 |
+| `AGENTS.md` | Working map + rules for coding agents |
+
+---
+
+## Quality gates
+
+```bash
+pip install -e ".[dev]" -c constraints.txt
+pytest                                  # 223 passing
+python scripts/validate_migrations.py   # 7 files ok
+python scripts/secret_scan.py           # clean
+python scripts/check_versions.py        # 1.0.0 ok
+python scripts/check_phase_matrix.py    # 21/21 code-scope ok
+python -m bandit -r src -q              # 0 findings
+semgrep --config auto --error --quiet src/  # 0 findings
+```
+
+CI (`test.yml`): test + validate + security + real Docker build & `/api/health` smoke — all green on `main`. Accessibility (`accessibility/`: pa11y, axe-core, Lighthouse) is manual/non-blocking until promoted.
+
+---
+
+## Status & open gates
+
+`v1.0.0` is a **final audited research-prototype implementation**: 223 tests, SAST clean, real Docker build green, no known P1/P2 defects, no open issues/PRs.
+
+It is **not** clinically validated or production-deployed. Open gates (documented, not hidden): governed clinical dataset + predefined endpoint + adequate event volume → independent external validation → prospective validation → clinical review/governance → live Supabase/RLS, billing, FHIR, devices, alerting, edge TLS/CORS → jurisdiction-specific regulatory assessment. The 21-phase matrix reads COMPLETE at code scope only.
+
+---
 
 ## Safety boundary
 
 RIFT is a research and simulation system. It does not autonomously control real emergency infrastructure, and its healthcare demo never directs care: predictions are decision support for a human clinician, built on synthetic data with synthetic weights. Real deployment would require validated domain models, calibrated sensors, human oversight, formal hazard analysis, and jurisdiction-specific certification.
 
-![Demo](docs/demo.gif)
+---
 
-*Record with: `python -m rift.cli serve` → screen capture of FORESIGHT trajectories animating + gauge filling. The file is intentionally not committed — capture on your machine for your deck.*
+## License
 
-## Status
-
-**v1.0.0 — Patient Digital Twin research platform** • Evidence-gated; clinical validation and production deployment remain open gates (see `docs/evidence-sheet.md` and `docs/release-checklist.md`).
-
-The release candidate is intended to be demo-ready when the repository CI gate is green. Quantum hardware, hosted Supabase, CodeRabbit, and billing are optional external integrations rather than hidden dependencies.
+MIT (per the project badge) — note: no `LICENSE` file is currently committed, so add one before distributing the code outside this repository.
