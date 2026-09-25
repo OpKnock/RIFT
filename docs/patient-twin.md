@@ -214,6 +214,7 @@ days 9–10 (velocity term catches the onset day). Weights in
 | `risk.py` | 24h strain risk + contributions + quality + velocity trend | — |
 | `model_registry.py` | version pin, live weights-digest verification, evidence-driven deployment gate | — |
 | `decision.py` | policy comparison joined from ranking + trajectories | `robust` ordering |
+| `training.py` | experiment framework: manifests, temporal/patient splits, seeds, artifact hashes, benchmarks (no weight fitting) | — |
 | `estimation.py` | median / quality-weighted / EWM baseline estimators + disagreement report (median stays production) | — |
 | `drift.py` | distribution/missingness/source drift detection with explicit thresholds | `wearable` |
 | `fhir_clinical.py` | Patient/Condition/Medication/Encounter/Device parsing, bundle→EHR bridge, paginated auth fetch | `ehr`, `terminology` |

@@ -36,6 +36,10 @@ adds registry + audit tables for a future live project.
 as the engine). `deployment_gate()` reports clinical-use closed with
 evidence-based reasons until adequate validation exists; surfaced in
 `/api/twin/evidence`. Gates constrain claims, never auto-open them.
+Promotion (`promote`) and `rollback` enforce one-step lifecycle moves with
+evidence + approver + notes rules and an audit log; experiment framework
+(`training.py`) provides manifests, protected splits, seeds, artifact
+hashes, and benchmark comparison without weight fitting.
 
 ## Guardian 2.0 + evidence bundles ✅ (built)
 
