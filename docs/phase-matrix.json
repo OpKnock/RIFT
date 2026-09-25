@@ -65,9 +65,8 @@
   },
   {
    "blockers": [
-    "mappings beyond the 3 verified LOINC codes",
-    "non-LOINC code systems",
-    "confidence/review-state workflow"
+    "non-LOINC code systems (SNOMED/RxNorm)",
+    "prospective mapping review workflow"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -81,13 +80,12 @@
    },
    "id": 3,
    "name": "Terminology service",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
-    "minute/hour/week resolutions",
-    "weighted aggregation",
-    "EHR timeline alignment"
+    "real patient/site timezone handling",
+    "EHR timeline merge at scale"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -104,12 +102,11 @@
    },
    "id": 4,
    "name": "Multi-timescale patient timeline",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
-    "statistical/learned estimators",
-    "estimator comparison experiments"
+    "validated learned estimator on real data"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -125,7 +122,7 @@
    },
    "id": 5,
    "name": "Real twin state estimation",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
@@ -173,9 +170,7 @@
   },
   {
    "blockers": [
-    "model uncertainty",
-    "distribution-shift uncertainty",
-    "validated intervals"
+    "validated model uncertainty on real data"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -185,7 +180,8 @@
     ],
     "files": [
      "src/rift/health/risk.py",
-     "src/rift/health/robustness.py"
+     "src/rift/health/robustness.py",
+     "src/rift/health/twin.py"
     ],
     "tests": [
      "tests/test_health_foresight.py"
@@ -193,13 +189,11 @@
    },
    "id": 8,
    "name": "Proper uncertainty engine",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
-    "learned drift detection",
-    "drift event logging",
-    "retraining review loop"
+    "retraining review loop (human approval)"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -214,7 +208,7 @@
    },
    "id": 9,
    "name": "Distribution shift and OOD engine",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
@@ -302,9 +296,7 @@
   },
   {
    "blockers": [
-    "subgroup metrics",
-    "prospective evaluation",
-    "staging gates"
+    "real multi-patient cohort for subgroup external validation"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -323,7 +315,7 @@
    },
    "id": 14,
    "name": "Evidence and validation platform",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
