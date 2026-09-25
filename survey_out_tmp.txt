@@ -1,0 +1,66 @@
+src\rift\__init__.py :: fns=0 classes=0 :: RIFT — Robust Intervention & Future Testing.
+src\rift\adversarial.py :: fns=1 classes=1 :: (no module docstring)
+src\rift\api.py :: fns=10 classes=1 :: RIFT HTTP boundary (stdlib only): lab demo + persistence + billing. Security posture (see docs/security.md): - Optional service-token gate (RIFT_API_TOKEN) on persistence/checkout/entitlement. - Webho
+src\rift\auth.py :: fns=7 classes=0 :: Authentication + multi-tenancy boundary. Current product shape (honest, no fake auth): - The lab engine itself is anonymous and offline. - Persistence/billing endpoints are server-side. If ``RIFT_API_
+src\rift\auth_jwt.py :: fns=5 classes=1 :: Supabase Auth JWT verification (stdlib only, HS256). Trust chain this module enforces: Authorization: Bearer <jwt> -> signature verified with RIFT_SUPABASE_JWT_SECRET (HS256 only) -> exp/nbf enforced 
+src\rift\benchmark.py :: fns=3 classes=1 :: (no module docstring)
+src\rift\billing.py :: fns=6 classes=3 :: Lemon Squeezy monetization boundary. Production-ready provider interface with no hard-coded credentials, store IDs, variant IDs, or products. Everything comes from server-side environment variables (s
+src\rift\causal.py :: fns=1 classes=2 :: (no module docstring)
+src\rift\cli.py :: fns=3 classes=0 :: (no module docstring)
+src\rift\counterfactual.py :: fns=3 classes=1 :: (no module docstring)
+src\rift\cvar.py :: fns=2 classes=0 :: (no module docstring)
+src\rift\engine.py :: fns=1 classes=1 :: (no module docstring)
+src\rift\experiments.py :: fns=2 classes=1 :: First-class experiment model: durable identity + reproducible configuration. The engine's :class:`rift.models.Scenario` holds Python callables and is therefore not serializable. This module is the ser
+src\rift\futures.py :: fns=1 classes=2 :: (no module docstring)
+src\rift\health\__init__.py :: fns=0 classes=0 :: RIFT Patient Digital Twin (healthcare demo, decision support only). Not a medical device. Not clinically validated. Synthetic demo data only. Every prediction below carries its horizon, inputs, uncert
+src\rift\health\adapters.py :: fns=7 classes=0 :: Ingestion adapters: FHIR / CSV / JSON → CanonicalObservation lists. Each adapter parses its format and delegates all validation to observations.normalize_batch, so every source faces identical checks.
+src\rift\health\baseline.py :: fns=3 classes=0 :: Patient-specific baselines from the patient's own history window.
+src\rift\health\bidsleep_scrape.py :: fns=4 classes=1 :: Scrape a tiny slice of the public BIDSleep PhysioNet dataset for RIFT. Fetches hr.csv and motion.csv for a few nights from the openly licensed bidsleep-dataset (ODC Attribution License v1.0) and conve
+src\rift\health\cohort.py :: fns=1 classes=0 :: Multi-patient cohort synthesis for subgroup validation (Phase 15, synthetic). No real patients: generates N synthetic patients with deterministic seeds and staggered spell schedules, evaluates each th
+src\rift\health\decision.py :: fns=2 classes=0 :: Decision analysis: compare intervention policies side by side. RIFT's product question is not "risk = 0.61" but: under these assumptions, what futures do the candidate decisions produce, how robust is
+src\rift\health\demo_data.py :: fns=2 classes=0 :: Deterministic synthetic demo datasets. NOT clinically validated. demo_stream(): 14 days for demo-patient-01 (dashboard): calm first week, a poor-sleep + high-exertion spell on days 9-10 that drives st
+src\rift\health\drift.py :: fns=4 classes=0 :: Distribution-shift detection over observation windows (Phase 9/18-lite). Compares a reference window against a current window per metric: mean shift in units of reference spread, variance ratio, and m
+src\rift\health\ehr.py :: fns=2 classes=0 :: Structured EHR input schema + normalization. Synthetic demo data only.
+src\rift\health\estimation.py :: fns=4 classes=0 :: Baseline estimator comparison (Phase 5, experimental). The twin's production baseline stays the median layer (never silently replaced). This module lets reviewers compare valid alternative estimators 
+src\rift\health\evaluate.py :: fns=15 classes=0 :: Phase-4/7 validation: independent outcomes, temporal splits, calibration. SOFTWARE validation on synthetic demo data — NOT clinical validation. Realized outcomes come from an INDEPENDENT labeling rule
+src\rift\health\evidence.py :: fns=7 classes=0 :: Versioned evidence bundles: one artifact per validation claim. A bundle joins metrics, calibration, model identity, dataset references, and the deployment gate into a single manifest with content hash
+src\rift\health\explain.py :: fns=1 classes=0 :: Explainability: every prediction ships human-readable reasons.
+src\rift\health\fhir_clinical.py :: fns=16 classes=2 :: FHIR clinical resources beyond Observation: Patient, Condition, MedicationRequest/Statement, Encounter, Device. Same honesty rules as the Observation adapter: typed handlers extract what the resource 
+src\rift\health\foresight.py :: fns=7 classes=0 :: FORESIGHT: future trajectories as an internal RIFT capability. Reuses the generic engine directly: - counterfactual futures via rift.counterfactual.generate_futures - adversarial search via rift.adver
+src\rift\health\guardian.py :: fns=9 classes=1 :: Healthcare Guardian 2.0: staged policy enforcement for display safety. Guardian never diagnoses, never treats, never overrides a clinician. Every check emits a structured Finding (rule_id, stage, seve
+src\rift\health\mimic_adapter.py :: fns=1 classes=0 :: MIMIC/PhysioNet → CanonicalObservation mapping (example, no real data bundled). This adapter demonstrates how a governed public dataset plugs into PublicDatasetSource without changing the twin pipelin
+src\rift\health\model_registry.py :: fns=7 classes=0 :: Model registry: every prediction traceable to an exact model version. The registry is code + committed data (not a live service): entries pin the weights digest, threshold, calibration method, and dep
+src\rift\health\models.py :: fns=0 classes=5 :: Healthcare domain types. Plain JSON-safe dataclasses; no clinical claims.
+src\rift\health\monitoring.py :: fns=2 classes=1 :: In-process operations monitoring skeleton (Phase 18, no live paging). Collects request/latency/failure counters, prediction-distribution sketches, Guardian rejection rates, and missingness signals beh
+src\rift\health\observations.py :: fns=7 classes=2 :: Canonical clinical observation model (v1 data platform). Every measurement entering the twin — whether from FHIR, CSV, JSON, or a future wearable API — becomes one of these first. Validation, unit nor
+src\rift\health\physionet_cardiac_scrape.py :: fns=8 classes=1 :: Scrape open PhysioNet cardiac datasets for RIFT. CHFDB: BIDMC Congestive Heart Failure Database (``chfdb``), 15 subjects ``chf01``–``chf15``. Official layout per recording is WFDB ``chfXX.dat`` + ``ch
+src\rift\health\prospective.py :: fns=0 classes=1 :: Prospective evaluation manager: locked predictions, no retro-refit (Phase 16). Predictions are frozen at issuance time; outcomes are reconciled only when they arrive later. Re-evaluating a past predic
+src\rift\health\risk.py :: fns=5 classes=0 :: Short-horizon adverse-event predictor: next-24h cardiac-strain risk. TARGET (narrow, demoable): will tomorrow be a high-strain day (risk >= STRAIN_THRESHOLD)? Transparent additive score, never a diagn
+src\rift\health\robustness.py :: fns=5 classes=0 :: Healthcare robustness: sensor/parameter perturbations + spread uncertainty. Reuses rift.robust / rift.adversarial on the FORESIGHT scenario. Adds healthcare-relevant data degradations (dropout, stalen
+src\rift\health\sepsis_challenge_scrape.py :: fns=4 classes=1 :: Scrape PhysioNet Sepsis Challenge 2019 dataset for RIFT external validation. ~40,000 patients with sepsis outcome labels. Open access (CC BY 4.0).
+src\rift\health\sources.py :: fns=4 classes=4 :: Wearable data sources: replay today, live ingestion tomorrow. The twin only depends on the WearableSource interface, so the demo replay, a public-dataset CSV, and a future live IoT adapter feed the SA
+src\rift\health\subgroups.py :: fns=3 classes=0 :: Subgroup evaluation: where does the system work, and where doesn't it. Splits evaluated per-day rows along honest, pre-declared dimensions — time period, data completeness, event prevalence — and repo
+src\rift\health\terminology.py :: fns=1 classes=0 :: Versioned clinical terminology registry (LOINC subset). Mappings from external codes to canonical metrics live here — versioned, reviewable, and testable — instead of hiding inside adapter code. Each 
+src\rift\health\timeline.py :: fns=8 classes=0 :: Patient timeline: canonical observations → daily twin inputs. Pipeline order is load-bearing: raw timestamp → strict ISO parse → UTC normalization (in observations.normalize_timestamp) → calendar-day 
+src\rift\health\training.py :: fns=7 classes=0 :: ML experiment framework: manifests, splits, seeds, artifacts, benchmarks. Covers the REPRODUCIBILITY machinery of model training without performing weight fitting: on synthetic demo data, fitting weig
+src\rift\health\transition.py :: fns=3 classes=0 :: Bounded, interpretable patient-state transition model. SYNTHETIC DEMO WEIGHTS — not physiology, not clinically validated. Every coefficient lives in TRANSITION_WEIGHTS below so assumptions are explici
+src\rift\health\twin.py :: fns=1 classes=1 :: Digital Twin core loop: observe → synchronize → predict → update → recompute. EHR + wearable observations → PatientState → synchronized twin → future prediction → new observation → update state → reco
+src\rift\health\wearable.py :: fns=3 classes=2 :: Replayable wearable time series. New observations update the twin.
+src\rift\health\wearable_exam_stress_scrape.py :: fns=3 classes=1 :: Scrape wearable-exam-stress dataset (open access). 9 subjects, 3 exam periods each, multiple wearable modalities.
+src\rift\limits.py :: fns=6 classes=0 :: Central computational and request limits. RIFT enumerates counterfactuals combinatorially. These bounds keep the demo honest: exceeding a limit returns a clear error instead of silently truncating a s
+src\rift\models.py :: fns=0 classes=2 :: (no module docstring)
+src\rift\multivariable.py :: fns=6 classes=1 :: (no module docstring)
+src\rift\observability.py :: fns=3 classes=1 :: Minimal production observability: request IDs + structured logs, no secrets. Logs go to stderr as one JSON object per line. Secret-looking values are redacted before emission. Nothing here stores toke
+src\rift\optimizer.py :: fns=1 classes=3 :: (no module docstring)
+src\rift\persistence.py :: fns=0 classes=2 :: Optional Supabase persistence adapter (legacy import path). Canonical configuration lives in :mod:`rift.settings` and :mod:`rift.supabase_store`: - ``RIFT_SUPABASE_URL`` (fallback: ``SUPABASE_URL``) -
+src\rift\qaoa.py :: fns=7 classes=1 :: Dependency-free statevector QAOA simulator for small QUBOs. This is a research/demo backend, not a claim of hardware advantage. It implements the standard alternating cost-phase and X-mixer layers on 
+src\rift\qpu.py :: fns=2 classes=0 :: Optional real-QPU QAOA adapter boundary. Hardware execution stays opt-in and explicit. The simulator remains the default.
+src\rift\ratelimit.py :: fns=7 classes=1 :: In-process fixed-window rate limiter (stdlib only, thread-safe). Defense-in-depth behind edge rate limiting (e.g. Cloudflare): the edge absorbs distributed abuse; this module stops a single client fro
+src\rift\robust.py :: fns=2 classes=1 :: (no module docstring)
+src\rift\robust_qubo.py :: fns=3 classes=0 :: (no module docstring)
+src\rift\runner.py :: fns=2 classes=0 :: Server-side experiment execution: stored spec → reproducible run record. This closes the product loop CREATE → RUN → PERSIST → INSPECT → REPRODUCE. The runner is pure engine code (no DB, no network): 
+src\rift\scenarios.py :: fns=1 classes=0 :: (no module docstring)
+src\rift\settings.py :: fns=5 classes=2 :: Central server-side configuration for optional external integrations. All secrets are read from environment variables on the server only. Nothing in this module exposes secret values; callers must nev
+src\rift\supabase_store.py :: fns=0 classes=1 :: (no module docstring)
+src\rift\uncertainty.py :: fns=2 classes=0 :: (no module docstring)
+src\rift\verifier.py :: fns=2 classes=1 :: (no module docstring)
