@@ -1,0 +1,11 @@
+{
+  "source": "PhysioNet Sepsis Prediction Challenge 2019 v1.0.0",
+  "license": "Open Data Commons Attribution License v1.0",
+  "training_set": "training_setA",
+  "patients_scraped": 5,
+  "sepsis_distribution": {
+    "0": 5,
+    "1": 0
+  },
+  "note": "Sample of 5 patients, 6 hours each. SepsisLabel outcome available. Open access for validation."
+}
