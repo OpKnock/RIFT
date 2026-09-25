@@ -19,7 +19,7 @@ from .terminology import (
 
 # Back-compat alias: (metric, units) view of the versioned registry.
 # New code should use terminology.mapping_status() directly.
-FHIR_LOINC_MAP = {code: (metric, units) for code, (metric, units, _, _) in LOINC_MAP.items()}
+FHIR_LOINC_MAP = {code: (metric, units) for code, (metric, units, *_rest) in LOINC_MAP.items()}
 
 
 def _fhir_patient(ref: object) -> str | None:

@@ -9,27 +9,36 @@ from __future__ import annotations
 
 TERMINOLOGY_VERSION = "LOINC 2.83 (2026-08-19)"
 
-# LOINC code -> (canonical metric, {unit: multiplier}, status, note).
-# Statuses: "supported" (pinned by regression tests) or "withheld"
-# (known code, deliberately unmapped until semantics are verified).
-LOINC_MAP: dict[str, tuple[str, dict[str, float], str, str]] = {
+# LOINC code -> (canonical metric, {unit: multiplier}, status, note, system, confidence, review_state).
+# Statuses: "supported" (pinned by regression tests) or "withheld" (known code, deliberately unmapped until semantics verified).
+# system/confidence/review_state are audit fields: every mapping declares its provenance, not just its value.
+LOINC_MAP: dict[str, tuple[str, dict[str, float], str, str, str, str, str]] = {
     "8867-4": (
         "heart_rate",
         {"/min": 1.0, "bpm": 1.0, "beats/min": 1.0},
         "supported",
         "generic Heart rate; never resting_hr without explicit resting context",
+        "LOINC",
+        "high",
+        "reviewed-2026-09-24",
     ),
     "80404-7": (
         "rr_sd",
         {"ms": 1.0, "millisecond": 1.0, "s": 1000.0},
         "supported",
         "R-R interval standard deviation; not RMSSD",
+        "LOINC",
+        "high",
+        "reviewed-2026-09-24",
     ),
     "93832-4": (
         "sleep_hours",
         {"h": 1.0, "min": 1.0 / 60.0, "s": 1.0 / 3600.0},
         "supported",
         "Sleep duration",
+        "LOINC",
+        "high",
+        "reviewed-2026-09-24",
     ),
 }
 
@@ -47,7 +56,13 @@ def mapping_status(loinc: str | None) -> dict:
         return {"loinc": loinc, "status": "unmapped",
                 "reason": "no verified mapping; rejected, never guessed",
                 "terminology": TERMINOLOGY_VERSION}
-    metric, units, status, note = entry
+    # Support both 4-tuple (legacy) and 7-tuple (full audit) entries.
+    if len(entry) == 4:
+        metric, units, status, note = entry
+        system, confidence, review_state = "LOINC", "high", "reviewed"
+    else:
+        metric, units, status, note, system, confidence, review_state = entry
     return {"loinc": loinc, "metric": metric, "units": sorted(units),
-            "status": status, "note": note,
+            "status": status, "note": note, "system": system,
+            "confidence": confidence, "review_state": review_state,
             "terminology": TERMINOLOGY_VERSION}
