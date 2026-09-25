@@ -414,6 +414,85 @@ def test_retired_from_candidate_is_legal_and_recorded():
         AUDIT_LOG.extend(saved_log)
 
 
+def test_webhook_failure_retry_is_not_swallowed_as_duplicate(monkeypatch):
+    # A 502 persistence failure must NOT poison in-memory dedup: the
+    # provider retry must reprocess the event instead of getting a
+    # false duplicate-200 with unrecorded work.
+    import hashlib
+    import hmac
+    import http.client
+    import json
+    import threading
+    from http.server import ThreadingHTTPServer
+    from urllib.parse import urlparse
+
+    from rift import api as api_module
+    from rift.api import Handler
+
+    for name in ("RIFT_SUPABASE_URL", "RIFT_SUPABASE_KEY",
+                 "RIFT_LEMON_SQUEEZY_API_KEY", "RIFT_LEMON_SQUEEZY_STORE_ID",
+                 "RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("RIFT_SUPABASE_URL", "https://x.example.co")
+    monkeypatch.setenv("RIFT_SUPABASE_KEY", "k")
+    monkeypatch.setenv("RIFT_LEMON_SQUEEZY_API_KEY", "k")
+    monkeypatch.setenv("RIFT_LEMON_SQUEEZY_STORE_ID", "s")
+    monkeypatch.setenv("RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET", "wh")
+    api_module._SEEN_WEBHOOK_KEYS.clear()
+
+    calls = {"records": 0}
+
+    class FlakyStore:
+        configured = True
+
+        def find_billing_event(self, key):
+            class R:
+                data = []
+            return R()
+
+        def record_billing_event(self, payload):
+            calls["records"] += 1
+            if calls["records"] == 1:
+                raise RuntimeError("supabase down")
+            return None
+
+        def upsert_subscription(self, payload):
+            return None
+
+    monkeypatch.setattr(api_module, "SupabaseStore", FlakyStore)
+
+    payload = {"meta": {"event_name": "order_created"}, "data": {"id": "o-retry"}}
+    raw = json.dumps(payload).encode()
+    signature = hmac.new(b"wh", raw, hashlib.sha256).hexdigest()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        def post():
+            parts = urlparse(f"http://127.0.0.1:{port}/api/billing/webhook")
+            conn = http.client.HTTPConnection(parts.hostname, parts.port, timeout=10)
+            conn.request("POST", parts.path, body=raw,
+                         headers={"Content-Type": "application/json", "X-Signature": signature})
+            resp = conn.getresponse()
+            status, body = resp.status, json.loads(resp.read().decode())
+            conn.close()
+            return status, body
+
+        first_status, _ = post()
+        assert first_status == 502  # durable failure surfaces as retryable
+        second_status, second_body = post()
+        # Retry must reprocess (502 again or 200 success), never a false duplicate.
+        assert second_status in (200, 502)
+        assert second_body.get("duplicate") is not True
+        assert calls["records"] == 2  # work was actually retried
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_k8s_production_requires_jwt_and_ratelimit():
     from pathlib import Path
 

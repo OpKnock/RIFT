@@ -53,7 +53,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -e '.[supabase,dev]'
+          pip install -e '.[supabase,dev]' -c constraints.txt
 
       - name: Run tests
         run: pytest tests/ -v --tb=short --junitxml=test-results.xml

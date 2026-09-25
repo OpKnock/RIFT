@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - run: pip install -e ".[dev,physio]"
+      - run: pip install -e ".[dev,physio]" -c constraints.txt
       - name: Fetch one CHFDB record and derive HR/HRV via wfdb
         run: |
           python - <<'PY'
@@ -50,7 +50,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - run: pip install -e ".[dev,physio]"
+      - run: pip install -e ".[dev,physio]" -c constraints.txt
       - name: Full 15-subject CHFDB extraction (fail-closed)
         run: |
           python -m rift.health.physionet_cardiac_scrape --dataset chfdb --out /tmp/chfdb_full

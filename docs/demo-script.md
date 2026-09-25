@@ -9,7 +9,7 @@ same commands, same numbers, every run.
 python -m venv .venv
 # Windows: .venv\Scripts\activate — macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]"
-pytest -q   # 211 passing on the release commit
+pytest -q   # 217 passing on the release commit
 ```
 
 ## 1. Terminal twin story (1 min)

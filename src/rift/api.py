@@ -67,16 +67,23 @@ POLICY_VARIABLES = ("route_a", "route_c", "stairwell_b")
 _SEEN_WEBHOOK_KEYS: list[str] = []
 
 
-def _remember_webhook_key(key: str | None) -> bool:
-    """Return True when this key was already seen (duplicate)."""
-    if not key:
-        return False
-    if key in _SEEN_WEBHOOK_KEYS:
-        return True
+def _seen_webhook_key(key: str | None) -> bool:
+    """Check-only: True when this key was fully processed before."""
+    return bool(key) and key in _SEEN_WEBHOOK_KEYS
+
+
+def _remember_webhook_key(key: str | None) -> None:
+    """Record a key ONLY after durable processing succeeded.
+
+    Never call this on failure paths: a 502 must leave the key
+    unremembered so the provider retry reprocesses the event instead
+    of being misclassified as a duplicate.
+    """
+    if not key or key in _SEEN_WEBHOOK_KEYS:
+        return
     _SEEN_WEBHOOK_KEYS.append(key)
     if len(_SEEN_WEBHOOK_KEYS) > 1000:
         del _SEEN_WEBHOOK_KEYS[:500]
-    return False
 
 
 def scenario_payload(scenario: Scenario):
@@ -1282,7 +1289,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._finish(timer, request_id, "POST", path, 400, "validation")
                 return
             key = billing_idempotency_key(body) or event.get("idempotency_key")
-            if _remember_webhook_key(key):
+            if _seen_webhook_key(key):
                 self._send(200, json.dumps({"received": True, "event": event["event_name"], "duplicate": True}), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 200)
                 return
@@ -1293,6 +1300,7 @@ class Handler(BaseHTTPRequestHandler):
                         try:
                             existing = store.find_billing_event(key).data or []
                             if existing:
+                                _remember_webhook_key(key)
                                 self._send(200, json.dumps({"received": True, "event": event["event_name"], "duplicate": True}), request_id=request_id)
                                 self._finish(timer, request_id, "POST", path, 200)
                                 return
@@ -1314,6 +1322,7 @@ class Handler(BaseHTTPRequestHandler):
                         # duplicate delivery surfaces here as a constraint
                         # violation, which is a safe duplicate-ack.
                         if "duplicate" in str(exc).lower() or "unique" in str(exc).lower() or "23505" in str(exc):
+                            _remember_webhook_key(key)
                             self._send(200, json.dumps({"received": True, "event": event["event_name"], "duplicate": True}), request_id=request_id)
                             self._finish(timer, request_id, "POST", path, 200)
                             return
@@ -1340,6 +1349,7 @@ class Handler(BaseHTTPRequestHandler):
                 # best-effort dev-mode receipt (documented). Any configured-
                 # store failure above already returned 502.
                 log_event("dependency_failure", request_id=request_id, dependency="supabase")
+            _remember_webhook_key(key)
             self._send(200, json.dumps({"received": True, "event": event["event_name"]}), request_id=request_id)
             self._finish(timer, request_id, "POST", path, 200)
             return

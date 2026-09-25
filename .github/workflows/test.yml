@@ -11,7 +11,7 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - run: pip install -e ".[dev]"
+      - run: pip install -e ".[dev]" -c constraints.txt
       - run: pytest
   validate:
     runs-on: ubuntu-latest
@@ -36,4 +36,4 @@ jobs:
         with:
           python-version: "3.11"
       - name: Bandit SAST (fail on any finding)
-        run: pip install "bandit>=1.9,<2" && bandit -r src -q
+        run: pip install -c constraints.txt "bandit>=1.9,<2" && bandit -r src -q
