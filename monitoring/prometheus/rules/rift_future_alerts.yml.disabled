@@ -1,0 +1,66 @@
+# RIFT Future/Aspirational Alerting Rules — DISABLED BY DESIGN
+#
+# These rules reference metrics NO exporter currently produces. They are kept
+# here as an explicit roadmap (not silent dead config) so a future exporter
+# can activate them one group at a time. Do NOT copy these into an active
+# *.yml file until /metrics (rift.health.monitoring.EXPORTED_METRICS)
+# actually exports each referenced rift_* name — the contract test
+# (test_monitoring_contract) enforces this for all ACTIVE rule files.
+#
+# Each group lists the exporter work required to activate it.
+#
+# --- Group: twin gauges (needs per-patient twin exporter) ---
+# rift_twin_last_update_timestamp_seconds  (last twin update per patient)
+# rift_twin_uncertainty_total               (total uncertainty per patient)
+# rift_twin_completeness_ratio              (input completeness per patient)
+# rift_twin_risk_score                      (risk gauge per patient)
+# - alert: RiftTwinStaleData
+#   expr: time() - rift_twin_last_update_timestamp_seconds > 3600
+# - alert: RiftTwinHighUncertainty
+#   expr: rift_twin_uncertainty_total > 0.8
+# - alert: RiftTwinMissingMetrics
+#   expr: rift_twin_completeness_ratio < 0.5
+#
+# --- Group: drift detector export (needs drift-score exporter) ---
+# rift_drift_score  (per-patient drift score from drift.detect_drift)
+# - alert: RiftDriftDetected
+#   expr: rift_drift_score > 0.7
+#
+# --- Group: clinical risk gauges (needs clinical endpoint + review workflow) ---
+# rift_twin_sepsis_risk, rift_twin_cardiac_strain_risk
+# - alert: RiftSepsisRiskHigh
+#   expr: rift_twin_sepsis_risk > 0.8
+# - alert: RiftCardiacStrainRiskHigh
+#   expr: rift_twin_cardiac_strain_risk > 0.7
+#
+# --- Group: histogram latency (needs Prometheus histogram instrumentation) ---
+# rift_api_request_duration_seconds_bucket
+# - alert: RiftAPILatencyHistogram
+#   expr: histogram_quantile(0.95, rate(rift_api_request_duration_seconds_bucket[5m])) > 2.0
+#
+# --- Group: request status breakdown (needs status-labelled counters) ---
+# rift_api_requests_total{status=~"4..|5.."}
+# - alert: RiftErrorRateByStatus
+#   expr: rate(rift_api_requests_total{status=~"5.."}[5m]) > 0.05
+#
+# --- Group: persistence exporter (needs Supabase health exporter) ---
+# rift_supabase_connection_failures_total
+# - alert: RiftSupabaseConnectionFailed
+#   expr: rift_supabase_connection_failures_total > 10
+#
+# --- Group: experiment/product funnels (needs product analytics exporter) ---
+# rift_experiment_runs_total, rift_weekly_active_users, rift_monthly_churn_rate,
+# rift_active_users_1h, rift_billing_trial_conversion_rate
+# - alert: RiftExperimentFailureRate
+#   expr: rate(rift_experiment_runs_total{status="failed"}[1h]) / rate(rift_experiment_runs_total[1h]) > 0.1
+# - alert: RiftWeeklyActiveUsersDeclining
+#   expr: rift_weekly_active_users < rift_weekly_active_users offset 7d * 0.9
+# - alert: RiftChurnRateHigh
+#   expr: rift_monthly_churn_rate > 0.15
+#
+# --- Group: SLO burn (needs SLO bookkeeping exporter) ---
+# rift_slo_latency_budget_remaining/total, rift_slo_availability_budget_remaining/total
+# - alert: RiftSLOLatencyBudgetBurning
+#   expr: (1 - (rift_slo_latency_budget_remaining / rift_slo_latency_budget_total)) > 0.5
+# - alert: RiftSLOAvailabilityBudgetBurning
+#   expr: (1 - (rift_slo_availability_budget_remaining / rift_slo_availability_budget_total)) > 0.5

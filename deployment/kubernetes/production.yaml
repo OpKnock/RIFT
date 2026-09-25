@@ -15,32 +15,10 @@ metadata:
   name: rift-api
   namespace: rift-production
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: rift-api
-  namespace: rift-production
-rules:
-  - apiGroups: [""]
-    resources: ["pods", "services", "configmaps", "secrets"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["apps"]
-    resources: ["deployments", "replicasets"]
-    verbs: ["get", "list", "watch", "update", "patch"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: rift-api
-  namespace: rift-production
-subjects:
-  - kind: ServiceAccount
-    name: rift-api
-    namespace: rift-production
-roleRef:
-  kind: Role
-  name: rift-api
-  apiGroup: rbac.authorization.k8s.io
+# NOTE: no Role/RoleBinding is granted on purpose (least privilege).
+# The application never calls the Kubernetes API; secrets reach the pod
+# via secretKeyRef env injection, which requires no in-cluster RBAC for
+# the workload ServiceAccount.
 ---
 # Blue Deployment (active)
 apiVersion: apps/v1

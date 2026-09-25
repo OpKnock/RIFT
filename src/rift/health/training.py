@@ -71,7 +71,7 @@ def temporal_split(observations: list, cutoff_day: int) -> tuple[list, list]:
     return past, future
 
 
-def patient_split(observations: list, held_out_patients: list[str]) -> tuple[list, list]:
+def patient_split(observations: list, held_out_patients: list[str]) -> tuple[list, dict]:
     """Split by patient identity for multi-patient datasets.
 
     Observations without a patient_id attribute stay in the development

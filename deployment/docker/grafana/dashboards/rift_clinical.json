@@ -47,12 +47,12 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "rift_twin_risk_score{patient_id=~\".+\"}",
-          "legendFormat": "{{patient_id}}",
+          "expr": "rift_risk_mean",
+          "legendFormat": "mean predicted risk",
           "refId": "A"
         }
       ],
-      "title": "Patient Risk Scores",
+      "title": "Mean Predicted Risk",
       "type": "gauge"
     },
     {
@@ -63,7 +63,7 @@
           "custom": {"lineWidth": 1},
           "mappings": [],
           "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
-          "unit": "s"
+          "unit": "ms"
         },
         "overrides": []
       },
@@ -76,13 +76,13 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, rate(rift_api_request_duration_seconds_bucket[5m]))",
-          "legendFormat": "P95 latency",
+          "expr": "max(rift_api_latency_p95_ms)",
+          "legendFormat": "P95 latency (slowest route)",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.50, rate(rift_api_request_duration_seconds_bucket[5m]))",
-          "legendFormat": "P50 latency",
+          "expr": "max(rift_api_latency_p50_ms)",
+          "legendFormat": "P50 latency (slowest route)",
           "refId": "B"
         }
       ],
@@ -93,10 +93,8 @@
       "datasource": "Prometheus",
       "fieldConfig": {
         "defaults": {
-          "color": {"mode": "thresholds"},
-          "mappings": [
-            {"type": "value", "options": {"0": {"text": "ALLOW", "color": "green"}, "1": {"text": "WARN", "color": "yellow"}, "2": {"text": "WITHHOLD", "color": "red"}}}
-          ],
+          "color": {"mode": "palette-classic"},
+          "mappings": [],
           "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
           "unit": "short"
         },
@@ -113,12 +111,12 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "rift_guardian_action{patient_id=~\".+\"}",
-          "legendFormat": "{{patient_id}}",
+          "expr": "sum by (action) (rift_guardian_actions_total)",
+          "legendFormat": "{{action}}",
           "refId": "A"
         }
       ],
-      "title": "Guardian Actions",
+      "title": "Guardian Actions (cumulative)",
       "type": "stat"
     },
     {
@@ -142,13 +140,13 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "rate(rift_api_requests_total{status=~\"5..\"}[5m])",
-          "legendFormat": "5xx errors",
+          "expr": "rift_failure_rate",
+          "legendFormat": "5xx failure rate",
           "refId": "A"
         },
         {
-          "expr": "rate(rift_api_requests_total{status=~\"4..\"}[5m])",
-          "legendFormat": "4xx errors",
+          "expr": "sum(rate(rift_api_request_failures_total[5m]))",
+          "legendFormat": "5xx per second",
           "refId": "B"
         }
       ],
@@ -165,8 +163,8 @@
             "mode": "absolute",
             "steps": [
               {"color": "green", "value": null},
-              {"color": "yellow", "value": 0.5},
-              {"color": "red", "value": 0.8}
+              {"color": "yellow", "value": 0.3},
+              {"color": "red", "value": 0.5}
             ]
           },
           "unit": "percentunit"
@@ -184,12 +182,12 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "rift_drift_score{patient_id=~\".+\"}",
-          "legendFormat": "{{patient_id}}",
+          "expr": "rift_missingness_mean",
+          "legendFormat": "mean input missingness",
           "refId": "A"
         }
       ],
-      "title": "Data Drift Scores",
+      "title": "Input Missingness",
       "type": "gauge"
     },
     {
@@ -213,22 +211,46 @@
       "pluginVersion": "8.0.0",
       "targets": [
         {
-          "expr": "rate(rift_guardian_action_withhold_total[5m])",
-          "legendFormat": "WITHHOLD",
+          "expr": "sum by (action) (rate(rift_guardian_actions_total[5m]))",
+          "legendFormat": "{{action}}",
           "refId": "A"
-        },
-        {
-          "expr": "rate(rift_guardian_action_warn_total[5m])",
-          "legendFormat": "WARN",
-          "refId": "B"
-        },
-        {
-          "expr": "rate(rift_guardian_action_allow_total[5m])",
-          "legendFormat": "ALLOW",
-          "refId": "C"
         }
       ],
       "title": "Guardian Action Rates (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": "Prometheus",
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "palette-classic"},
+          "custom": {"lineWidth": 1},
+          "mappings": [],
+          "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}]},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 24},
+      "id": 7,
+      "options": {
+        "legend": {"calcs": [], "displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "single"}
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "expr": "rift_prediction_count",
+          "legendFormat": "predictions recorded",
+          "refId": "A"
+        },
+        {
+          "expr": "rift_guardian_reject_rate",
+          "legendFormat": "withhold rate",
+          "refId": "B"
+        }
+      ],
+      "title": "Prediction Volume & Withhold Rate",
       "type": "timeseries"
     }
   ],
@@ -236,27 +258,7 @@
   "schemaVersion": 27,
   "style": "dark",
   "tags": ["rift", "clinical", "health"],
-  "templating": {
-    "list": [
-      {
-        "current": {"selected": false, "text": "All", "value": "$__all"},
-        "datasource": "Prometheus",
-        "definition": "label_values(rift_twin_risk_score, patient_id)",
-        "hide": 0,
-        "includeAll": true,
-        "label": "Patient",
-        "multi": true,
-        "name": "patient_id",
-        "options": [],
-        "query": {"queryType": "label_values"},
-        "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
-        "sort": 0,
-        "type": "query"
-      }
-    ]
-  },
+  "templating": {"list": []},
   "time": {"from": "now-1h", "to": "now"},
   "timepicker": {},
   "timezone": "browser",

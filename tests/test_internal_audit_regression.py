@@ -238,9 +238,10 @@ def test_metrics_endpoint_exposes_prometheus():
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/metrics", timeout=5) as resp:
             assert resp.getcode() == 200
             body = resp.read().decode()
-        assert "rift_requests_total" in body
+        assert "rift_api_requests_total" in body
         assert "rift_failure_rate" in body
         assert "rift_guardian_reject_rate" in body
+        assert "rift_guardian_actions_total" in body
     finally:
         server.shutdown()
         server.server_close()
@@ -293,6 +294,124 @@ def test_hourly_timeline_preserves_acute_resolution():
     assert len(rows) == 3  # no daily collapse
     assert [r["features"]["heart_rate"] for r in rows] == [91.0, 92.0, 93.0]
     assert [r["outcome"] for r in rows] == [0, 0, 1]
+
+
+def test_monitoring_contract():
+    # Every rift_* metric referenced by ACTIVE Prometheus rules and the
+    # Grafana dashboard must be exported by /metrics (render_prometheus).
+    # Aspirational metrics live in rift_future_alerts.yml.disabled.
+    import json
+    import re
+    from pathlib import Path
+
+    from rift.health.monitoring import EXPORTED_METRICS, MetricsCollector, render_prometheus
+
+    metric_re = re.compile(r"\brift_[a-z0-9_]+\b")
+    referenced: set[str] = set()
+    for rules_file in Path("monitoring/prometheus/rules").glob("*.yml"):
+        for metric in metric_re.findall(rules_file.read_text()):
+            referenced.add(metric)
+    dashboard = json.loads(Path("deployment/docker/grafana/dashboards/rift_clinical.json").read_text())
+    for panel in dashboard.get("panels", []):
+        for target in panel.get("targets", []):
+            for metric in metric_re.findall(target.get("expr", "")):
+                referenced.add(metric)
+    # PromQL keywords/functions that merely start with rift_ are none;
+    # every referenced name must be in the exported contract.
+    missing = sorted(m for m in referenced if m not in EXPORTED_METRICS)
+    assert not missing, f"rules/dashboard reference unexported metrics: {missing}"
+
+    # The renderer must actually emit every contracted name.
+    col = MetricsCollector()
+    col.record_request("/api/health", 200, 12.0)
+    col.record_prediction(0.7, "WARN", 0.1)
+    body = render_prometheus(col.report())
+    for metric in EXPORTED_METRICS:
+        assert metric in body, f"render_prometheus missing {metric}"
+
+
+def test_percentile_interpolation():
+    from rift.health.monitoring import MetricsCollector as MC
+
+    assert MC._percentile([], 50) is None
+    assert MC._percentile([5.0], 50) == 5.0
+    assert MC._percentile([1.0, 3.0], 50) == 2.0
+    vals = [float(i) for i in range(1, 101)]  # 1..100
+    assert MC._percentile(vals, 50) == 50.5
+    assert MC._percentile(vals, 95) == 95.05
+    assert MC._percentile(vals, 0) == 1.0
+    assert MC._percentile(vals, 100) == 100.0
+
+
+def test_kelvin_conversion():
+    from rift.health.observations import validate_observation
+
+    obs, issues = validate_observation({
+        "patient_id": "P1", "timestamp": "2024-01-01T00:00:00+00:00",
+        "source": "t", "metric": "temperature", "value": 300.0,
+        "unit": "K", "quality": 1.0, "provenance": "t",
+    })
+    assert not issues
+    assert abs(obs.value - 26.85) < 1e-9
+    assert obs.unit == "C"
+    obs, issues = validate_observation({
+        "patient_id": "P1", "timestamp": "2024-01-01T00:00:00+00:00",
+        "source": "t", "metric": "skin_temp", "value": 273.15,
+        "unit": "K", "quality": 1.0, "provenance": "t",
+    })
+    assert not issues
+    assert abs(obs.value - 0.0) < 1e-9
+
+
+def test_double_rollback_walks_back_promotion_chain():
+    from rift.health.model_registry import (
+        AUDIT_LOG, DEFAULT_MODEL_ID, REGISTRY, get_model, promote, rollback,
+    )
+
+    saved_entry = dict(REGISTRY[DEFAULT_MODEL_ID])
+    saved_log = list(AUDIT_LOG)
+    try:
+        REGISTRY[DEFAULT_MODEL_ID]["status"] = "research"
+        REGISTRY[DEFAULT_MODEL_ID]["deployment_gate"] = "closed"
+        AUDIT_LOG.clear()
+        evidence = {"events": 150, "non_events": 1200, "calibrated": True,
+                    "clinical_review": True, "synthetic": False}
+        promote(target="candidate", evidence={"source": "t"}, approver="", notes="r1")
+        promote(target="validated", evidence=evidence, approver="r", notes="r2")
+        promote(target="approved", evidence=evidence, approver="r", notes="r3")
+        first = rollback(reason="drift")
+        assert (first["from"], first["to"]) == ("approved", "validated")
+        second = rollback(reason="still drifting")
+        # Must walk BACK to candidate, never forward to approved again.
+        assert (second["from"], second["to"]) == ("validated", "candidate")
+        assert get_model()["status"] == "candidate"
+    finally:
+        REGISTRY[DEFAULT_MODEL_ID].clear()
+        REGISTRY[DEFAULT_MODEL_ID].update(saved_entry)
+        AUDIT_LOG.clear()
+        AUDIT_LOG.extend(saved_log)
+
+
+def test_retired_from_candidate_is_legal_and_recorded():
+    from rift.health.model_registry import (
+        AUDIT_LOG, DEFAULT_MODEL_ID, REGISTRY, get_model, promote,
+    )
+
+    saved_entry = dict(REGISTRY[DEFAULT_MODEL_ID])
+    saved_log = list(AUDIT_LOG)
+    try:
+        REGISTRY[DEFAULT_MODEL_ID]["status"] = "research"
+        REGISTRY[DEFAULT_MODEL_ID]["deployment_gate"] = "closed"
+        AUDIT_LOG.clear()
+        promote(target="candidate", evidence={"source": "t"}, approver="", notes="r1")
+        rec = promote(target="retired", evidence={}, approver="", notes="flawed candidate")
+        assert (rec["from"], rec["to"]) == ("candidate", "retired")
+        assert get_model()["deployment_gate"] == "closed"
+    finally:
+        REGISTRY[DEFAULT_MODEL_ID].clear()
+        REGISTRY[DEFAULT_MODEL_ID].update(saved_entry)
+        AUDIT_LOG.clear()
+        AUDIT_LOG.extend(saved_log)
 
 
 def test_k8s_production_requires_jwt_and_ratelimit():
