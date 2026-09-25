@@ -223,7 +223,7 @@ class LemonSqueezyProvider:
                 "Authorization": f"Bearer {config.api_key}",
             },
         )
-        with urllib.request.urlopen(http_request, timeout=timeout_s) as response:  # nosec B310 -- URL is a module constant, never user input
+        with urllib.request.urlopen(http_request, timeout=timeout_s) as response:  # nosec B310 -- module-constant endpoint; nosemgrep -- allowlisted constant endpoint
             payload = json.loads(response.read().decode("utf-8"))
         data = payload.get("data") or {}
         attributes = data.get("attributes") or {}

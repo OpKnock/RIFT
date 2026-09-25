@@ -699,6 +699,23 @@ def test_webhook_unique_violation_resumes_subscription_update(monkeypatch):
         thread.join(timeout=5)
 
 
+def test_scraper_fetchers_refuse_non_https_targets():
+    from rift.health import bidsleep_scrape as _b
+    from rift.health import physionet_cardiac_scrape as _c
+    from rift.health import sepsis_challenge_scrape as _s
+    from rift.health import wearable_exam_stress_scrape as _w
+
+    for fetch, bad in (
+        (_b.fetch_with_provenance, "file:///etc/passwd"),
+        (_c.fetch_bytes_with_provenance, "file:///etc/passwd"),
+        (_s.fetch_with_provenance, "gopher://example.com/x"),
+        (_w.fetch_with_provenance, "ftp://example.com/x"),
+    ):
+        prov, _ = fetch(bad, timeout=5)
+        assert prov["success"] is False
+        assert "allowlist" in (prov["error"] or "")
+
+
 def test_k8s_production_requires_jwt_and_ratelimit():
     from pathlib import Path
 
