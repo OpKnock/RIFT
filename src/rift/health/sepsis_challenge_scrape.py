@@ -153,8 +153,21 @@ def scrape_sample(out_dir: str = "data/physionet_sepsis",
         }
         
         for hour_idx, row in enumerate(rows):
-            rec_id = f"{patient_id}_hour{hour_idx}"
-            date_str = f"2024-01-{hour_idx+1:02d}"
+            rec_id = f"{patient_id}_icu_h{hour_idx}"
+            # Use ICULOS from the actual row data (hours from ICU admission)
+            iculos_val = row.get("ICULOS", "NaN")
+            try:
+                iculos_hours = float(iculos_val) if iculos_val != "NaN" else float(hour_idx)
+            except (ValueError, TypeError):
+                iculos_hours = float(hour_idx)
+            
+            # For date field, use a synthetic study start date + ICULOS hours
+            # This preserves relative time while avoiding fabricated calendar dates
+            # Use a study epoch (e.g., 2024-01-01) + ICULOS hours
+            from datetime import datetime, timedelta, timezone
+            study_epoch = datetime(2024, 1, 1, tzinfo=timezone.utc)
+            dt = study_epoch + timedelta(hours=iculos_hours)
+            date_str = dt.isoformat()
             
             # Vital signs - use each row's actual values
             for vital, (metric, unit) in vital_map.items():

@@ -43,13 +43,19 @@ class EHRRecord:
 
 @dataclass(frozen=True)
 class WearableObservation:
-    """One timestamped wearable sample. day_index is days since demo start.
-
+    """One timestamped wearable sample. 
+    
+    For longitudinal data, day_index is days since study epoch.
+    For ICU/acute data, time_offset_hours is hours from ICU admission (ICULOS).
+    patient_id preserves subject identity across multi-patient datasets.
+    
     provenance names the origin (e.g. source adapter + file/device id);
     empty means unrecorded origin, which Guardian treats as a flag, never
     as verified provenance.
     """
     day_index: int
+    patient_id: str = ""
+    time_offset_hours: float | None = None  # hours from study/ICU admission
     resting_hr: float | None = None
     hrv_rmssd: float | None = None
     sleep_hours: float | None = None
@@ -62,6 +68,8 @@ class WearableObservation:
     def to_dict(self) -> dict:
         return {
             "day_index": self.day_index,
+            "patient_id": self.patient_id,
+            "time_offset_hours": self.time_offset_hours,
             "resting_hr": self.resting_hr,
             "hrv_rmssd": self.hrv_rmssd,
             "sleep_hours": self.sleep_hours,
@@ -77,6 +85,8 @@ class WearableObservation:
 class PatientState:
     """Synchronized twin state at one replay time. All numerics or None."""
     day_index: int = 0
+    patient_id: str = ""
+    time_offset_hours: float | None = None
     resting_hr: float | None = None
     hrv_rmssd: float | None = None
     sleep_hours: float | None = None
@@ -90,6 +100,8 @@ class PatientState:
     def to_dict(self) -> dict:
         return {
             "day_index": self.day_index,
+            "patient_id": self.patient_id,
+            "time_offset_hours": self.time_offset_hours,
             "resting_hr": self.resting_hr,
             "hrv_rmssd": self.hrv_rmssd,
             "sleep_hours": self.sleep_hours,

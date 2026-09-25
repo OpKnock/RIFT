@@ -39,9 +39,9 @@ def test_wearable_replay_and_staleness():
 
 def test_personal_baseline_excludes_stale_and_partials():
     obs = [
-        WearableObservation(0, 70.0, 50.0, 7.0, 40.0),
-        WearableObservation(1, 200.0, 5.0, 1.0, 190.0, stale=True),
-        WearableObservation(2, 72.0, None, 7.5, 42.0),
+        WearableObservation(day_index=0, resting_hr=70.0, hrv_rmssd=50.0, sleep_hours=7.0, activity_load=40.0),
+        WearableObservation(day_index=1, resting_hr=200.0, hrv_rmssd=5.0, sleep_hours=1.0, activity_load=190.0, stale=True),
+        WearableObservation(day_index=2, resting_hr=72.0, hrv_rmssd=None, sleep_hours=7.5, activity_load=42.0),
     ]
     base = B.personal_baseline(obs, window=7)
     assert base.resting_hr == 71.0  # median of real samples only
@@ -50,7 +50,7 @@ def test_personal_baseline_excludes_stale_and_partials():
 
 
 def test_personal_baseline_window_counts_real_samples():
-    obs = [WearableObservation(d, 70.0, 50.0, 7.0, 40.0) for d in range(5)]
+    obs = [WearableObservation(day_index=d, resting_hr=70.0, hrv_rmssd=50.0, sleep_hours=7.0, activity_load=40.0) for d in range(5)]
     assert B.personal_baseline(obs, window=7).window_days == 5
 
 
@@ -58,7 +58,7 @@ def test_deviations_directions():
     from rift.health.models import PersonalBaseline
 
     base = PersonalBaseline(resting_hr=70.0, hrv_rmssd=50.0, sleep_hours=7.0, activity_load=40.0, window_days=5)
-    cur = WearableObservation(9, 75.0, 40.0, 5.0, 80.0)
+    cur = WearableObservation(day_index=9, resting_hr=75.0, hrv_rmssd=40.0, sleep_hours=5.0, activity_load=80.0)
     devs = {d.field: d for d in B.deviations(cur, base)}
     assert devs["resting_hr"].direction == "above" and devs["resting_hr"].delta == 5.0
     assert devs["hrv_rmssd"].direction == "below"

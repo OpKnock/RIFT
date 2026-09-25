@@ -108,9 +108,10 @@ def _canonical_to_wearable(observations: list[CanonicalObservation]) -> list[Wea
     """Convert canonical observations to WearableObservation grouped by day.
     
     Maps canonical metrics to wearable fields with explicit provenance tracking.
+    Preserves patient_id and time_offset_hours for multi-patient datasets.
     """
-    # Group by day_index (derived from timestamp)
-    by_day: dict[int, dict] = {}
+    # Group by (patient_id, day_index) to preserve multi-patient identity
+    by_patient_day: dict[tuple[str, int], dict] = {}
     for obs in observations:
         # Derive day_index from timestamp
         try:
@@ -119,16 +120,22 @@ def _canonical_to_wearable(observations: list[CanonicalObservation]) -> list[Wea
                 dt = dt.replace(tzinfo=timezone.utc)
             epoch = datetime(2024, 1, 1, tzinfo=timezone.utc)
             day_index = (dt - epoch).days
+            # time_offset_hours from epoch for relative time
+            time_offset_hours = (dt - epoch).total_seconds() / 3600.0
         except ValueError:
             # Fallback: use a hash-based day_index
             # Not for security; usedforsecurity=False suppresses Bandit B324
             import hashlib
             day_index = int(hashlib.md5(obs.timestamp.encode(), usedforsecurity=False).hexdigest(), 16) % 10000
+            time_offset_hours = float(day_index * 24)
         
-        if day_index not in by_day:
-            by_day[day_index] = {"provenance_parts": []}
+        patient_id = obs.patient_id or "unknown"
+        key = (patient_id, day_index)
         
-        day_data = by_day[day_index]
+        if key not in by_patient_day:
+            by_patient_day[key] = {"provenance_parts": [], "time_offset_hours": time_offset_hours}
+        
+        day_data = by_patient_day[key]
         prov = f"{obs.metric}={obs.value:.1f}{obs.unit}@{obs.source}"
         if obs.provenance:
             prov += f"[{obs.provenance}]"
@@ -165,11 +172,12 @@ def _canonical_to_wearable(observations: list[CanonicalObservation]) -> list[Wea
     
     # Build WearableObservation list
     wearable_obs = []
-    for day_index in sorted(by_day.keys()):
-        day_data = by_day[day_index]
+    for (patient_id, day_index), day_data in sorted(by_patient_day.items()):
         provenance = "; ".join(day_data["provenance_parts"])
         wearable_obs.append(WearableObservation(
             day_index=day_index,
+            patient_id=patient_id,
+            time_offset_hours=day_data.get("time_offset_hours"),
             resting_hr=day_data.get("resting_hr"),
             hrv_rmssd=day_data.get("hrv_rmssd"),
             sleep_hours=day_data.get("sleep_hours"),
@@ -264,9 +272,14 @@ class PublicDatasetSource(WearableSource):
         # Validate through canonical pipeline
         canonical_obs, issues = normalize_batch(raw_items)
         if issues:
-            # Log issues but don't fail - canonical pipeline already rejects bad data
-            for issue in issues:
-                print(f"[PublicDatasetSource] Canonical validation issue: {issue}")
+            # For clinical validation, fail-closed on any rejected observations
+            # This prevents silent partial ingestion that could bias validation
+            error_msg = (
+                f"PublicDatasetSource fail-closed: {len(issues)} observation(s) rejected during canonical validation. "
+                f"For clinical validation, partial ingestion is not permitted. "
+                f"Issues: {'; '.join(issues)}"
+            )
+            raise ValueError(error_msg)
         
         # Convert to WearableObservation
         return _canonical_to_wearable(canonical_obs)
