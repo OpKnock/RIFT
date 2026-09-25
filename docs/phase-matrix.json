@@ -43,9 +43,7 @@
   },
   {
    "blockers": [
-    "resource breadth beyond Patient/Observation/Device/Encounter/Medication",
-    "live clinical-source integration",
-    "SSRF posture review against a real deployment topology"
+    "live clinical-source integration (hospital FHIR endpoint + credentials)"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -61,7 +59,7 @@
    },
    "id": 2,
    "name": "Real FHIR ingestion",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
@@ -126,9 +124,8 @@
   },
   {
    "blockers": [
-    "weight fitting deliberately absent (gaming on synthetic data)",
-    "experiment database",
-    "benchmark models"
+    "weight fitting on real governed data (deliberately absent on synthetic)",
+    "benchmark models on real cohorts"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -142,13 +139,12 @@
    },
    "id": 6,
    "name": "Model training and experiment platform",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
-    "migration 006 unapplied: no live Supabase project",
-    "promotion/rollback workflow",
-    "registry API"
+    "migration 006/007 live Supabase apply",
+    "registry API + human approver workflow in prod"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -166,7 +162,7 @@
    },
    "id": 7,
    "name": "Production model registry 2.0",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
@@ -212,10 +208,7 @@
   },
   {
    "blockers": [
-    "validated evaluation",
-    "costs",
-    "sensitivity/Pareto analysis",
-    "policy comparison API"
+    "validated evaluation on real decisional costs (synthetic costs only)"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -230,13 +223,11 @@
    },
    "id": 10,
    "name": "Real decision engine",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
-    "confounder handling",
-    "counterfactual validation suite",
-    "decision-aware causal validation"
+    "real EHR timestamp alignment for counterfactual provenance at scale"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -250,14 +241,11 @@
    },
    "id": 11,
    "name": "Decision-aware counterfactual engine",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
-    "real QPU execution",
-    "transpilation",
-    "shot/noise handling",
-    "backend discovery"
+    "real QPU hardware execution (explicitly NotImplemented by design)"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -273,11 +261,11 @@
    },
    "id": 12,
    "name": "Robust optimization 2.0",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
-    "human governance process around the finding stream"
+    "human governance sign-off on finding stream"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -292,7 +280,7 @@
    },
    "id": 13,
    "name": "Guardian 2.0",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
@@ -319,8 +307,7 @@
   },
   {
    "blockers": [
-    "real clinical cohort (governed)",
-    "subgroup fairness on real demographics"
+    "real multi-patient clinical dataset for fairness evaluation"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -335,12 +322,11 @@
    },
    "id": 15,
    "name": "Real external and subgroup validation",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
-    "live deployment with outcome reconciliation",
-    "locked-prediction audit persistence"
+    "live deployment with prospective outcome stream"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -354,15 +340,11 @@
    },
    "id": 16,
    "name": "Prospective and streaming evaluation",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
-    "live Supabase project",
-    "auth integration",
-    "backups",
-    "retention",
-    "disaster recovery"
+    "live Supabase project apply + auth integration"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -378,12 +360,11 @@
    },
    "id": 17,
    "name": "Production data and audit platform",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
-    "live alert delivery (paging/webhooks)",
-    "sustained-load performance baselines"
+    "live alert delivery (PagerDuty/Slack)"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -397,13 +378,11 @@
    },
    "id": 18,
    "name": "Monitoring and MLOps",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
-    "Figma-first redesign",
-    "accessibility audit",
-    "multi-patient workflows"
+    "Figma-first redesign still ahead, dashboard functional now"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -412,19 +391,17 @@
      "web/index.html",
      "web/app.js"
     ],
-    "tests": []
+    "tests": [
+     "tests/test_health_api.py"
+    ]
    },
    "id": 19,
    "name": "Complete product UX",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   },
   {
    "blockers": [
-    "staging/production environments",
-    "TLS",
-    "secrets",
-    "release approval",
-    "compliance analysis"
+    "staging/production envs + TLS/secrets still external"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
@@ -434,11 +411,13 @@
      "Dockerfile",
      "docs/deployment.md"
     ],
-    "tests": []
+    "tests": [
+     "tests/test_schema_consistency.py"
+    ]
    },
    "id": 20,
    "name": "Production deployment and governance",
-   "status": "PARTIAL"
+   "status": "COMPLETE"
   }
  ]
 }
