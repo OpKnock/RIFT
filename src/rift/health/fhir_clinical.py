@@ -173,6 +173,29 @@ class FhirError(Exception):
     """Classified extraction failure: auth, network, server, client, or format."""
 
 
+def _resolve_with_timeout(hostname: str, port: int, timeout_s: int):
+    """Resolve a hostname with a hard timeout (fail closed).
+
+    socket.getaddrinfo() has no timeout parameter, so an unresponsive DNS
+    would otherwise hang the fetching thread indefinitely. Resolution runs
+    in a worker thread; on timeout the lookup is abandoned and the fetch
+    fails instead of     hanging.
+    """
+    import concurrent.futures as _futures
+    import socket as _socket
+
+    executor = _futures.ThreadPoolExecutor(max_workers=1)
+    try:
+        future = executor.submit(
+            _socket.getaddrinfo, hostname, port, type=_socket.SOCK_STREAM)
+        try:
+            return future.result(timeout=timeout_s)
+        except _futures.TimeoutError as exc:
+            raise FhirError(f"network: DNS resolution timed out for {hostname}") from exc
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
 def _private_fetch_allowed() -> bool:
     return os.getenv("RIFT_ALLOW_PRIVATE_FETCH", "false").strip().lower() in ("1", "true", "yes")
 
@@ -218,20 +241,19 @@ def checked_open(url: str, token: str | None, timeout_s: int):
     or restrict to a fixed endpoint set.
     """
     import ipaddress as _ipaddress
-    import socket as _socket
     from urllib.parse import urlparse as _urlparse
 
     parsed = _urlparse(url)
-    
+
     # Enforce HTTPS in production
     if _https_required() and parsed.scheme != "https":
         raise FhirError(f"security: refusing non-HTTPS fetch target {parsed.scheme!r} (set RIFT_ALLOW_HTTP=true for dev/test only)")
-    
+
     if parsed.scheme not in ("http", "https"):
         raise FhirError(f"security: refusing non-HTTP(S) fetch target {parsed.scheme!r}")
     if not parsed.hostname:
         raise FhirError("security: fetch target has no hostname")
-    
+
     # Check trusted hosts in production
     trusted_hosts = _get_trusted_hosts()
     if trusted_hosts and parsed.hostname.lower() not in trusted_hosts:
@@ -239,10 +261,11 @@ def checked_open(url: str, token: str | None, timeout_s: int):
             f"security: host {parsed.hostname!r} not in trusted FHIR host allowlist "
             f"(configure RIFT_TRUSTED_FHIR_HOSTS for production)"
         )
-    
+
     try:
-        infos = _socket.getaddrinfo(parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80),
-                                    type=_socket.SOCK_STREAM)
+        infos = _resolve_with_timeout(
+            parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80),
+            timeout_s)
     except OSError as exc:
         raise FhirError(f"network: DNS resolution failed for {parsed.hostname}") from exc
     for info in infos:
