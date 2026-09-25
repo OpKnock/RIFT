@@ -55,7 +55,7 @@ Security rules:
 ## 3. Verify
 
 ```bash
-pip install -e ".[supabase]"
+pip install -e ".[supabase]" -c constraints.txt
 python -c "from rift.supabase_store import SupabaseStore; print(SupabaseStore().configured)"
 rift serve
 curl http://127.0.0.1:8080/api/health

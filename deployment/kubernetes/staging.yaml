@@ -1,6 +1,12 @@
 # RIFT Kubernetes Deployment - Staging
 # Phase 20: Deployment/Governance
 
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rift-api
+  namespace: rift-staging
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:

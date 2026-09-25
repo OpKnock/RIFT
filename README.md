@@ -47,7 +47,7 @@ The engine also ships a runnable **Counterfactual Laboratory** built around a sm
 python -m venv .venv
 # Windows: .venv\\Scripts\\activate
 # macOS/Linux: source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e ".[dev]" -c constraints.txt
 pytest
 rift demo
 rift serve

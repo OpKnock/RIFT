@@ -579,6 +579,77 @@ def test_webhook_retry_resumes_failed_subscription_update(monkeypatch):
         thread.join(timeout=5)
 
 
+def test_webhook_unique_violation_resumes_subscription_update(monkeypatch):
+    # Edge: existence lookup fails transiently, then the insert reveals the
+    # row already exists (UNIQUE violation). The subscription side effect
+    # must still be applied before acknowledging — never skipped.
+    import hashlib
+    import hmac
+    import http.client
+    import json
+    import threading
+    from http.server import ThreadingHTTPServer
+    from urllib.parse import urlparse
+
+    from rift import api as api_module
+    from rift.api import Handler
+
+    for name in ("RIFT_SUPABASE_URL", "RIFT_SUPABASE_KEY",
+                 "RIFT_LEMON_SQUEEZY_API_KEY", "RIFT_LEMON_SQUEEZY_STORE_ID",
+                 "RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("RIFT_SUPABASE_URL", "https://x.example.co")
+    monkeypatch.setenv("RIFT_SUPABASE_KEY", "k")
+    monkeypatch.setenv("RIFT_LEMON_SQUEEZY_API_KEY", "k")
+    monkeypatch.setenv("RIFT_LEMON_SQUEEZY_STORE_ID", "s")
+    monkeypatch.setenv("RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET", "wh")
+    api_module._SEEN_WEBHOOK_KEYS.clear()
+
+    state = {"upserts": 0}
+
+    class RaceStore:
+        configured = True
+
+        def find_billing_event(self, key):
+            raise RuntimeError("transient read failure")
+
+        def record_billing_event(self, payload):
+            raise RuntimeError(
+                'duplicate key value violates unique constraint '
+                '"billing_events_idempotency_key_unique"')
+
+        def upsert_subscription(self, payload):
+            state["upserts"] += 1
+            return None
+
+    monkeypatch.setattr(api_module, "SupabaseStore", RaceStore)
+
+    payload = {"meta": {"event_name": "subscription_created"},
+               "data": {"id": "sub-race", "attributes": {"status": "active"}}}
+    raw = json.dumps(payload).encode()
+    signature = hmac.new(b"wh", raw, hashlib.sha256).hexdigest()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        parts = urlparse(f"http://127.0.0.1:{port}/api/billing/webhook")
+        conn = http.client.HTTPConnection(parts.hostname, parts.port, timeout=10)
+        conn.request("POST", parts.path, body=raw,
+                     headers={"Content-Type": "application/json", "X-Signature": signature})
+        resp = conn.getresponse()
+        status, body = resp.status, json.loads(resp.read().decode())
+        conn.close()
+        assert status == 200
+        assert body.get("duplicate") is True
+        assert state["upserts"] == 1  # side effect resumed, not skipped
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_k8s_production_requires_jwt_and_ratelimit():
     from pathlib import Path
 
