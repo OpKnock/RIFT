@@ -1,0 +1,52 @@
+# Lighthouse CI Configuration for RIFT Clinical Dashboard
+# Phase 19: Product UX - Automated accessibility & performance budgets
+
+ci:
+  collect:
+    numberOfRuns: 3
+    startServerCommand: "python -m rift.api"
+    url:
+      - "http://localhost:8080/"
+      - "http://localhost:8080/twin/demo"
+      - "http://localhost:8080/evidence"
+    settings:
+      headless: true
+      preset: "desktop"
+      chromeFlags: "--no-sandbox --disable-setuid-sandbox"
+
+  assert:
+    assertions:
+      # Accessibility budgets (Phase 19)
+      - "categories:accessibility >= 0.95"
+      - "categories:best-practices >= 0.90"
+      - "categories:seo >= 0.80"
+      - "categories:performance >= 0.70"
+      - "categories:pwa >= 0.50"
+
+      # Core Web Vitals (clinical dashboard must be fast)
+      - "metrics:largest-contentful-paint < 2500"
+      - "metrics:first-input-delay < 100"
+      - "metrics:cumulative-layout-shift < 0.1"
+      - "metrics:first-contentful-paint < 1800"
+      - "metrics:interactive < 3500"
+
+      # Accessibility specific
+      - "audits:color-contrast.score >= 1"
+      - "audits:image-alt.score >= 1"
+      - "audits:label.score >= 1"
+      - "audits:button-name.score >= 1"
+      - "audits:heading-order.score >= 1"
+      - "audits:html-has-lang.score >= 1"
+      - "audits:document-title.score >= 1"
+
+  upload:
+    target: "temporary-public-storage"
+    expiresIn: "7d"
+
+# GitHub Actions integration
+# Add to .github/workflows/lighthouse.yml:
+#   uses: treosh/lighthouse-ci-action@v11
+#   with:
+#     urls: |
+#       http://localhost:8080/
+#       http://localhost:8080/twin/demo

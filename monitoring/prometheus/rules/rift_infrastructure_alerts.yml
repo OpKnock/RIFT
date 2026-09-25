@@ -1,0 +1,122 @@
+# RIFT Infrastructure Alerting Rules
+# Standard infrastructure alerts for Kubernetes/VM deployments
+
+groups:
+  - name: infrastructure.kubernetes
+    interval: 30s
+    rules:
+      - alert: KubePodCrashLooping
+        expr: |
+          rate(kube_pod_container_status_restarts_total[15m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Pod {{ $labels.pod }} crash looping"
+          description: "Container {{ $labels.container }} in namespace {{ $labels.namespace }} restarted {{ $value }} times in 15m."
+
+      - alert: KubePodNotReady
+        expr: |
+          kube_pod_status_ready{condition="true"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pod {{ $labels.pod }} not ready"
+          description: "Pod in namespace {{ $labels.namespace }} not ready for >5m."
+
+      - alert: KubeCPUOvercommit
+        expr: |
+          sum(kube_pod_container_resource_requests_cpu_cores) / sum(kube_node_status_allocatable_cpu_cores) > 1.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU overcommitted > 150%"
+          description: "Requested CPU {{ $value | humanizePercentage }} of allocatable. Schedule pressure likely."
+
+      - alert: KubeMemoryOvercommit
+        expr: |
+          sum(kube_pod_container_resource_requests_memory_bytes) / sum(kube_node_status_allocatable_memory_bytes) > 1.5
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory overcommitted > 150%"
+          description: "Requested memory {{ $value | humanizePercentage }} of allocatable. OOM kills likely."
+
+  - name: infrastructure.node
+    interval: 60s
+    rules:
+      - alert: HostHighCPU
+        expr: |
+          100 - (avg by(instance) (irate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host {{ $labels.instance }} CPU > 90%"
+          description: "Sustained high CPU usage. Check for runaway processes."
+
+      - alert: HostHighMemory
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host {{ $labels.instance }} memory > 90%"
+          description: "Available memory critically low. OOM risk."
+
+      - alert: HostDiskFull
+        expr: |
+          (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Host {{ $labels.instance }} disk < 10% free"
+          description: "Root filesystem {{ $value | humanizePercentage }} free. Cleanup needed."
+
+      - alert: HostNetworkErrors
+        expr: |
+          rate(node_network_receive_errs_total[5m]) + rate(node_network_transmit_errs_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Host {{ $labels.instance }} network errors > 10/s"
+          description: "Network interface errors detected. Check connectivity."
+
+  - name: infrastructure.database
+    interval: 60s
+    rules:
+      - alert: PostgresConnectionsHigh
+        expr: |
+          pg_stat_activity_count / pg_settings_max_connections > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL connections > 80%"
+          description: "Current: {{ $value | humanizePercentage }} of max_connections. Connection pool exhaustion risk."
+
+      - alert: PostgresReplicationLag
+        expr: |
+          pg_replication_lag_seconds > 30
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL replication lag > 30s"
+          description: "Replica {{ $labels.replica }} lagging {{ $value }}s behind primary."
+
+      - alert: PostgresDeadlocks
+        expr: |
+          rate(pg_stat_database_deadlocks[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "PostgreSQL deadlocks > 1/s"
+          description: "Database {{ $labels.datname }} experiencing deadlocks. Review long transactions."

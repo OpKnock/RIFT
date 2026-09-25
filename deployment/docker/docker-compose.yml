@@ -1,0 +1,88 @@
+# RIFT Docker Compose for Local Development & Testing
+# Phase 20: Deployment/Governance
+
+version: '3.8'
+
+services:
+  # RIFT API Server
+  rift-api:
+    build:
+      context: ..
+      dockerfile: deployment/docker/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - RIFT_SUPABASE_URL=${RIFT_SUPABASE_URL}
+      - RIFT_SUPABASE_KEY=${RIFT_SUPABASE_KEY}
+      - RIFT_API_TOKEN=${RIFT_API_TOKEN}
+      - RIFT_REQUIRE_USER_ID=false
+      - RIFT_ALLOW_PRIVATE_FETCH=false
+      - RIFT_ALLOW_HTTP=true
+      - RIFT_TRUSTED_FHIR_HOSTS=
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ../src:/app/src:ro
+      - ../data:/app/data:ro
+      - ../web:/app/web:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+  # Prometheus for metrics
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+
+  # Grafana for dashboards
+  grafana:
+    image: grafana/grafana:10.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  # Alertmanager
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:
+  grafana_data:
+  alertmanager_data:
+
+networks:
+  default:
+    name: rift-network

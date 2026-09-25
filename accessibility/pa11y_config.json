@@ -1,0 +1,20 @@
+{
+  "defaults": {
+    "standard": "WCAG2AA",
+    "reporters": ["cli", "json"],
+    "level": "A",
+    "timeout": 30000,
+    "wait": 1000,
+    "headers": {
+      "User-Agent": "RIFT Accessibility Audit"
+    }
+  },
+  "urls": [
+    "http://localhost:8080/",
+    "http://localhost:8080/twin/demo",
+    "http://localhost:8080/evidence"
+  ],
+  "ignore": [
+    "WCAG2AA.Principle1.Guideline1_4.1_4_3"
+  ]
+}

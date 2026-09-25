@@ -1,0 +1,168 @@
+# RIFT Health Alerting Rules
+# Phase 18: Monitoring/MLOps - Production alerting for clinical twin
+# Based on Prometheus best practices and clinical safety requirements
+
+groups:
+  - name: rift.health.critical
+    interval: 30s
+    rules:
+      # Twin state alerts
+      - alert: RiftTwinStaleData
+        expr: |
+          time() - rift_twin_last_update_timestamp_seconds > 3600
+        for: 5m
+        labels:
+          severity: critical
+          component: twin
+        annotations:
+          summary: "Digital Twin data stale for >1 hour"
+          description: "Patient {{ $labels.patient_id }} twin hasn't updated in {{ $value | humanizeDuration }}. Clinical decisions may be based on outdated data."
+          runbook_url: "https://github.com/OpKnock/RIFT/docs/runbooks/twin_stale.md"
+
+      - alert: RiftTwinHighUncertainty
+        expr: |
+          rift_twin_uncertainty_total > 0.8
+        for: 2m
+        labels:
+          severity: warning
+          component: twin
+        annotations:
+          summary: "Digital Twin uncertainty exceeds 80%"
+          description: "Patient {{ $labels.patient_id }} total uncertainty {{ $value | humanizePercentage }}. Risk predictions unreliable."
+          runbook_url: "https://github.com/OpKnock/RIFT/docs/runbooks/high_uncertainty.md"
+
+      - alert: RiftGuardianWithhold
+        expr: |
+          increase(rift_guardian_action_withhold_total[5m]) > 0
+        labels:
+          severity: critical
+          component: guardian
+        annotations:
+          summary: "Guardian WITHHOLD action triggered"
+          description: "Guardian blocked clinical decision for patient {{ $labels.patient_id }}. Rule: {{ $labels.rule_id }}, Stage: {{ $labels.stage }}. Review immediately."
+          runbook_url: "https://github.com/OpKnock/RIFT/docs/runbooks/guardian_withhold.md"
+
+  - name: rift.health.warning
+    interval: 60s
+    rules:
+      - alert: RiftTwinMissingMetrics
+        expr: |
+          rift_twin_completeness_ratio < 0.5
+        for: 10m
+        labels:
+          severity: warning
+          component: twin
+        annotations:
+          summary: "Digital Twin data completeness below 50%"
+          description: "Patient {{ $labels.patient_id }} missing >50% expected metrics. Risk predictions degraded."
+
+      - alert: RiftGuardianWarn
+        expr: |
+          increase(rift_guardian_action_warn_total[5m]) > 0
+        labels:
+          severity: warning
+          component: guardian
+        annotations:
+          summary: "Guardian WARN action triggered"
+          description: "Guardian flagged concern for patient {{ $labels.patient_id }}. Rule: {{ $labels.rule_id }}. Review recommended."
+
+      - alert: RiftDriftDetected
+        expr: |
+          rift_drift_score > 0.7
+        for: 5m
+        labels:
+          severity: warning
+          component: drift
+        annotations:
+          summary: "Data drift detected in patient stream"
+          description: "Patient {{ $labels.patient_id }} drift score {{ $value | humanizePercentage }}. Model retraining may be needed."
+
+  - name: rift.infrastructure.critical
+    interval: 30s
+    rules:
+      - alert: RiftAPIHighLatency
+        expr: |
+          histogram_quantile(0.95, rate(rift_api_request_duration_seconds_bucket[5m])) > 2.0
+        for: 2m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "API P95 latency > 2 seconds"
+          description: "Endpoint {{ $labels.endpoint }} P95 latency {{ $value }}s. Clinical workflows may time out."
+
+      - alert: RiftAPIHighErrorRate
+        expr: |
+          rate(rift_api_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 1m
+        labels:
+          severity: critical
+          component: api
+        annotations:
+          summary: "API 5xx error rate > 5%"
+          description: "Endpoint {{ $labels.endpoint }} error rate {{ $value | humanizePercentage }}. Service degraded."
+
+      - alert: RiftSupabaseConnectionFailed
+        expr: |
+          rift_supabase_connection_failures_total > 10
+        for: 1m
+        labels:
+          severity: critical
+          component: persistence
+        annotations:
+          summary: "Supabase connection failures > 10"
+          description: "Unable to persist experiments/runs. Data loss risk."
+
+  - name: rift.business
+    interval: 5m
+    rules:
+      - alert: RiftTrialConversionLow
+        expr: |
+          rift_billing_trial_conversion_rate < 0.01
+        for: 1h
+        labels:
+          severity: info
+          component: billing
+        annotations:
+          summary: "Trial conversion rate below 1%"
+          description: "Current conversion {{ $value | humanizePercentage }}. Review onboarding flow."
+
+      - alert: RiftActiveUsersDropping
+        expr: |
+          rift_active_users_1h < rift_active_users_1h offset 24h * 0.5
+        for: 30m
+        labels:
+          severity: warning
+          component: product
+        annotations:
+          summary: "Active users dropped >50% vs yesterday"
+          description: "Current 1h active: {{ $value }}. Investigate service issues."
+
+# Clinical safety specific alerts (require clinician review)
+  - name: rift.clinical.safety
+    interval: 60s
+    rules:
+      - alert: RiftSepsisRiskHigh
+        expr: |
+          rift_twin_sepsis_risk > 0.8
+        for: 1m
+        labels:
+          severity: critical
+          component: clinical
+          clinical_review: "required"
+        annotations:
+          summary: "Sepsis risk > 80% for patient {{ $labels.patient_id }}"
+          description: "Digital Twin predicts high sepsis risk. Guardian action: {{ $labels.guardian_action }}. Immediate clinical review required."
+          runbook_url: "https://github.com/OpKnock/RIFT/docs/runbooks/sepsis_risk.md"
+
+      - alert: RiftCardiacStrainRiskHigh
+        expr: |
+          rift_twin_cardiac_strain_risk > 0.7
+        for: 5m
+        labels:
+          severity: warning
+          component: clinical
+          clinical_review: "recommended"
+        annotations:
+          summary: "Cardiac strain risk elevated for patient {{ $labels.patient_id }}"
+          description: "24h cardiac strain risk {{ $value | humanizePercentage }}. Guardian: {{ $labels.guardian_action }}. Clinical correlation recommended."

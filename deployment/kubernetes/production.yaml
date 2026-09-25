@@ -1,0 +1,376 @@
+# RIFT Kubernetes Deployment - Production (Blue-Green)
+# Phase 20: Deployment/Governance - Zero-downtime production deployment
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rift-production
+  labels:
+    environment: production
+    istio-injection: enabled
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rift-api
+  namespace: rift-production
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rift-api
+  namespace: rift-production
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rift-api
+  namespace: rift-production
+subjects:
+  - kind: ServiceAccount
+    name: rift-api
+    namespace: rift-production
+roleRef:
+  kind: Role
+  name: rift-api
+  apiGroup: rbac.authorization.k8s.io
+---
+# Blue Deployment (active)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rift-api-blue
+  namespace: rift-production
+  labels:
+    app: rift-api
+    version: v1.0.0
+    environment: production
+    color: blue
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: rift-api
+      color: blue
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: rift-api
+        version: v1.0.0
+        environment: production
+        color: blue
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+        sidecar.istio.io/inject: "true"
+    spec:
+      serviceAccountName: rift-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: rift-api
+          image: ghcr.io/opknock/rift:v1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: RIFT_SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rift-secrets
+                  key: supabase-url
+            - name: RIFT_SUPABASE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rift-secrets
+                  key: supabase-key
+            - name: RIFT_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: rift-secrets
+                  key: api-token
+            - name: RIFT_REQUIRE_USER_ID
+              value: "true"
+            - name: RIFT_ALLOW_PRIVATE_FETCH
+              value: "false"
+            - name: RIFT_ALLOW_HTTP
+              value: "false"
+            - name: RIFT_TRUSTED_FHIR_HOSTS
+              value: "fhir.epic.com,fhir.cerner.com"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "1Gi"
+            limits:
+              cpu: "4000m"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+---
+# Green Deployment (standby)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rift-api-green
+  namespace: rift-production
+  labels:
+    app: rift-api
+    version: v1.0.0
+    environment: production
+    color: green
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: rift-api
+      color: green
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: rift-api
+        version: v1.0.0
+        environment: production
+        color: green
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+        sidecar.istio.io/inject: "true"
+    spec:
+      serviceAccountName: rift-api
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: rift-api
+          image: ghcr.io/opknock/rift:v1.0.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: RIFT_SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rift-secrets
+                  key: supabase-url
+            - name: RIFT_SUPABASE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rift-secrets
+                  key: supabase-key
+            - name: RIFT_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: rift-secrets
+                  key: api-token
+            - name: RIFT_REQUIRE_USER_ID
+              value: "true"
+            - name: RIFT_ALLOW_PRIVATE_FETCH
+              value: "false"
+            - name: RIFT_ALLOW_HTTP
+              value: "false"
+            - name: RIFT_TRUSTED_FHIR_HOSTS
+              value: "fhir.epic.com,fhir.cerner.com"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "1Gi"
+            limits:
+              cpu: "4000m"
+              memory: "4Gi"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 30
+---
+# Active Service (points to blue)
+apiVersion: v1
+kind: Service
+metadata:
+  name: rift-api-active
+  namespace: rift-production
+  labels:
+    app: rift-api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: rift-api
+    color: blue
+---
+# Standby Service (points to green)
+apiVersion: v1
+kind: Service
+metadata:
+  name: rift-api-standby
+  namespace: rift-production
+  labels:
+    app: rift-api
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: rift-api
+    color: green
+---
+# External Ingress (routes to active)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rift-api
+  namespace: rift-production
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/rate-limit: "200"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/upstream-vhost: "rift-api-active.rift-production.svc.cluster.local"
+spec:
+  tls:
+    - hosts:
+        - rift.example.com
+      secretName: rift-api-tls
+  rules:
+    - host: rift.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: rift-api-active
+                port:
+                  number: 80
+---
+# PodDisruptionBudget for HA
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rift-api
+  namespace: rift-production
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: rift-api
+---
+# HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: rift-api
+  namespace: rift-production
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: rift-api-blue
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+        - type: Pods
+          value: 4
+          periodSeconds: 60
+      selectPolicy: Max
