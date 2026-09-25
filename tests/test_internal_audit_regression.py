@@ -171,12 +171,13 @@ def test_cardiac_adapter_definitions_correct():
     assert C.DATASETS["chfdb"]["subjects"][-1] == "chf15"
     # No BIDMC conflation: 53-subject PPG dataset must not be present as CHF
     assert "bidmc" not in C.DATASETS
-    # Official WFDB layout: .dat + .hea + .atr (no .txt RR files)
+    # Official WFDB layout: .dat + .hea + .ecg (no .txt RR files, no .atr for CHFDB)
     urls = C.chfdb_urls("chf01")
     assert urls["dat"].endswith("chfdb/1.0.0/chf01.dat")
     assert urls["hea"].endswith("chfdb/1.0.0/chf01.hea")
-    assert urls["ann"].endswith("chfdb/1.0.0/chf01.atr")
+    assert urls["ann"].endswith("chfdb/1.0.0/chf01.ecg")
     assert ".txt" not in urls["dat"]
+    assert not urls["ann"].endswith(".atr")
 
 
 def test_chfdb_hea_and_rr_helpers():
