@@ -349,7 +349,7 @@ def _is_valid_uuid(value: str) -> bool:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "RIFT/0.6"
+    server_version = "RIFT/" + ENGINE_VERSION
     protocol_version = "HTTP/1.1"
 
     def _send(self, status, data, content_type="application/json", request_id=None, extra_headers=None):
@@ -509,6 +509,38 @@ class Handler(BaseHTTPRequestHandler):
                 snapshot = ops_collector.report()
                 alerts = ops_collector.check_alerts()
                 self._send(200, json.dumps({"monitor": snapshot, "alerts": alerts}),
+                           request_id=request_id)
+            except Exception:
+                self._send(500, json.dumps({"error": "monitor_error", "request_id": request_id}),
+                           request_id=request_id)
+            self._finish(timer, request_id, "GET", path, 200)
+            return
+        if path == "/metrics":
+            # Prometheus exposition for the deployment scrape config.
+            # Renders the in-process collector snapshot as text 0.0.4.
+            try:
+                from .health.monitoring import collector as ops_collector
+
+                snap = ops_collector.report()
+                lines = [
+                    "# HELP rift_requests_total Total HTTP requests by route.",
+                    "# TYPE rift_requests_total counter",
+                ]
+                for route, stats in (snap.get("routes") or {}).items():
+                    lines.append(f'rift_requests_total{{route="{route}"}} {stats.get("requests", 0)}')
+                lines += [
+                    "# HELP rift_failure_rate Overall 5xx failure rate.",
+                    "# TYPE rift_failure_rate gauge",
+                    f"rift_failure_rate {snap.get('failure_rate', 0.0)}",
+                    "# HELP rift_guardian_reject_rate Guardian WITHHOLD rate.",
+                    "# TYPE rift_guardian_reject_rate gauge",
+                    f"rift_guardian_reject_rate {snap.get('guardian_reject_rate', 0.0)}",
+                    "# HELP rift_prediction_count Predictions recorded.",
+                    "# TYPE rift_prediction_count counter",
+                    f"rift_prediction_count {snap.get('prediction_count', 0)}",
+                ]
+                body = "\n".join(lines) + "\n"
+                self._send(200, body, content_type="text/plain; version=0.0.4",
                            request_id=request_id)
             except Exception:
                 self._send(500, json.dumps({"error": "monitor_error", "request_id": request_id}),

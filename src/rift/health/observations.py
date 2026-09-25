@@ -32,6 +32,7 @@ FEATURE_METRICS = (
     "icu_los_hours",
     # Experimental raw-sensor features (explicitly non-clinical names):
     "accel_magnitude_mean",  # mean accelerometer magnitude (g); NOT activity_load
+    "ibi_mean",  # mean inter-beat interval (ms); NOT rr_sd/RMSSD
 )
 
 # OUTCOME_METRICS: Clinical labels/targets (model outputs, not inputs)
@@ -59,6 +60,7 @@ EXPECTED_UNITS = {
     "icu_los_hours": "hours",
     "sepsis_label": "binary",
     "accel_magnitude_mean": "g",
+    "ibi_mean": "ms",
 }
 
 # Accepted unit aliases per metric: alias -> multiplier to canonical unit.
@@ -80,6 +82,7 @@ UNIT_ALIASES = {
     "icu_los_hours": {"hours": 1.0, "h": 1.0},
     "sepsis_label": {"binary": 1.0},
     "accel_magnitude_mean": {"g": 1.0},
+    "ibi_mean": {"ms": 1.0, "millisecond": 1.0, "s": 1000.0},
 }
 
 

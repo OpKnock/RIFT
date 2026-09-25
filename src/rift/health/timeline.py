@@ -107,6 +107,46 @@ def timeline_coverage(observations: list[CanonicalObservation]) -> dict[str, str
     return coverage
 
 
+def to_hourly_rows(
+    observations: list[CanonicalObservation],
+) -> list[dict]:
+    """Bucket observations by (patient_id, hour) for acute/high-resolution data.
+
+    Unlike the daily wearable path, this preserves hourly granularity and
+    keeps outcomes separate from features:
+
+        {"patient_id": ..., "hour_key": "YYYY-MM-DDTHH",
+         "features": {metric: median_value}, "outcome": 0/1/None,
+         "n_observations": int, "provenance": [...]}
+
+    Binary outcome metrics (OUTCOME_METRICS) use max (event if any hour
+    observation fires), never a median. Feature metrics use medians.
+    """
+    from .observations import OUTCOME_METRICS
+
+    buckets: dict[tuple[str, str], list[CanonicalObservation]] = {}
+    for obs in sorted(observations, key=lambda o: (o.patient_id, o.timestamp)):
+        buckets.setdefault((obs.patient_id or "", bucket_key(obs.timestamp, "hour")), []).append(obs)
+    rows = []
+    for (pid, hour_key) in sorted(buckets):
+        obs_list = buckets[(pid, hour_key)]
+        features: dict[str, float | None] = {}
+        for field in FIELDS:
+            vals = [o.value for o in obs_list if o.metric == field]
+            features[field] = float(median(vals)) if vals else None
+        outcome_vals = [o.value for o in obs_list if o.metric in OUTCOME_METRICS]
+        outcome = max(outcome_vals) if outcome_vals else None
+        rows.append({
+            "patient_id": pid,
+            "hour_key": hour_key,
+            "features": features,
+            "outcome": outcome,
+            "n_observations": len(obs_list),
+            "provenance": sorted({o.provenance for o in obs_list if o.provenance}),
+        })
+    return rows
+
+
 def to_daily_rows(
     observations: list[CanonicalObservation],
 ) -> tuple[list[WearableObservation], dict[tuple[str, str], int]]:

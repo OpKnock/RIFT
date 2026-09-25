@@ -113,12 +113,12 @@ jobs:
       - name: Run pa11y accessibility audit
         run: |
           npm install -g pa11y
-          pa11y --config accessibility/pa11y_config.json --reporter json > pa11y-results.json || true
+          pa11y --config accessibility/pa11y_config.json --reporter json > pa11y-results.json
 
       - name: Run axe-core audit
         run: |
           npm install -g @axe-core/cli
-          axe http://localhost:8080/ --config accessibility/axe_core_config.json --save axe-results.json || true
+          axe http://localhost:8080/ --config accessibility/axe_core_config.json --save axe-results.json
 
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v11

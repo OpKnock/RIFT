@@ -255,6 +255,14 @@ def scrape_dataset(dataset_name: str = "chfdb", out_dir: str = "data/physionet_c
                                "hea": hea_prov, "dat": dat_prov, "ann": ann_prov})
         print(f"  [{subject}] HR {mean_hr:.1f} bpm, HRV {rmssd:.1f} ms ({len(rr)} RR)")
 
+    # Fail closed on incomplete cohort: requested vs succeeded must match.
+    if len(all_provenance) != len(cfg["subjects"]):
+        raise RuntimeError(
+            f"incomplete cardiac extraction: requested {len(cfg['subjects'])} subjects, "
+            f"succeeded {len(all_provenance)} in {dataset_name}; "
+            f"refusing to write partial validation cohort"
+        )
+
     csv_path = path / f"{dataset_name}_cardiac.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)

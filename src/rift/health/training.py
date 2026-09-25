@@ -32,12 +32,21 @@ def dataset_manifest(*, dataset_id: str, source: str, observations: list,
     day_index values, e.g. {"calibration": [0, 29], "test": [30, 59]}.
     """
     content = [
-        {"day_index": o.day_index, "resting_hr": o.resting_hr, "hrv_rmssd": o.hrv_rmssd,
-         "sleep_hours": o.sleep_hours, "activity_load": o.activity_load}
+        {"day_index": o.day_index,
+         "patient_id": getattr(o, "patient_id", ""),
+         "time_offset_hours": getattr(o, "time_offset_hours", None),
+         "resting_hr": o.resting_hr, "hrv_rmssd": o.hrv_rmssd,
+         "sleep_hours": o.sleep_hours, "activity_load": o.activity_load,
+         "heart_rate": getattr(o, "heart_rate", None),
+         "rr_sd": getattr(o, "rr_sd", None),
+         "outcome": getattr(o, "outcome", None),
+         "stale": o.stale, "provenance": o.provenance}
         for o in observations
     ]
-    # Note: day-level rows carry no patient attribution; patient scoping
-    # lives in patient_split(), which keeps unattributed rows out of held-out.
+    # Patient/outcome/provenance are part of the fingerprint: identical
+    # feature values with different patients, outcomes, or sources must
+    # hash differently. Patient scoping additionally lives in
+    # patient_split(), which keeps unattributed rows out of held-out.
     return {
         "dataset_id": dataset_id,
         "source": source,
