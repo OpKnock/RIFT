@@ -1,10 +1,13 @@
 # RIFT CI/CD Pipeline — DEPLOYMENT TEMPLATE (not active proof)
 # Phase 20: Deployment/Governance - Production-grade CI/CD template.
-# Active CI is .github/workflows/test.yml (test/validate/security).
+# Active CI is .github/workflows/test.yml (test/validate/security) plus
+# .github/workflows/physio-integration.yml (manual/weekly WFDB check).
 # Staging/production jobs below require cluster credentials
 # (KUBECONFIG_PROD), DNS/TLS, and human approval via GitHub Environments.
 # Commented kubectl/curl steps are intentional placeholders until
 # a real cluster is provisioned — do not present as deployed.
+# Accessibility jobs (pa11y/axe/Lighthouse) in this template are MANUAL and
+# non-blocking until promoted into active CI; see accessibility/ configs.
 
 name: RIFT CI/CD
 

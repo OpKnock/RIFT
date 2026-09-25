@@ -209,6 +209,13 @@ def checked_open(url: str, token: str | None, timeout_s: int):
     In production mode:
     - HTTPS is required
     - Only trusted hosts from RIFT_TRUSTED_FHIR_HOSTS are permitted
+
+    Known limitation (TOCTOU): DNS is validated before connect, so a
+    hostile DNS could theoretically rebind between validation and the
+    TLS handshake. Mitigations in place: HTTPS-only, explicit host
+    allowlist, no redirects. Before exposing this to arbitrary remote
+    endpoints, pin resolved IPs (connect-by-IP with SNI/Host override)
+    or restrict to a fixed endpoint set.
     """
     import ipaddress as _ipaddress
     import socket as _socket
