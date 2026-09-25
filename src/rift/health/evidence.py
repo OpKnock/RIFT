@@ -111,3 +111,31 @@ def render_markdown(bundle: dict) -> str:
         body.get("notes", ""),
     ]
     return "\n".join(lines)
+
+
+def write_bundle(bundle: dict, directory) -> dict:
+    """Persist validation.json + validation.md to a directory.
+
+    Returns {"validation.json": sha256, "validation.md": sha256,
+    "directory": str}. Raises ValueError when the bundle fails
+    verification first — corrupt bundles are never written as artifacts.
+    Parent directories are created; existing files with the same content
+    are simply overwritten identically (deterministic output).
+    """
+    from pathlib import Path as _Path
+
+    verification = verify_bundle(bundle)
+    if not verification.get("valid"):
+        raise ValueError(f"refusing to write invalid bundle: {verification.get('reason')}")
+    target = _Path(directory)
+    target.mkdir(parents=True, exist_ok=True)
+    written: dict = {"directory": str(target)}
+    payloads = {
+        "validation.json": json.dumps(bundle, indent=2, sort_keys=True) + "\n",
+        "validation.md": render_markdown(bundle) + "\n",
+    }
+    for name, text in payloads.items():
+        path = target / name
+        path.write_text(text, encoding="utf-8")
+        written[name] = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    return written
