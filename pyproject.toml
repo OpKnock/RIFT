@@ -5,6 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "rift-engine"
 version = "1.0.0"
+license = "AGPL-3.0-or-later"
 description = "Robust Intervention & Future Testing — counterfactual decision intelligence"
 requires-python = ">=3.11"
 dependencies = []
