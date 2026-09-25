@@ -4,6 +4,12 @@ All notable changes to RIFT. Versions follow SemVer; `0.x` signals a lab system,
 
 ## [Unreleased]
 ### Added
+- Clinical-roadmap cycle: Phase-0 source audit (`docs/clinical-audit-phase0.md`), living roadmap with per-phase status (`docs/clinical-roadmap.md`), pre-registered benchmark methodology (`docs/benchmark-methodology.md`), study-protocol template, QMS skeleton, requirements traceability matrix.
+- Classical optimizer baselines (`benchmark.py`): seeded simulated annealing + tabu search join exact enumeration and QAOA simulation in `benchmark_suite` (4 methods, deterministic, gaps reported).
+- Clinician review ledger (`health/reviews.py`): append-only hash-chained ACCEPT/REJECT/OVERRIDE/REQUEST_REVIEW with rationale rules, `GET/POST /api/twin/reviews`, dashboard CLINICIAN REVIEW panel, `rift_clinician_reviews_total` metric.
+- Service levels (`service_levels.py`): RTO/RPO/SLO targets declared target-only plus `minimize_with_fallback` exact-enumeration fallback for optimizer outages.
+- Guardian rule registry (`RULE_METADATA`, `rule_metadata()`): owner/version/evidence slots for G-001…G-016; owners UNASSIGNED pending clinical sign-off.
+### Added
 - Experiment framework (`rift.health.training`): dataset manifests + hashes, temporal/patient split protection, seeds, experiment IDs, artifact hashes, benchmark comparison, failure reporting; weight fitting deliberately absent.
 - Promotion lifecycle (`promote`/`rollback`/`get_audit_log`): one-step moves, evidence + approver + notes rules, audit trail; validation automatable, approval human.
 - Decision sensitivity analysis (`decision.sensitivity_analysis`): per-field risk swings under perturbation, stability reporting.

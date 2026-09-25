@@ -59,6 +59,100 @@ LEDGER_REQUIRED_KEYS = frozenset({
 WITHHOLD = "WITHHOLD"
 WARN = "WARN"
 
+# Rule registry (Phase 12): every rule carries a clinical owner slot, a rule
+# version, and the evidence that exercises it. Owners are UNASSIGNED until a
+# qualified clinical owner signs each rule — the software boundary works, the
+# clinical accountability does not exist yet. Rule versions are independent of
+# ENGINE_VERSION so a rule change never hides inside an engine bump.
+RULE_VERSION = "2.0"
+RULE_METADATA: dict[str, dict] = {
+    "G-001": {"stage": "STATE", "severity": "HIGH", "action": WITHHOLD,
+              "summary": "physiological plausibility bounds",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health platform/pipeline suites, PHYSIOLOGICAL_BOUNDS tests"},
+    "G-002": {"stage": "INPUT", "severity": "MEDIUM", "action": WARN,
+              "summary": "missing wearable fields (baseline-imputed downstream)",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health platform/pipeline suites"},
+    "G-003": {"stage": "INPUT", "severity": "MEDIUM", "action": WARN,
+              "summary": "stale wearable data (STALE_FLAG_DAYS)",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health platform/pipeline suites"},
+    "G-004": {"stage": "INPUT", "severity": "LOW", "action": WARN,
+              "summary": "missing observation provenance",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health platform/pipeline suites"},
+    "G-005": {"stage": "STATE", "severity": "HIGH", "action": WITHHOLD,
+              "summary": "implausible day-over-day transition",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health platform/pipeline suites, MAX_PLAUSIBLE_DAILY_HR_SHIFT tests"},
+    "G-006": {"stage": "OUTPUT", "severity": "HIGH", "action": WITHHOLD,
+              "summary": "prediction output contract violation",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health platform/pipeline suites, ALLOWED_OUTPUT_KEYS tests"},
+    "G-007": {"stage": "OUTPUT", "severity": "HIGH", "action": WITHHOLD,
+              "summary": "uncertainty above display threshold",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health platform/pipeline suites, UNCERTAINTY_FLAG tests"},
+    "G-008": {"stage": "OUTPUT", "severity": "MEDIUM", "action": WARN,
+              "summary": "elevated uncertainty warning band",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health platform/pipeline suites"},
+    "G-009": {"stage": "OUTPUT", "severity": "MEDIUM", "action": WARN,
+              "summary": "calibration repair applied (repaired flag travels)",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health evaluate/evidence suites"},
+    "G-010": {"stage": "MODEL", "severity": "MEDIUM", "action": WARN,
+              "summary": "population / subgroup performance caveat",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health evaluate/foresight suites"},
+    "G-011": {"stage": "INPUT", "severity": "LOW", "action": WARN,
+              "summary": "unestimated metric carried without estimate",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health platform/pipeline suites, coverage-report tests"},
+    "G-012": {"stage": "INPUT", "severity": "HIGH/LOW", "action": "WITHHOLD/WARN",
+              "summary": "feature-schema drift vs STATE_SCHEMA_FIELDS",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "schema-consistency suite, internal audit regression"},
+    "G-013": {"stage": "COUNTERFACTUAL", "severity": "HIGH", "action": WITHHOLD,
+              "summary": "counterfactual assumption ledger incomplete",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health platform/pipeline suites, LEDGER_REQUIRED_KEYS tests"},
+    "G-014": {"stage": "OUTPUT", "severity": "HIGH/MEDIUM", "action": "WITHHOLD/WARN",
+              "summary": "optimization-output verification (bounds + gap disclosure)",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health platform/pipeline suites, optimizer suites"},
+    "G-015": {"stage": "MODEL", "severity": "HIGH", "action": WITHHOLD,
+              "summary": "model identity / weights-digest mismatch",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health training/registry suites"},
+    "G-016": {"stage": "DEPLOYMENT", "severity": "HIGH", "action": WITHHOLD,
+              "summary": "deployment inversion protection (clinical-use gate)",
+              "owner": "UNASSIGNED — clinical owner required",
+              "version": RULE_VERSION,
+              "evidence": "health platform/api suites, internal audit regression"},
+}
+
+
+def rule_metadata(rule_id: str) -> dict:
+    """Return the registry entry for a rule; KeyError on unknown IDs (fail-closed)."""
+    return dict(RULE_METADATA[rule_id])
+
 
 @dataclass(frozen=True)
 class Finding:
