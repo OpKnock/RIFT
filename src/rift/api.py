@@ -679,6 +679,8 @@ class Handler(BaseHTTPRequestHandler):
                     "confusion": held_out["confusion"],
                     "reliability": reliability(held_out),
                     "subgroups": subgroup_metrics(held_out["per_day"]),
+                    "cohort": __import__("rift.health.cohort", fromlist=["cohort_backtest"]).cohort_backtest(),
+                    "prospective": __import__("rift.health.prospective", fromlist=["manager"]).manager.stats(),
                     "calibration_repair": {
                         "method": "platt-scaling fit on days 30-44 only",
                         "params": calibration["params"],
