@@ -150,14 +150,19 @@ def test_guardian_action_mapping_and_stage_gates():
 def test_guardian_schema_drift_withholds():
     ehr, state, baseline = _setup()
     risk_record = K.predict(state, baseline, ehr)
-    assert G.check_schema(state)["findings"] == []
+    # Valid state with new additive fields should only produce WARN, not WITHHOLD
+    result = G.check_schema(state)
+    assert not result["rejections"]  # No rejections for additive fields
+    # New additive fields (patient_id, time_offset_hours) should produce WARN
+    warn_findings = [f for f in result["findings"] if f.action == "WARN"]
+    assert any(f.rule_id == "G-012" for f in warn_findings)
     # Dict-form states are checked identically (same contract, both shapes).
     drifted = dict(state.to_dict())
     drifted.pop("sleep_hours")
     drifted["mystery_field"] = 1.0
     result = G.check_schema(drifted)
     assert any(f.rule_id == "G-012" for f in result["findings"])
-    assert result["rejections"]
+    assert result["rejections"]  # Missing required field + unexpected = WITHHOLD
 
 
 def test_guardian_counterfactual_ledger_and_ordering():

@@ -50,10 +50,14 @@ def demo_series(
             hrv -= 14.0
         observations.append(WearableObservation(
             day_index=day,
+            patient_id="demo-patient-01",
+            time_offset_hours=float(day * 24),
             resting_hr=round(hr, 1),
             hrv_rmssd=None if day in partial_days else round(hrv, 1),
             sleep_hours=round(max(0.0, sleep), 1),
             activity_load=round(max(0.0, activity), 1),
+            heart_rate=round(hr, 1),
+            rr_sd=None,
             provenance=provenance,
         ))
     return ReplaySource(observations)

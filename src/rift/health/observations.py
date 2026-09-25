@@ -22,13 +22,23 @@ from datetime import datetime, timezone
 # readings use heart_rate; R-R interval SD uses rr_sd. The twin's risk
 # path consumes resting_hr/hrv_rmssd only — generic readings are preserved
 # at observation level but never silently relabeled (see adapters.py).
-METRICS = (
+
+# FEATURE_METRICS: Physiological measurements (inputs to the model)
+FEATURE_METRICS = (
     "resting_hr", "hrv_rmssd", "sleep_hours", "activity_load",
     "heart_rate", "rr_sd",
     "eda", "skin_temp",  # wearable exam stress dataset
     "spo2", "temperature", "sbp", "map", "dbp", "resp_rate",
-    "icu_los_hours", "sepsis_label",  # PhysioNet Sepsis Challenge 2019
+    "icu_los_hours",
 )
+
+# OUTCOME_METRICS: Clinical labels/targets (model outputs, not inputs)
+OUTCOME_METRICS = (
+    "sepsis_label",
+)
+
+# Combined for backward compatibility
+METRICS = FEATURE_METRICS + OUTCOME_METRICS
 EXPECTED_UNITS = {
     "resting_hr": "bpm",
     "hrv_rmssd": "ms",
@@ -67,6 +77,16 @@ UNIT_ALIASES = {
     "icu_los_hours": {"hours": 1.0, "h": 1.0},
     "sepsis_label": {"binary": 1.0},
 }
+
+
+def is_feature_metric(metric: str) -> bool:
+    """Check if a metric is a feature (physiological measurement) vs outcome."""
+    return metric in FEATURE_METRICS
+
+
+def is_outcome_metric(metric: str) -> bool:
+    """Check if a metric is an outcome/label vs feature."""
+    return metric in OUTCOME_METRICS
 
 
 @dataclass(frozen=True)

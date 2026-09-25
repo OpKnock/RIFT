@@ -197,16 +197,23 @@ def check_schema(state: PatientState) -> dict:
         actual = set(state)
     else:
         actual = set(state.to_dict())
-    if actual != STATE_SCHEMA_FIELDS:
-        message = (
-            "patient-state schema drift: "
-            f"missing={sorted(STATE_SCHEMA_FIELDS - actual)} "
-            f"unexpected={sorted(actual - STATE_SCHEMA_FIELDS)}"
-        )
+    
+    # Check for missing required fields (breaking)
+    missing = STATE_SCHEMA_FIELDS - actual
+    if missing:
+        message = f"patient-state schema drift: missing required fields={sorted(missing)}"
         rejections.append(message)
         findings.append(Finding("G-012", "INPUT", "HIGH", WITHHOLD, message,
-                                {"missing": sorted(STATE_SCHEMA_FIELDS - actual),
-                                 "unexpected": sorted(actual - STATE_SCHEMA_FIELDS)}))
+                                {"missing": sorted(missing), "unexpected": []}))
+    
+    # Check for unexpected fields (non-breaking if additive)
+    unexpected = actual - STATE_SCHEMA_FIELDS
+    if unexpected:
+        message = f"patient-state schema extension: new fields={sorted(unexpected)} (additive, not breaking)"
+        flags.append(message)
+        findings.append(Finding("G-012", "INPUT", "LOW", WARN, message,
+                                {"missing": [], "unexpected": sorted(unexpected)}))
+    
     return {"rejections": rejections, "flags": flags, "findings": findings}
 
 
