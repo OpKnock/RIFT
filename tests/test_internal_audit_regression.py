@@ -133,6 +133,34 @@ def test_iculos_relative_time_not_fabricated_days():
     assert int(25.0 // 24) == 1
 
 
+def test_sepsis_iculos_rows_produce_relative_timeline():
+    # End-to-end conversion (no network): ICULOS 1,25,49 -> correct offsets.
+    # NOTE: _canonical_to_wearable aggregates to day_index, so two ICU hours
+    # on the same calendar day collapse to one WearableObservation. This test
+    # uses ICULOS values on distinct days to prove relative time is preserved.
+    from rift.health.observations import normalize_batch
+    from rift.health.sources import _canonical_to_wearable
+    from datetime import datetime, timedelta, timezone
+
+    epoch = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    raw = []
+    for iculos in (1.0, 25.0, 49.0):
+        ts = (epoch + timedelta(hours=iculos)).isoformat()
+        raw.append({
+            "patient_id": "P1", "timestamp": ts, "source": "sepsis",
+            "metric": "heart_rate", "value": 90, "unit": "bpm",
+            "quality": 1.0, "provenance": f"iculos={iculos}",
+        })
+    accepted, issues = normalize_batch(raw)
+    assert not issues
+    obs = _canonical_to_wearable(accepted)
+    assert len(obs) == 3
+    offsets = sorted(o.time_offset_hours for o in obs)
+    assert offsets == [1.0, 25.0, 49.0]
+    days = sorted(o.day_index for o in obs)
+    assert days == [0, 1, 2]  # offsets preserve ICU-relative time across days
+
+
 def test_cardiac_adapter_definitions_correct():
     from rift.health import physionet_cardiac_scrape as C
 
@@ -143,6 +171,35 @@ def test_cardiac_adapter_definitions_correct():
     assert C.DATASETS["chfdb"]["subjects"][-1] == "chf15"
     # No BIDMC conflation: 53-subject PPG dataset must not be present as CHF
     assert "bidmc" not in C.DATASETS
+    # Official WFDB layout: .dat + .hea + .atr (no .txt RR files)
+    urls = C.chfdb_urls("chf01")
+    assert urls["dat"].endswith("chfdb/1.0.0/chf01.dat")
+    assert urls["hea"].endswith("chfdb/1.0.0/chf01.hea")
+    assert urls["ann"].endswith("chfdb/1.0.0/chf01.atr")
+    assert ".txt" not in urls["dat"]
+
+
+def test_chfdb_hea_and_rr_helpers():
+    from rift.health import physionet_cardiac_scrape as C
+
+    hea = "chf01 2 250 100000\nchf01.dat 212 200 11 1024 0 V5\nchf01.dat 212 200 11 1024 0 MLII\n"
+    assert C.parse_hea_sampfreq(hea) == 250.0
+    # 250 Hz: beats at samples 0, 250, 500 -> 1000ms RR
+    rr = C.annotation_samples_to_rr_ms([0, 250, 500], 250.0)
+    assert rr == [1000.0, 1000.0]
+    hr, rmssd = C.rr_to_hr_hrv(rr)
+    assert hr == 60.0
+    assert rmssd == 0.0
+    try:
+        C.parse_hea_sampfreq("garbage")
+        raise AssertionError("bad .hea must fail closed")
+    except ValueError:
+        pass
+    try:
+        C.rr_to_hr_hrv([])
+        raise AssertionError("empty RR must fail closed")
+    except ValueError:
+        pass
 
 
 def test_multi_patient_stream_keeps_patients_separate():
