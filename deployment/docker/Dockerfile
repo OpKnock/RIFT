@@ -2,7 +2,7 @@
 # Phase 20: Deployment/Governance - Hardened container
 
 # Build stage
-FROM python:3.11-slim as builder
+FROM python:3.11-slim AS builder
 
 WORKDIR /app
 
@@ -15,12 +15,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Python dependencies, pinned to constraints.txt so the image
 # resolves the same versions CI tested (build context must be the repo root).
-COPY pyproject.toml constraints.txt ./
+# src/ must be present: setuptools discovers packages under src/, and the
+# install stays editable because api.py resolves web assets relative to the
+# installed rift package location (non-editable would point ROOT at
+# site-packages/web and 404 the dashboard).
+COPY pyproject.toml constraints.txt README.md ./
+COPY src ./src
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
     pip install --no-cache-dir -c constraints.txt -e '.[supabase]'
 
 # Production stage
-FROM python:3.11-slim as production
+FROM python:3.11-slim AS production
 
 WORKDIR /app
 

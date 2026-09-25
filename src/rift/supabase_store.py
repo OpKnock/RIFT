@@ -82,6 +82,11 @@ class SupabaseStore:
             .execute()
         )
 
+    # Upper bound for single list_runs responses: unbounded result sets
+    # are a response-size DoS vector. Callers needing more use keyset
+    # pagination (a future enhancement, not silently unlimited output).
+    LIST_RUNS_LIMIT = 200
+
     def list_runs(self, experiment_id: str):
         return (
             self.client()
@@ -89,6 +94,7 @@ class SupabaseStore:
             .select("*")
             .eq("experiment_id", experiment_id)
             .order("created_at", desc=True)
+            .limit(self.LIST_RUNS_LIMIT)
             .execute()
         )
 

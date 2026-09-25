@@ -716,6 +716,64 @@ def test_scraper_fetchers_refuse_non_https_targets():
         assert "allowlist" in (prov["error"] or "")
 
 
+def test_fhir_dns_timeout_fails_closed(monkeypatch):
+    import socket as _socket
+
+    from rift.health import fhir_clinical as F
+
+    real_getaddrinfo = _socket.getaddrinfo
+
+    def slow_dns(*args, **kwargs):
+        import time as _time
+
+        _time.sleep(30)
+        return real_getaddrinfo(*args, **kwargs)
+
+    monkeypatch.setattr(_socket, "getaddrinfo", slow_dns)
+    try:
+        F._resolve_with_timeout("example.com", 443, timeout_s=1)
+        raise AssertionError("slow DNS must fail closed, not hang")
+    except F.FhirError as exc:
+        assert "timed out" in str(exc)
+
+
+def test_list_runs_is_bounded():
+    from rift.supabase_store import SupabaseStore
+
+    seen: dict = {}
+
+    class _Q:
+        def table(self, name):
+            seen["table"] = name
+            return self
+
+        def select(self, cols):
+            return self
+
+        def eq(self, col, val):
+            return self
+
+        def order(self, col, desc=False):
+            return self
+
+        def limit(self, n):
+            seen["limit"] = n
+            return self
+
+        def execute(self):
+            class R:
+                data = []
+            return R()
+
+    class BoundedStore(SupabaseStore):
+        def client(self):
+            return _Q()
+
+    BoundedStore().list_runs("00000000-0000-4000-8000-000000000000")
+    assert seen["table"] == "experiment_runs"
+    assert seen["limit"] == SupabaseStore.LIST_RUNS_LIMIT <= 1000
+
+
 def test_k8s_production_requires_jwt_and_ratelimit():
     from pathlib import Path
 
