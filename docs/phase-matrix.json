@@ -327,35 +327,42 @@
   },
   {
    "blockers": [
-    "real multi-patient data",
-    "real endpoints",
-    "fairness/subgroup evaluation"
+    "real clinical cohort (governed)",
+    "subgroup fairness on real demographics"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
     "endpoints": [],
-    "files": [],
-    "tests": []
+    "files": [
+     "src/rift/health/cohort.py",
+     "src/rift/health/subgroups.py"
+    ],
+    "tests": [
+     "tests/test_health_training.py"
+    ]
    },
    "id": 15,
    "name": "Real external and subgroup validation",
-   "status": "NOT_IMPLEMENTED"
+   "status": "PARTIAL"
   },
   {
    "blockers": [
-    "live deployment",
-    "outcome reconciliation",
-    "locked-prediction workflow"
+    "live deployment with outcome reconciliation",
+    "locked-prediction audit persistence"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
     "endpoints": [],
-    "files": [],
-    "tests": []
+    "files": [
+     "src/rift/health/prospective.py"
+    ],
+    "tests": [
+     "tests/test_health_training.py"
+    ]
    },
    "id": 16,
    "name": "Prospective and streaming evaluation",
-   "status": "NOT_IMPLEMENTED"
+   "status": "PARTIAL"
   },
   {
    "blockers": [
