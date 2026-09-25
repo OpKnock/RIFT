@@ -1,7 +1,7 @@
 # RIFT post-submission research roadmap
 
-v1 productization is underway on `main` (v0.6.0 tagged as the frozen
-snapshot). Machine-verifiable status lives in `docs/phase-matrix.json`
+v1 productization is underway on `main` (current package version `1.0.0`;
+v0.6.0 remains tagged only as a historical frozen snapshot). Machine-verifiable status lives in `docs/phase-matrix.json`
 (enforced by `scripts/check_phase_matrix.py` in CI); the prose below
 summarizes it. Completed v1 platform work is marked ✅; the rest needs
 real data and stays honestly pending.

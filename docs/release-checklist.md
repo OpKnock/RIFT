@@ -15,6 +15,10 @@
 - [ ] `CHANGELOG.md` entry matches this commit; version stays `1.0.0`
 - [ ] GitHub Actions `test` + `validate` + `security` jobs green on the release commit
 
-Do not declare PRODUCTION READY until every box is evidenced. External
-credentials (Supabase project, Lemon Squeezy account, CodeRabbit app) are
-the only acceptable open items — each must name its exact blocker.
+Do not declare PRODUCTION READY until every box is evidenced. Open gates
+include infrastructure credentials (Supabase project, Lemon Squeezy
+account, CodeRabbit app) AND substantive scientific/clinical gates: a
+relevant real clinical dataset, a predefined clinical endpoint with
+adequate independent event volume, real external validation, prospective
+validation, and clinical review. Each open item must name its exact
+blocker.
