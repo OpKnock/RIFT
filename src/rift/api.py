@@ -1300,6 +1300,23 @@ class Handler(BaseHTTPRequestHandler):
                         try:
                             existing = store.find_billing_event(key).data or []
                             if existing:
+                                # Resume, don't short-circuit: the event row may
+                                # have been recorded while the subscription
+                                # side effect below failed (502). Re-apply the
+                                # update idempotently before acknowledging.
+                                resume_update = subscription_update_from_event(event)
+                                if resume_update is not None:
+                                    try:
+                                        resume_row = dict(resume_update)
+                                        resume_custom = event.get("custom_data") or {}
+                                        if resume_custom.get("user_id"):
+                                            resume_row["user_id"] = resume_custom["user_id"]
+                                        store.upsert_subscription(resume_row)
+                                    except Exception:
+                                        log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                                        self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                                        self._finish(timer, request_id, "POST", path, 502, "persistence_error")
+                                        return
                                 _remember_webhook_key(key)
                                 self._send(200, json.dumps({"received": True, "event": event["event_name"], "duplicate": True}), request_id=request_id)
                                 self._finish(timer, request_id, "POST", path, 200)
