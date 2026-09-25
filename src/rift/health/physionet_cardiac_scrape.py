@@ -1,35 +1,41 @@
 """Scrape open PhysioNet cardiac datasets for RIFT.
-CHFDB: Congestive Heart Failure RR Interval Database (open) - 15 subjects
-BIDMC CHF: BIDMC Congestive Heart Failure Database (open) - same as CHFDB
-Note: The 53-subject BIDMC dataset is the PPG/Respiration dataset, not CHF.
 
-Note: PhysioNet waveform databases use WFDB format (.dat/.hea binary).
-This scraper uses available RR interval text files (.txt) where available.
-For full waveform access, use wfdb-python library with WFDB format.
+CHFDB: BIDMC Congestive Heart Failure Database (``chfdb``), 15 subjects
+``chf01``–``chf15``. Official layout per recording is WFDB
+``chfXX.dat`` + ``chfXX.hea`` (+ ``chfXX.atr`` beat annotations).
+There are NO official ``chfXX.txt`` RR files — a previous revision of this
+adapter incorrectly attempted ``.txt`` URLs.
+
+This adapter consumes the real WFDB representation via the validated
+``wfdb`` package (``pip install -e .[physio]``). RR intervals are derived
+from beat-annotation sample numbers and the header sampling frequency,
+never from fabricated text parsing of binary ``.dat`` waveforms.
+
+Note: the 53-subject ``bidmc_##`` collection is the BIDMC PPG and
+Respiration Dataset, NOT a CHF database — it is deliberately excluded
+here to avoid dataset conflation. ``chf2db`` (29 records) is a different
+dataset from ``chfdb`` (15 records).
 """
 from __future__ import annotations
 
 import csv
 import hashlib
 import json
+import statistics
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TypedDict
 
 BASE = "https://physionet.org/files"
-# Open cardiac datasets - corrected based on PhysioNet documentation
 DATASETS = {
     "chfdb": {
         "version": "1.0.0",
         "subjects": [f"chf{i:02d}" for i in range(1, 16)],  # chf01-chf15 (15 subjects)
-        "description": "Congestive Heart Failure RR Interval Database",
+        "description": "BIDMC Congestive Heart Failure Database",
         "license": "Open Data Commons Attribution License v1.0",
-        "rr_files": True,  # RR interval text files available (.txt)
+        "annotation_ext": "atr",
     },
-    # Note: The 53-subject BIDMC dataset (bidmc_01-bidmc_53) is the 
-    # BIDMC PPG and Respiration Dataset, NOT a CHF database.
-    # It is excluded here to avoid dataset conflation.
 }
 
 
@@ -43,7 +49,7 @@ class FetchResult(TypedDict):
     error: str | None
 
 
-def fetch_with_provenance(url: str, timeout: int = 60) -> tuple[FetchResult, str]:
+def fetch_bytes_with_provenance(url: str, timeout: int = 60) -> tuple[FetchResult, bytes]:
     result: FetchResult = {
         "success": False,
         "url": url,
@@ -53,14 +59,13 @@ def fetch_with_provenance(url: str, timeout: int = 60) -> tuple[FetchResult, str
         "row_count": 0,
         "error": None,
     }
-    text = ""
+    data = b""
     try:
-        request = urllib.request.Request(url, headers={"Accept": "text/plain"})
+        request = urllib.request.Request(url, headers={"Accept": "application/octet-stream"})
         with urllib.request.urlopen(request, timeout=timeout) as resp:  # nosec B310 - fixed PhysioNet URLs
             result["http_status"] = resp.getcode()
-            content = resp.read()
-            result["content_sha256"] = hashlib.sha256(content).hexdigest()
-            text = content.decode(errors="replace")
+            data = resp.read()
+            result["content_sha256"] = hashlib.sha256(data).hexdigest()
             result["success"] = True
     except urllib.error.HTTPError as exc:
         result["http_status"] = exc.code
@@ -69,145 +74,204 @@ def fetch_with_provenance(url: str, timeout: int = 60) -> tuple[FetchResult, str
         result["error"] = f"URL error: {exc.reason}"
     except Exception as exc:
         result["error"] = f"{type(exc).__name__}: {exc}"
-    return result, text
+    return result, data
 
 
-def parse_rr_intervals(text: str) -> list[float]:
-    """Parse RR intervals from text format (ms between beats)."""
-    intervals = []
-    for line in text.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        try:
-            val = float(line.split()[0])
-            if 200 < val < 2000:  # Physiological RR range (300-2000ms)
-                intervals.append(val)
-        except (ValueError, IndexError):
-            continue
-    return intervals
+def fetch_text_with_provenance(url: str, timeout: int = 60) -> tuple[FetchResult, str]:
+    prov, data = fetch_bytes_with_provenance(url, timeout=timeout)
+    return prov, data.decode(errors="replace")
 
 
-def parse_numerics_csv(text: str) -> list[dict]:
-    """Parse numerics CSV export from PhysioNet."""
-    lines = text.strip().splitlines()
+def chfdb_urls(subject: str, version: str = "1.0.0", annotation_ext: str = "atr") -> dict[str, str]:
+    """Return the official WFDB file URLs for one CHFDB recording."""
+    base = f"{BASE}/chfdb/{version}/{subject}"
+    return {
+        "dat": f"{base}.dat",
+        "hea": f"{base}.hea",
+        "ann": f"{base}.{annotation_ext}",
+    }
+
+
+def parse_hea_sampfreq(hea_text: str) -> float:
+    """Parse sampling frequency from a WFDB .hea header first line.
+
+    First line format: ``record nsig sampfreq nsamples ...``.
+    Raises ValueError on unparseable headers (fail-closed).
+    """
+    lines = [ln.strip() for ln in hea_text.splitlines() if ln.strip() and not ln.startswith("#")]
     if not lines:
-        return []
-    # Skip header, parse as CSV
-    import csv
-    reader = csv.DictReader(lines)
-    rows = []
-    for row in reader:
-        rows.append(row)
-    return rows
+        raise ValueError("empty .hea header")
+    parts = lines[0].split()
+    if len(parts) < 3:
+        raise ValueError(f"unparseable .hea first line: {lines[0]!r}")
+    try:
+        fs = float(parts[2])
+    except ValueError as exc:
+        raise ValueError(f"unparseable sampling frequency in .hea: {lines[0]!r}") from exc
+    if not fs > 0:
+        raise ValueError(f"non-positive sampling frequency: {fs}")
+    return fs
 
 
-def scrape_dataset(dataset_name: str, out_dir: str = "data/physionet_cardiac") -> Path:
-    """Scrape an open cardiac dataset with full provenance.
-    
-    For CHFDB: Uses RR interval text files (.txt) where available.
-    
-    Note: Full waveform access requires wfdb-python library with WFDB format (.dat/.hea).
+def annotation_samples_to_rr_ms(sample_numbers: list[int], sampfreq_hz: float) -> list[float]:
+    """Convert beat-annotation sample numbers to RR intervals in ms."""
+    if not sampfreq_hz > 0:
+        raise ValueError("sampling frequency must be positive")
+    rr: list[float] = []
+    for a, b in zip(sample_numbers, sample_numbers[1:]):
+        delta = b - a
+        if delta <= 0:
+            continue
+        ms = delta / sampfreq_hz * 1000.0
+        if 200.0 < ms < 2000.0:  # physiological RR range
+            rr.append(ms)
+    return rr
+
+
+def rr_to_hr_hrv(rr_ms: list[float]) -> tuple[float, float]:
+    """Mean HR (bpm) and RMSSD (ms) from RR intervals. Raises on empty input."""
+    if not rr_ms:
+        raise ValueError("no valid RR intervals")
+    mean_rr = statistics.mean(rr_ms)
+    mean_hr = 60000.0 / mean_rr
+    if len(rr_ms) > 1:
+        diffs = [rr_ms[i + 1] - rr_ms[i] for i in range(len(rr_ms) - 1)]
+        rmssd = (statistics.mean(d * d for d in diffs)) ** 0.5
+    else:
+        rmssd = 0.0
+    return float(mean_hr), float(rmssd)
+
+
+def read_annotation_samples_wfdb(record_path: str, annotation_ext: str = "atr") -> list[int]:
+    """Read beat-annotation sample numbers via the validated ``wfdb`` package.
+
+    Raises RuntimeError with install guidance when ``wfdb`` is missing —
+    we do not hand-roll binary WFDB annotation parsing for clinical data.
+    """
+    try:
+        import wfdb  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise RuntimeError(
+            "WFDB parsing requires the validated 'wfdb' package: "
+            "pip install -e '.[physio]' (wfdb>=4.1). "
+            "Refusing to guess binary .dat/.atr contents."
+        ) from exc
+    ann = wfdb.rdann(record_path, annotation_ext)
+    return [int(s) for s in ann.sample]
+
+
+def scrape_dataset(dataset_name: str = "chfdb", out_dir: str = "data/physionet_cardiac",
+                   download: bool = True) -> Path:
+    """Scrape CHFDB with full provenance via real WFDB files.
+
+    When ``download=False``, only validates dataset definitions without
+    network access (used by CI/offline tests).
     """
     cfg = DATASETS[dataset_name]
     path = Path(out_dir) / dataset_name
     path.mkdir(parents=True, exist_ok=True)
-    
+
+    if not download:
+        return path
+
     fieldnames = ["subject_id", "recording_id", "date", "metric", "value", "unit", "source", "provenance"]
-    rows = []
-    all_provenance = []
-    
+    rows: list[dict] = []
+    all_provenance: list[dict] = []
+
     for subject in cfg["subjects"]:
         recording_id = f"{dataset_name}_{subject}"
-        recording_date = "2024-01-01"
-        
-        # CHFDB: RR interval text files
-        rr_url = f"{BASE}/{dataset_name}/{cfg['version']}/{subject}.txt"
-        hea_url = f"{BASE}/{dataset_name}/{cfg['version']}/{subject}.hea"
-        
-        rr_prov, rr_text = fetch_with_provenance(rr_url)
-        hea_prov, hea_text = fetch_with_provenance(hea_url)
-        
-        if not rr_prov["success"]:
-            print(f"  [{subject}] No RR text file: {rr_prov['error']}")
+        urls = chfdb_urls(subject, cfg["version"], cfg.get("annotation_ext", "atr"))
+
+        hea_prov, hea_text = fetch_text_with_provenance(urls["hea"])
+        if not hea_prov["success"]:
+            print(f"  [{subject}] No .hea: {hea_prov['error']}")
             continue
-            
-        # Parse RR intervals
-        rr_intervals = parse_rr_intervals(rr_text)
-        if not rr_intervals:
-            print(f"  [{subject}] No valid RR intervals")
+        try:
+            fs = parse_hea_sampfreq(hea_text)
+        except ValueError as exc:
+            print(f"  [{subject}] Bad .hea: {exc}")
             continue
-        
-        # Compute HRV metrics from RR intervals
-        import statistics
-        mean_rr = statistics.mean(rr_intervals)
-        mean_hr = 60000 / mean_rr  # bpm
-        rmssd = 0.0
-        if len(rr_intervals) > 1:
-            diffs = [rr_intervals[i+1] - rr_intervals[i] for i in range(len(rr_intervals)-1)]
-            rmssd = (statistics.mean(d*d for d in diffs)) ** 0.5
-        
-        # Provenance for HR
-        hr_prov = dict(rr_prov)
-        hr_prov["row_count"] = len(rr_intervals)
-        hr_prov["derived_metric"] = "heart_rate_from_rr"
-        provenance_json = json.dumps(hr_prov, separators=(",", ":"))
-        rows.append({
-            "subject_id": subject,
-            "recording_id": recording_id,
-            "date": "2024-01-01",
-            "metric": "heart_rate",
-            "value": f"{mean_hr:.1f}",
-            "unit": "bpm",
-            "source": f"physionet_{dataset_name}",
-            "provenance": provenance_json,
-        })
-        
-        # Provenance for HRV
-        hrv_prov = dict(rr_prov)
-        hrv_prov["row_count"] = len(rr_intervals)
-        hrv_prov["derived_metric"] = "hrv_rmssd_from_rr"
-        provenance_json = json.dumps(hrv_prov, separators=(",", ":"))
-        rows.append({
-            "subject_id": subject,
-            "recording_id": recording_id,
-            "date": "2024-01-01",
-            "metric": "hrv_rmssd",
-            "value": f"{rmssd:.1f}",
-            "unit": "ms",
-            "source": f"physionet_{dataset_name}",
-            "provenance": provenance_json,
-        })
-        
-        all_provenance.append({
-            "subject_id": subject,
-            "recording_id": recording_id,
-            "rr": rr_prov,
-            "hea": hea_prov,
-        })
-        
-        print(f"  [{subject}] HR {mean_hr:.1f} bpm, HRV {rmssd:.1f} ms ({len(rr_intervals)} RR intervals)")
-    
-    # Write CSV
+
+        # Fetch .dat for provenance (waveform bytes are not text-parsed).
+        dat_prov, _ = fetch_bytes_with_provenance(urls["dat"])
+        if not dat_prov["success"]:
+            print(f"  [{subject}] No .dat: {dat_prov['error']}")
+            continue
+
+        # Beat annotations via validated wfdb library.
+        try:
+            import tempfile
+            import os
+
+            # wfdb.rdann works on local record paths; download .atr to temp dir.
+            ann_prov, ann_bytes = fetch_bytes_with_provenance(urls["ann"])
+            if not ann_prov["success"]:
+                print(f"  [{subject}] No .{cfg.get('annotation_ext', 'atr')}: {ann_prov['error']}")
+                continue
+            with tempfile.TemporaryDirectory() as tmp:
+                # wfdb needs matching .hea + annotation file locally.
+                for ext, payload, prov in (("hea", hea_text.encode(), hea_prov),
+                                           (cfg.get("annotation_ext", "atr"), ann_bytes, ann_prov)):
+                    with open(os.path.join(tmp, f"{subject}.{ext}"), "wb") as fh:
+                        fh.write(payload)
+                samples = read_annotation_samples_wfdb(os.path.join(tmp, subject),
+                                                       cfg.get("annotation_ext", "atr"))
+        except RuntimeError as exc:
+            raise RuntimeError(f"  [{subject}] {exc}") from exc
+
+        rr = annotation_samples_to_rr_ms(samples, fs)
+        if not rr:
+            print(f"  [{subject}] No valid RR intervals from annotations")
+            continue
+        mean_hr, rmssd = rr_to_hr_hrv(rr)
+
+        base_prov = {
+            "hea_sha256": hea_prov["content_sha256"],
+            "dat_sha256": dat_prov["content_sha256"],
+            "ann_sha256": ann_prov["content_sha256"],
+            "sampfreq_hz": fs,
+            "n_beats": len(samples),
+            "n_rr": len(rr),
+            "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        }
+        for metric, val, unit, derived in (
+            ("heart_rate", mean_hr, "bpm", "heart_rate_from_wfdb_ann"),
+            ("hrv_rmssd", rmssd, "ms", "hrv_rmssd_from_wfdb_ann"),
+        ):
+            prov = dict(base_prov)
+            prov.update({"url_hea": urls["hea"], "url_dat": urls["dat"],
+                         "url_ann": urls["ann"], "derived_metric": derived})
+            rows.append({
+                "subject_id": subject,
+                "recording_id": recording_id,
+                "date": "2024-01-01",
+                "metric": metric,
+                "value": f"{val:.3f}",
+                "unit": unit,
+                "source": f"physionet_{dataset_name}",
+                "provenance": json.dumps(prov, separators=(",", ":")),
+            })
+        all_provenance.append({"subject_id": subject, "recording_id": recording_id,
+                               "hea": hea_prov, "dat": dat_prov, "ann": ann_prov})
+        print(f"  [{subject}] HR {mean_hr:.1f} bpm, HRV {rmssd:.1f} ms ({len(rr)} RR)")
+
     csv_path = path / f"{dataset_name}_cardiac.csv"
     with csv_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
-    
-    # Provenance sidecar
+
     sidecar = csv_path.with_suffix(".provenance.json")
     sidecar.write_text(json.dumps({
         "source": f"PhysioNet {cfg['description']} v{cfg['version']}",
         "license": cfg["license"],
         "dataset": dataset_name,
         "recordings": all_provenance,
-        "note": "HR and HRV derived from RR intervals (CHFDB). "
-                "No clinical outcomes available. "
-                "For full waveform access, use wfdb-python with WFDB format (.dat/.hea).",
+        "note": "HR/HRV derived from WFDB beat annotations + header sampling "
+                "frequency via the validated wfdb package. No .txt RR files used.",
     }, indent=2), encoding="utf-8")
-    
+
     print(f"Wrote {csv_path} ({len(rows)} rows) and {sidecar}")
     return csv_path
 
@@ -217,5 +281,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", choices=list(DATASETS.keys()), default="chfdb")
     parser.add_argument("--out", default="data/physionet_cardiac")
+    parser.add_argument("--no-download", action="store_true",
+                        help="validate definitions only, no network")
     args = parser.parse_args()
-    scrape_dataset(args.dataset, args.out)
+    scrape_dataset(args.dataset, args.out, download=not args.no_download)
