@@ -88,7 +88,7 @@ def _experiment_row(**overrides):
         "optimizer_config": {"optimizer": "exact", "backend": "statevector-simulator", "seed": 7},
         "backend": "statevector-simulator",
         "seed": 7,
-        "engine_version": "0.6.0",
+        "engine_version": (__import__("rift").__version__),
         "status": "created",
         "user_id": "user-a",
     }
@@ -157,7 +157,7 @@ def test_execute_success_persists_deterministic_run(monkeypatch):
         status, payload = _post(server.url(f"/api/experiments/{EXP_ID}/execute"), {"user_id": "user-a"})
         assert status == 201, payload
         assert payload["experiment_id"] == EXP_ID
-        assert payload["engine_version"] == "0.6.0"
+        assert payload["engine_version"] == (__import__("rift").__version__)
         assert payload["fingerprint"] == payload["result"]["spec_fingerprint"]
         assert FakeStore.rows[EXP_ID]["status"] == "succeeded"
         # Independent local reproduction matches the persisted run.

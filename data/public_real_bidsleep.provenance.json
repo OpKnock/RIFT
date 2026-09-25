@@ -8,12 +8,24 @@
       "1"
     ],
     [
+      "Bidslab00",
+      "2"
+    ],
+    [
       "Bidslab01",
       "1"
     ],
     [
+      "Bidslab01",
+      "2"
+    ],
+    [
       "Bidslab02",
       "1"
+    ],
+    [
+      "Bidslab02",
+      "2"
     ]
   ],
   "note": "Median HR per night; other fields left blank to demonstrate missingness handling, not imputed."

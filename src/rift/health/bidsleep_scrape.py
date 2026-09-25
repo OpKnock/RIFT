@@ -15,18 +15,19 @@ import urllib.request
 from pathlib import Path
 
 BASE = "https://physionet.org/files/bidsleep-dataset/1.0.0"
-# A tiny deterministic slice: 3 subjects, 1 night each. No auth, no 5.9GB download.
+# Deterministic slice: 6 nights across 3 subjects — all verified live.
+# Tiny fraction of 5.9GB, no auth. Expand by editing this list.
 NIGHTS = [
-    ("Bidslab00", "1"),
-    ("Bidslab01", "1"),
-    ("Bidslab02", "1"),
+    ("Bidslab00", "1"), ("Bidslab00", "2"),
+    ("Bidslab01", "1"), ("Bidslab01", "2"),
+    ("Bidslab02", "1"), ("Bidslab02", "2"),
 ]
 
 
 def fetch_hr_median(subject: str, night: str) -> tuple[float | None, int]:
     url = f"{BASE}/{subject}/{night}/hr.csv"
     try:
-        with urllib.request.urlopen(url, timeout=30) as resp:
+        with urllib.request.urlopen(url, timeout=30) as resp:  # nosec B310 -- URL is fixed PhysioNet base + validated subject/night, never user input
             text = resp.read().decode()
     except Exception as exc:
         return None, 0

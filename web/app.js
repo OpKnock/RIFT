@@ -56,7 +56,7 @@ function renderTrajectories(data) {
     const color = colors[key] || "#f2f4f7";
     const pts = t.path.map((p) => x(p.day).toFixed(1) + "," + y(p.risk).toFixed(1)).join(" ");
     const active = (($("#policy") && $("#policy").value) || "none") === key;
-    svg += '<polyline points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="' + (active ? 3 : 1.5) + '" opacity="' + (active ? 1 : 0.75) + '"/>';
+    svg += '<polyline class="traj-path" points="' + pts + '" fill="none" stroke="' + color + '" stroke-width="' + (active ? 3 : 1.5) + '" opacity="' + (active ? 1 : 0.75) + '"/>';
     t.path.forEach((p) => {
       const hot = p.risk >= 0.6;
       svg += '<circle cx="' + x(p.day).toFixed(1) + '" cy="' + y(p.risk).toFixed(1) + '" r="' + (hot ? 4.5 : 3) + '" fill="' + (hot ? "#ff6472" : color) + '"/>';
@@ -86,9 +86,27 @@ function render(d) {
     finding("systolic BP", String(ehr.systolic_bp ?? "?"));
 
   const risk = d.risk || {};
-  $("#riskValue").textContent = Number(risk.risk ?? NaN).toFixed(2);
+  const rv = Number(risk.risk ?? 0);
+  $("#riskValue").textContent = rv.toFixed(2);
   $("#riskValue").style.color = risk.event_predicted ? "var(--danger)" : "var(--accent)";
   $("#riskLabel").textContent = "high-strain-day risk · 24h" + (risk.event_predicted ? " · EVENT PREDICTED" : "");
+  // Boom gauge
+  let gaugeEl = document.getElementById("riskGauge");
+  if (!gaugeEl) {
+    const m = document.querySelector(".metrics");
+    if (m) {
+      gaugeEl = document.createElement("div");
+      gaugeEl.id = "riskGauge";
+      gaugeEl.className = "gauge";
+      m.appendChild(gaugeEl);
+    }
+  }
+  if (gaugeEl) {
+    const pct = Math.max(0, Math.min(1, rv));
+    const circ = 125.6;
+    const off = circ * (1 - pct);
+    gaugeEl.innerHTML = '<svg viewBox="0 0 100 50" width="100%" height="50"><path class="gauge-bg" d="M10 50 A40 40 0 0 1 90 50"/><path class="gauge-fill" d="M10 50 A40 40 0 0 1 90 50" stroke-dasharray="' + circ + '" stroke-dashoffset="' + off + '" style="stroke:' + (risk.event_predicted ? "var(--danger)" : "var(--accent)") + '"/></svg><div class="gauge-text" style="text-align:center;margin-top:4px;font-size:11px">' + (pct*100).toFixed(0) + '%</div>';
+  }
   const iv = risk.interval || [0, 0];
   $("#riskInterval").textContent = Number(iv[0]).toFixed(2) + "–" + Number(iv[1]).toFixed(2);
   $("#riskQuality").textContent = Number(risk.input_quality ?? 0).toFixed(2);
