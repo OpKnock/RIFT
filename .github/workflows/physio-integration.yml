@@ -1,0 +1,43 @@
+name: physio-integration
+# Optional WFDB integration: exercises the real CHFDB path
+# (chf01.dat + chf01.hea + chf01.ecg -> wfdb.rdann -> RR -> HR/RMSSD).
+# Manual + weekly schedule; not part of the blocking test gate because it
+# requires network access to PhysioNet and the optional .[physio] extra.
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 6 * * 1"
+jobs:
+  chfdb-one-record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev,physio]"
+      - name: Fetch one CHFDB record and derive HR/HRV via wfdb
+        run: |
+          python - <<'PY'
+          from rift.health import physionet_cardiac_scrape as C
+          urls = C.chfdb_urls("chf01")
+          assert urls["ann"].endswith("chf01.ecg"), urls
+          hea_prov, hea_text = C.fetch_text_with_provenance(urls["hea"])
+          assert hea_prov["success"], hea_prov
+          fs = C.parse_hea_sampfreq(hea_text)
+          # NOTE: wfdb.rdann needs local files; download all three then parse.
+          import tempfile, os, urllib.request
+          with tempfile.TemporaryDirectory() as tmp:
+              for key, ext in (("hea", "hea"), ("dat", "dat"), ("ann", "ecg")):
+                  req = urllib.request.Request(urls[key])
+                  with urllib.request.urlopen(req, timeout=60) as r, \
+                       open(os.path.join(tmp, f"chf01.{ext}"), "wb") as fh:
+                      fh.write(r.read())
+              import wfdb
+              ann = wfdb.rdann(os.path.join(tmp, "chf01"), "ecg")
+              rr = C.annotation_samples_to_rr_ms([int(s) for s in ann.sample], fs)
+              hr, rmssd = C.rr_to_hr_hrv(rr)
+              print(f"chf01: fs={fs} beats={len(ann.sample)} rr={len(rr)} HR={hr:.1f} RMSSD={rmssd:.1f}")
+              assert rr, "no RR intervals derived from chf01.ecg"
+          PY

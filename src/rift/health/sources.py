@@ -90,24 +90,18 @@ def _detect_legacy_schema(fieldnames: list[str]) -> tuple[str, ...] | None:
 
 
 def _parse_iso_date(text: str) -> int:
-    """Parse ISO date string and return days since epoch for day_index.
+    """Parse ISO date string and return days since study epoch for day_index.
 
-    For demo purposes, we use a simple mapping. In production, this would
-    use a proper study timeline.
+    Strict: unparseable timestamps raise ValueError (fail-closed). The
+    previous hash-fallback that manufactured a day_index from arbitrary
+    strings was removed — invented timelines must never silently enter
+    the twin pipeline.
     """
-    try:
-        # Parse as YYYY-MM-DD
-        dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        # Use days since 2024-01-01 as day_index for demo
-        epoch = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        return (dt - epoch).days
-    except ValueError:
-        # Fallback: hash the date string to a deterministic day_index
-        # Not for security; usedforsecurity=False suppresses Bandit B324
-        import hashlib
-        return int(hashlib.md5(text.encode(), usedforsecurity=False).hexdigest(), 16) % 10000
+    dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    epoch = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    return (dt - epoch).days
 
 
 def _canonical_to_wearable(observations: list[CanonicalObservation]) -> list[WearableObservation]:
@@ -245,7 +239,14 @@ class PublicDatasetSource(WearableSource):
         self._obs = sorted(observations, key=lambda o: (o.patient_id or "", o.day_index))
 
     def _load_legacy_schema(self, reader: csv.DictReader, schema: tuple[str, ...]) -> list[WearableObservation]:
-        """Load legacy schema (day_index + FIELDS) - bypasses canonical pipeline for backward compat."""
+        """Load legacy schema (day_index + FIELDS) - bypasses canonical pipeline for backward compat.
+
+        DEPRECATED: the legacy path constructs WearableObservation directly
+        and does not receive canonical validation/provenance guarantees.
+        New datasets must use the provenance-rich schema. Legacy support is
+        retained only for existing demo fixtures and will be removed or
+        re-routed through the canonical pipeline in a future cleanup.
+        """
         observations: list[WearableObservation] = []
         for line_no, row in enumerate(reader, start=2):
             try:
