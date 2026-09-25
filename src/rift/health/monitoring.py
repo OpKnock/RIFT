@@ -34,6 +34,7 @@ class MetricsCollector:
         self._guardian = {"allow": 0, "warn": 0, "withhold": 0}
         self._risks: list[float] = []
         self._missingness: list[float] = []
+        self._reviews = {"accept": 0, "reject": 0, "override": 0, "request_review": 0}
 
     def record_request(self, route: str, status: int, duration_ms: float) -> None:
         with self._lock:
@@ -54,6 +55,13 @@ class MetricsCollector:
             if normalized in self._guardian:
                 self._guardian[normalized] += 1
             self._missingness.append(max(0.0, min(1.0, missingness)))
+
+    def record_review(self, action: str) -> None:
+        """Count a clinician review action (ACCEPT/REJECT/OVERRIDE/REQUEST_REVIEW)."""
+        with self._lock:
+            normalized = str(action or "").lower()
+            if normalized in self._reviews:
+                self._reviews[normalized] += 1
 
     @staticmethod
     def _percentile(values: list[float], pct: float) -> float | None:
@@ -102,6 +110,7 @@ class MetricsCollector:
                 "risk_mean": (sum(self._risks) / len(self._risks)) if self._risks else None,
                 "missingness_mean": (sum(self._missingness) / len(self._missingness))
                 if self._missingness else None,
+                "reviews": dict(self._reviews),
             }
 
     def check_alerts(self) -> list[dict]:
@@ -160,6 +169,7 @@ EXPORTED_METRICS = frozenset({
     "rift_prediction_count",
     "rift_missingness_mean",
     "rift_risk_mean",
+    "rift_clinician_reviews_total",
 })
 
 
@@ -222,7 +232,11 @@ def render_prometheus(snapshot: dict) -> str:
         "# HELP rift_risk_mean Mean predicted risk over recorded predictions.",
         "# TYPE rift_risk_mean gauge",
         f"rift_risk_mean {snapshot.get('risk_mean') if snapshot.get('risk_mean') is not None else 0.0}",
+        "# HELP rift_clinician_reviews_total Clinician review actions by action.",
+        "# TYPE rift_clinician_reviews_total counter",
     ]
+    for action, count in sorted((snapshot.get("reviews") or {}).items()):
+        lines.append(f'rift_clinician_reviews_total{{action="{_quote_label(action)}"}} {count}')
     return "\n".join(lines) + "\n"
 
 

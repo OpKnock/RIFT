@@ -278,5 +278,54 @@ document.getElementById("exportEvidence")?.addEventListener("click", async () =>
     window.print();
   } catch (e) { alert("Export failed: " + e.message); }
 });
+async function loadReviews() {
+  const list = $("#reviewList");
+  if (!list) return;
+  try {
+    const response = await fetch("/api/twin/reviews", { headers: { Accept: "application/json" } });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Request failed");
+    const stats = data.stats || {};
+    const counts = stats.by_action || {};
+    list.innerHTML =
+      "<div>recorded " + escapeHtml(String(stats.total ?? 0)) +
+      " · ACCEPT " + escapeHtml(String(counts.ACCEPT ?? 0)) +
+      " · REJECT " + escapeHtml(String(counts.REJECT ?? 0)) +
+      " · OVERRIDE " + escapeHtml(String(counts.OVERRIDE ?? 0)) +
+      " · REQUEST_REVIEW " + escapeHtml(String(counts.REQUEST_REVIEW ?? 0)) + "</div>" +
+      ((data.reviews || []).slice(0, 5).map((r) =>
+        "<div>" + escapeHtml(String(r.action)) + " · " +
+        escapeHtml(String(r.evidence_id)) + " · by " +
+        escapeHtml(String(r.reviewer_id)) +
+        (r.rationale ? " · “" + escapeHtml(String(r.rationale)) + "”" : "") +
+        "</div>").join(""));
+  } catch (error) {
+    list.textContent = "reviews unavailable · " + error.message;
+  }
+}
+
+document.getElementById("submitReview")?.addEventListener("click", async () => {
+  const status = $("#reviewStatus");
+  try {
+    const payload = {
+      action: ($("#reviewAction") && $("#reviewAction").value) || "ACCEPT",
+      evidence_id: ($("#reviewEvidence") && $("#reviewEvidence").value) || "",
+      reviewer_id: ($("#reviewerId") && $("#reviewerId").value) || "",
+      rationale: ($("#reviewRationale") && $("#reviewRationale").value) || "",
+    };
+    const response = await fetch("/api/twin/reviews", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || data.error || "Request failed");
+    if (status) status.textContent = "recorded " + data.action + " · " + data.review_id.slice(0, 12) + "…";
+    loadReviews();
+  } catch (error) {
+    if (status) status.textContent = "review rejected · " + error.message;
+  }
+});
 loadEvidence();
+loadReviews();
 run();

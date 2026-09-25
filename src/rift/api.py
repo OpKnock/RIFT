@@ -698,6 +698,19 @@ class Handler(BaseHTTPRequestHandler):
                            request_id=request_id)
                 self._finish(timer, request_id, "GET", path, 500, "internal")
             return
+        if path == "/api/twin/reviews":
+            try:
+                from .health import reviews as _rev
+                self._send(200, json.dumps({
+                    "stats": _rev.ledger.stats(),
+                    "reviews": _rev.ledger.list(),
+                }), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
+            except Exception:
+                self._send(500, json.dumps({"error": "reviews_error", "request_id": request_id}),
+                           request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
+            return
         if path == "/api/twin/evidence":
             try:
                 from .health.demo_data import demo_series
@@ -1011,6 +1024,47 @@ class Handler(BaseHTTPRequestHandler):
                 log_event("dependency_failure", request_id=request_id, dependency="supabase")
                 self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 502, "persistence_error")
+            return
+
+        if path == "/api/twin/reviews":
+            body, raw = self._read_json()
+            if body == "overflow":
+                self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 413, "validation")
+                return
+            if not isinstance(body, dict):
+                self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
+            owner, ok = self._identity(request_id, body, None)
+            if not ok:
+                self._finish(timer, request_id, "POST", path, 401, "auth")
+                return
+            try:
+                from .health import reviews as _rev
+                from .health.monitoring import collector as _ops
+                entry = _rev.ledger.record(
+                    action=body.get("action", ""),
+                    evidence_id=body.get("evidence_id", ""),
+                    reviewer_id=body.get("reviewer_id", "") or (owner or ""),
+                    rationale=body.get("rationale", ""),
+                    supersedes=body.get("supersedes"),
+                )
+                try:
+                    _ops.record_review(entry["action"])
+                except Exception:  # nosec B110 -- monitoring is best-effort
+                    pass
+                self._send(201, json.dumps(entry), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 201)
+            except ValueError as exc:
+                self._send(400, json.dumps({"error": "invalid_request", "detail": str(exc)[:300]}),
+                           request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+            except Exception:
+                log_event("internal_error", request_id=request_id, route="twin-reviews")
+                self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}),
+                           request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 500, "internal")
             return
 
         if (path.startswith("/api/experiments/") and (path.endswith("/runs") or path.endswith("/run"))):

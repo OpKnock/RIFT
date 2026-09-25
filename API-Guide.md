@@ -67,6 +67,30 @@ curl -X POST http://127.0.0.1:8080/api/twin/prospective \
 
 Note: the ledger is currently in-memory, so locks do not survive restarts — fine for the demo, not for a real study.
 
+## Clinician reviews (audited judgments)
+
+```bash
+# Record a review (OVERRIDE and REJECT require a rationale)
+curl -X POST http://127.0.0.1:8080/api/twin/reviews \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"ACCEPT","evidence_id":"ev-1","reviewer_id":"dr-a"}'
+# → 201 {"review_id": "...", "action": "ACCEPT", ...} — append-only
+
+# Supersede a prior judgment (history preserved, never edited)
+curl -X POST http://127.0.0.1:8080/api/twin/reviews \
+  -H 'Content-Type: application/json' \
+  -d '{"action":"OVERRIDE","evidence_id":"ev-1","reviewer_id":"dr-b",
+       "rationale":"bedside exam overrides","supersedes":"<review_id>"}'
+
+# List + counts
+curl http://127.0.0.1:8080/api/twin/reviews
+```
+
+Actions: `ACCEPT`, `REJECT`, `OVERRIDE`, `REQUEST_REVIEW`. Unknown actions,
+missing reviewer/evidence, and rationale-free overrides are rejected (400).
+Same in-memory caveat as prospective: durable persistence required before
+clinical use.
+
 ## Experiments & runs (gated when auth is set; needs database)
 
 ```bash
