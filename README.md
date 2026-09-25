@@ -33,8 +33,8 @@ The engine itself is domain-free. It ships with two frontends:
 - [Evidence & honesty rules](#evidence--honesty-rules)
 - [Quantum layer](#quantum-layer)
 - [Auth, ownership & rate limiting](#auth-ownership--rate-limiting)
-- [Persistence (Supabase)](#persistence-supabase)
-- [Billing (Lemon Squeezy)](#billing-lemon-squeezy)
+- [Persistence](#persistence)
+- [Billing](#billing)
 - [Monitoring & ops](#monitoring--ops)
 - [Configuration](#configuration)
 - [Docker & Kubernetes](#docker--kubernetes)
@@ -43,6 +43,7 @@ The engine itself is domain-free. It ships with two frontends:
 - [Quality gates](#quality-gates)
 - [Status & open gates](#status--open-gates)
 - [Safety boundary](#safety-boundary)
+- [License](#license)
 
 ---
 
@@ -159,13 +160,13 @@ Base: `http://127.0.0.1:8080`. Every response carries `X-Request-ID`. Errors are
 | `GET/POST /api/twin/prospective` | Lock predictions / reconcile outcomes |
 | `GET /api/ops/monitor` | Ops snapshot + alert evaluation (auth-gated when auth is set) |
 | `GET /metrics` | Prometheus exposition (auth-gated when auth is set) |
-| `POST /api/experiments` | Persist a fingerprinted spec (needs Supabase) |
+| `POST /api/experiments` | Persist a fingerprinted spec (needs database) |
 | `GET /api/experiments/{id}` | Fetch spec (ownership-checked) |
 | `POST /api/experiments/{id}/runs` | Record a run |
 | `GET /api/experiments/{id}/runs` | List runs, capped at 200 (paginated soon) |
 | `POST /api/experiments/{id}/execute` | Server-side reproducible run (stricter rate budget) |
 | `GET /api/runs/{id}` | Fetch a run (ownership-checked) |
-| `POST /api/billing/checkout` | Lemon Squeezy checkout (needs credentials) |
+| `POST /api/billing/checkout` | Provider checkout (needs credentials) |
 | `POST /api/billing/webhook` | HMAC-verified webhook, idempotent, 502-retryable |
 | `GET /api/billing/entitlement` | Server-derived entitlement |
 | `GET /api/billing/status`, `GET /api/persistence/status` | Integration status (no secrets) |
@@ -246,13 +247,13 @@ Candidate decisions are represented as QUBOs with a `QuantumOptimizer` interface
 
 ---
 
-## Persistence (Supabase)
+## Persistence
 
-Seven additive, idempotent, RLS-safe migrations (`backend/supabase/migrations/001→007`): experiments/runs, hardening, billing mirror, experiment model + webhook idempotency constraint, run ownership, model registry + prediction audit, observations. `src/rift/supabase_store.py` is the optional server-side adapter; unconfigured servers return `503 persistence_not_configured` and the engine runs offline. No live project is evidenced in this repo — see the release checklist.
+Seven additive, idempotent, RLS-safe migrations (`backend/supabase/migrations/001→007`): experiments/runs, hardening, billing mirror, experiment model + webhook idempotency constraint, run ownership, model registry + prediction audit, observations. An optional server-side adapter persists experiments/runs; unconfigured servers return `503 persistence_not_configured` and the engine runs offline. No live project is evidenced in this repo — see the release checklist.
 
 ---
 
-## Billing (Lemon Squeezy)
+## Billing
 
 Provider boundary (`src/rift/billing.py`): checkout, HMAC `X-Signature` verification (`hmac.compare_digest`), idempotent webhook with DB unique constraint, check-then-resume subscription mirror (recorded-but-unprocessed events resume on retry; failures answer 502 so the provider retries), server-derived entitlements. Disabled by default; needs `RIFT_LEMON_SQUEEZY_*` server env. No live transactions claimed. See `docs/billing.md`.
 
@@ -330,7 +331,7 @@ constraints.txt            # pinned research environment
 | `docs/security.md` | Auth modes, residual risks |
 | `docs/deployment.md` | Local/Docker/prod edge checklist |
 | `docs/supabase-setup.md` | Migration + RLS setup |
-| `docs/billing.md` | Manual Lemon Squeezy connection |
+| `docs/billing.md` | Manual provider connection |
 | `docs/roadmap.md` | Research roadmap, honest pending items |
 | `docs/release-checklist.md` | Evidence-gated release boxes (incl. scientific gates) |
 | `docs/demo-script.md` | 5-minute judged demo walkthrough |
@@ -363,7 +364,7 @@ CI (`test.yml`): test + validate + security + real Docker build & `/api/health` 
 
 `v1.0.0` is a **final audited research-prototype implementation**: 223 tests, SAST clean, real Docker build green, no known P1/P2 defects, no open issues/PRs.
 
-It is **not** clinically validated or production-deployed. Open gates (documented, not hidden): governed clinical dataset + predefined endpoint + adequate event volume → independent external validation → prospective validation → clinical review/governance → live Supabase/RLS, billing, FHIR, devices, alerting, edge TLS/CORS → jurisdiction-specific regulatory assessment. The 21-phase matrix reads COMPLETE at code scope only.
+It is **not** clinically validated or production-deployed. Open gates (documented, not hidden): governed clinical dataset + predefined endpoint + adequate event volume → independent external validation → prospective validation → clinical review/governance → live database/RLS, billing, FHIR, devices, alerting, edge TLS/CORS → jurisdiction-specific regulatory assessment. The 21-phase matrix reads COMPLETE at code scope only.
 
 ---
 
