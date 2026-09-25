@@ -14,10 +14,15 @@ from .observations import normalize_batch
 # Example mapping for a MIMIC-IV-style vitals export. Columns are
 # illustrative: adapt to the actual export header of your approved
 # dataset. Every mapping is explicit — no silent metric inference.
+# 
+# IMPORTANT: MIMIC's heart_rate is generic recorded vital signs, NOT
+# automatically resting heart rate. We map to 'heart_rate' to preserve
+# semantic accuracy. A separate validated derivation would be needed
+# to produce 'resting_hr'.
 MIMIC_COLUMN_MAP = {
     "subject_id": "patient_id",
     "charttime": "timestamp",
-    "heart_rate": "resting_hr",
+    "heart_rate": "heart_rate",
     "hrv": "hrv_rmssd",
     "sleep_duration": "sleep_hours",
     "activity": "activity_load",
@@ -54,7 +59,7 @@ def load_mimic_example(path: str):
                     "source": "mimic",
                     "metric": metric,
                     "value": row[src_col],
-                    "unit": {"resting_hr": "bpm", "hrv_rmssd": "ms",
+                    "unit": {"heart_rate": "bpm", "hrv_rmssd": "ms",
                              "sleep_hours": "h", "activity_load": "index"}[metric],
                     "quality": 1.0,
                     "provenance": path,
