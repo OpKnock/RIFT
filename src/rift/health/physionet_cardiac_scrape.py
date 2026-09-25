@@ -2,7 +2,7 @@
 
 CHFDB: BIDMC Congestive Heart Failure Database (``chfdb``), 15 subjects
 ``chf01``–``chf15``. Official layout per recording is WFDB
-``chfXX.dat`` + ``chfXX.hea`` (+ ``chfXX.atr`` beat annotations).
+``chfXX.dat`` + ``chfXX.hea`` (+ ``chfXX.ecg`` beat annotations).
 There are NO official ``chfXX.txt`` RR files — a previous revision of this
 adapter incorrectly attempted ``.txt`` URLs.
 
@@ -34,7 +34,7 @@ DATASETS = {
         "subjects": [f"chf{i:02d}" for i in range(1, 16)],  # chf01-chf15 (15 subjects)
         "description": "BIDMC Congestive Heart Failure Database",
         "license": "Open Data Commons Attribution License v1.0",
-        "annotation_ext": "atr",
+        "annotation_ext": "ecg",  # official CHFDB beat annotations: chfXX.ecg (not .atr)
     },
 }
 
@@ -82,7 +82,7 @@ def fetch_text_with_provenance(url: str, timeout: int = 60) -> tuple[FetchResult
     return prov, data.decode(errors="replace")
 
 
-def chfdb_urls(subject: str, version: str = "1.0.0", annotation_ext: str = "atr") -> dict[str, str]:
+def chfdb_urls(subject: str, version: str = "1.0.0", annotation_ext: str = "ecg") -> dict[str, str]:
     """Return the official WFDB file URLs for one CHFDB recording."""
     base = f"{BASE}/chfdb/{version}/{subject}"
     return {
@@ -142,7 +142,7 @@ def rr_to_hr_hrv(rr_ms: list[float]) -> tuple[float, float]:
     return float(mean_hr), float(rmssd)
 
 
-def read_annotation_samples_wfdb(record_path: str, annotation_ext: str = "atr") -> list[int]:
+def read_annotation_samples_wfdb(record_path: str, annotation_ext: str = "ecg") -> list[int]:
     """Read beat-annotation sample numbers via the validated ``wfdb`` package.
 
     Raises RuntimeError with install guidance when ``wfdb`` is missing —
@@ -154,7 +154,7 @@ def read_annotation_samples_wfdb(record_path: str, annotation_ext: str = "atr") 
         raise RuntimeError(
             "WFDB parsing requires the validated 'wfdb' package: "
             "pip install -e '.[physio]' (wfdb>=4.1). "
-            "Refusing to guess binary .dat/.atr contents."
+            "Refusing to guess binary .dat/.ecg contents."
         ) from exc
     ann = wfdb.rdann(record_path, annotation_ext)
     return [int(s) for s in ann.sample]
@@ -180,7 +180,7 @@ def scrape_dataset(dataset_name: str = "chfdb", out_dir: str = "data/physionet_c
 
     for subject in cfg["subjects"]:
         recording_id = f"{dataset_name}_{subject}"
-        urls = chfdb_urls(subject, cfg["version"], cfg.get("annotation_ext", "atr"))
+        urls = chfdb_urls(subject, cfg["version"], cfg.get("annotation_ext", "ecg"))
 
         hea_prov, hea_text = fetch_text_with_provenance(urls["hea"])
         if not hea_prov["success"]:
@@ -203,19 +203,19 @@ def scrape_dataset(dataset_name: str = "chfdb", out_dir: str = "data/physionet_c
             import tempfile
             import os
 
-            # wfdb.rdann works on local record paths; download .atr to temp dir.
+            # wfdb.rdann works on local record paths; download .ecg to temp dir.
             ann_prov, ann_bytes = fetch_bytes_with_provenance(urls["ann"])
             if not ann_prov["success"]:
-                print(f"  [{subject}] No .{cfg.get('annotation_ext', 'atr')}: {ann_prov['error']}")
+                print(f"  [{subject}] No .{cfg.get('annotation_ext', 'ecg')}: {ann_prov['error']}")
                 continue
             with tempfile.TemporaryDirectory() as tmp:
                 # wfdb needs matching .hea + annotation file locally.
                 for ext, payload, prov in (("hea", hea_text.encode(), hea_prov),
-                                           (cfg.get("annotation_ext", "atr"), ann_bytes, ann_prov)):
+                                           (cfg.get("annotation_ext", "ecg"), ann_bytes, ann_prov)):
                     with open(os.path.join(tmp, f"{subject}.{ext}"), "wb") as fh:
                         fh.write(payload)
                 samples = read_annotation_samples_wfdb(os.path.join(tmp, subject),
-                                                       cfg.get("annotation_ext", "atr"))
+                                                       cfg.get("annotation_ext", "ecg"))
         except RuntimeError as exc:
             raise RuntimeError(f"  [{subject}] {exc}") from exc
 
