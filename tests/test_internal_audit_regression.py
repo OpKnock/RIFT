@@ -203,6 +203,26 @@ def test_chfdb_hea_and_rr_helpers():
         pass
 
 
+def test_timeline_buckets_are_patient_scoped():
+    from rift.health.observations import normalize_batch
+    from rift.health import timeline as T
+
+    raw = []
+    for pid in ("A", "B"):
+        for ts in ("2026-01-04T08:00:00", "2026-01-05T08:00:00"):
+            raw.append({"patient_id": pid, "timestamp": ts, "source": "t",
+                        "metric": "resting_hr", "value": 70.0, "unit": "bpm",
+                        "quality": 1.0, "provenance": "t"})
+    accepted, issues = normalize_batch(raw)
+    assert not issues
+    rows, index = T.to_daily_rows(accepted)
+    assert len(rows) == 4
+    assert set(index) == {("A", "2026-01-04"), ("A", "2026-01-05"),
+                          ("B", "2026-01-04"), ("B", "2026-01-05")}
+    assert {(r.patient_id, r.day_index) for r in rows} == {
+        ("A", 0), ("A", 1), ("B", 0), ("B", 1)}
+
+
 def test_multi_patient_stream_keeps_patients_separate():
     from rift.health.models import WearableObservation
     from rift.health.wearable import MultiPatientStream

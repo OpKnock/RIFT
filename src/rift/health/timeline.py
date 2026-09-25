@@ -109,22 +109,36 @@ def timeline_coverage(observations: list[CanonicalObservation]) -> dict[str, str
 
 def to_daily_rows(
     observations: list[CanonicalObservation],
-) -> tuple[list[WearableObservation], dict[str, int]]:
-    """Bucket + estimate a full timeline.
+) -> tuple[list[WearableObservation], dict[tuple[str, str], int]]:
+    """Bucket + estimate a full timeline, grouped by (patient_id, day).
 
-    Returns (daily_rows, day_index) where day_index maps 'YYYY-MM-DD' to
-    0..n in chronological order. Rows carry stale=False; staleness is a
-    replay-time property computed by WearableStream, not stored here.
+    Returns (daily_rows, day_index) where day_index maps
+    (patient_id, 'YYYY-MM-DD') to 0..n in chronological order per patient.
+    Rows carry patient_id, stale=False; staleness is a replay-time property
+    computed by WearableStream, not stored here. Mixing patients into one
+    bucket is not permitted — cohort timelines must stay patient-scoped.
     """
-    buckets = bucket_by_day(observations)
-    dates = sorted(buckets)
-    day_index = {date: index for index, date in enumerate(dates)}
+    # Group by (patient_id, date) to preserve cohort identity.
+    buckets: dict[tuple[str, str], list[CanonicalObservation]] = {}
+    for obs in sorted(observations, key=lambda o: (o.patient_id, o.timestamp)):
+        date = bucket_key(obs.timestamp, "day")
+        buckets.setdefault((obs.patient_id or "", date), []).append(obs)
+    keys = sorted(buckets)
+    # Per-patient chronological day indices.
+    per_patient_dates: dict[str, list[str]] = {}
+    for pid, date in keys:
+        per_patient_dates.setdefault(pid, []).append(date)
+    per_patient_index: dict[str, dict[str, int]] = {
+        pid: {date: i for i, date in enumerate(dates)} for pid, dates in per_patient_dates.items()
+    }
+    day_index = {(pid, date): per_patient_index[pid][date] for pid, date in keys}
     rows = []
-    for date in dates:
-        estimated = estimate_day(buckets[date])
-        origins = sorted({o.provenance for o in buckets[date] if o.provenance})
+    for pid, date in keys:
+        estimated = estimate_day(buckets[(pid, date)])
+        origins = sorted({o.provenance for o in buckets[(pid, date)] if o.provenance})
         rows.append(WearableObservation(
-            day_index=day_index[date],
+            day_index=day_index[(pid, date)],
+            patient_id=pid,
             resting_hr=estimated["resting_hr"],
             hrv_rmssd=estimated["hrv_rmssd"],
             sleep_hours=estimated["sleep_hours"],

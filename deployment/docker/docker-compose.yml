@@ -5,9 +5,10 @@ version: '3.8'
 
 services:
   # RIFT API Server
+  # Run from repo root: docker compose -f deployment/docker/docker-compose.yml up
   rift-api:
     build:
-      context: ..
+      context: ../..
       dockerfile: deployment/docker/Dockerfile
     ports:
       - "8080:8080"
@@ -21,9 +22,9 @@ services:
       - RIFT_TRUSTED_FHIR_HOSTS=
       - PYTHONUNBUFFERED=1
     volumes:
-      - ../src:/app/src:ro
-      - ../data:/app/data:ro
-      - ../web:/app/web:ro
+      - ../../src:/app/src:ro
+      - ../../data:/app/data:ro
+      - ../../web:/app/web:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/health', timeout=3)"]
       interval: 30s
@@ -49,13 +50,15 @@ services:
     restart: unless-stopped
 
   # Grafana for dashboards
+  # WARNING: default admin/admin is local-dev only. Override via environment
+  # (GF_SECURITY_ADMIN_PASSWORD) before any exposed deployment.
   grafana:
     image: grafana/grafana:10.2.0
     ports:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
     volumes:
       - ./grafana/dashboards:/etc/grafana/provisioning/dashboards:ro

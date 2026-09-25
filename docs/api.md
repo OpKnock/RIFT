@@ -1,4 +1,4 @@
-# RIFT API contract (v0.6.0)
+# RIFT API contract (v1.0.0)
 
 Base: `http://127.0.0.1:8080`. All responses include `X-Request-ID`. Errors are
 `{"error": "<code>"}` plus optional non-sensitive `detail`. Upstream failures

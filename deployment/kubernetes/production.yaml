@@ -105,6 +105,16 @@ spec:
                 secretKeyRef:
                   name: rift-secrets
                   key: api-token
+            # Verified-JWT identity (production mode). Optional so the
+            # manifest applies without it; set rift-secrets/supabase-jwt-secret
+            # to enable cryptographically verified identity instead of
+            # caller-asserted user_id.
+            - name: RIFT_SUPABASE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rift-secrets
+                  key: supabase-jwt-secret
+                  optional: true
             - name: RIFT_REQUIRE_USER_ID
               value: "true"
             - name: RIFT_ALLOW_PRIVATE_FETCH
@@ -210,6 +220,16 @@ spec:
                 secretKeyRef:
                   name: rift-secrets
                   key: api-token
+            # Verified-JWT identity (production mode). Optional so the
+            # manifest applies without it; set rift-secrets/supabase-jwt-secret
+            # to enable cryptographically verified identity instead of
+            # caller-asserted user_id.
+            - name: RIFT_SUPABASE_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rift-secrets
+                  key: supabase-jwt-secret
+                  optional: true
             - name: RIFT_REQUIRE_USER_ID
               value: "true"
             - name: RIFT_ALLOW_PRIVATE_FETCH

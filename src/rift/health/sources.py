@@ -39,21 +39,27 @@ class ReplaySource(WearableSource):
 class LiveIngestSource(WearableSource):
     """Append-only buffer for live observations. Same queries, live writes.
 
-    Accepts observations in non-decreasing day order; duplicates and
-    time-travel are rejected so replay semantics (monotone history) hold.
+    Uniqueness is per (patient_id, day_index): patient A/day 10 and patient
+    B/day 10 may coexist. Within one patient, observations must arrive in
+    non-decreasing day order; duplicates and time-travel are rejected so
+    replay semantics (monotone history) hold per patient.
     """
 
     def __init__(self):
         self._obs: list[WearableObservation] = []
+        self._last_day_by_patient: dict[str, int] = {}
 
     def ingest(self, observation: WearableObservation) -> WearableObservation:
         if not isinstance(observation, WearableObservation):
             raise ValueError("ingest requires a WearableObservation")
-        if self._obs and observation.day_index < self._obs[-1].day_index:
-            raise ValueError("observations must arrive in non-decreasing day order")
-        if self._obs and observation.day_index == self._obs[-1].day_index:
-            raise ValueError("duplicate day_index: one observation per day")
+        pid = observation.patient_id or ""
+        last = self._last_day_by_patient.get(pid)
+        if last is not None and observation.day_index < last:
+            raise ValueError("observations must arrive in non-decreasing day order per patient")
+        if last is not None and observation.day_index == last:
+            raise ValueError("duplicate (patient_id, day_index): one observation per patient per day")
         self._obs.append(observation)
+        self._last_day_by_patient[pid] = observation.day_index
         return observation
 
     @property
@@ -159,9 +165,9 @@ def _canonical_to_wearable(observations: list[CanonicalObservation]) -> list[Wea
         elif obs.metric == "activity_load":
             day_data["activity_load"] = obs.value
         elif obs.metric == "accel_magnitude_mean":
-            # Raw sensor metric, NOT clinical activity_load
-            day_data["activity_load"] = obs.value
-            day_data["provenance_parts"][-1] += " (mapped: accel_magnitude_mean→activity_load, NOTE: raw sensor metric)"
+            # Experimental raw-sensor metric, NOT clinical activity_load.
+            # Stored in provenance only; never mapped into activity_load.
+            day_data["provenance_parts"][-1] += " (accel_magnitude_mean stored in provenance; not activity_load)"
         elif obs.metric == "eda":
             # EDA stored in provenance (no wearable field)
             day_data["provenance_parts"][-1] += " (eda stored in provenance)"
@@ -232,10 +238,11 @@ class PublicDatasetSource(WearableSource):
         
         if not observations:
             raise ValueError("dataset CSV contains no observations")
-        seen = sorted(o.day_index for o in observations)
+        # Uniqueness is per (patient_id, day_index): multi-patient day 0 is valid.
+        seen = sorted((o.patient_id or "", o.day_index) for o in observations)
         if any(b <= a for a, b in zip(seen, seen[1:])):
-            raise ValueError("dataset CSV day_index values must be unique")
-        self._obs = sorted(observations, key=lambda o: o.day_index)
+            raise ValueError("dataset CSV (patient_id, day_index) values must be unique")
+        self._obs = sorted(observations, key=lambda o: (o.patient_id or "", o.day_index))
 
     def _load_legacy_schema(self, reader: csv.DictReader, schema: tuple[str, ...]) -> list[WearableObservation]:
         """Load legacy schema (day_index + FIELDS) - bypasses canonical pipeline for backward compat."""
