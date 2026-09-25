@@ -248,6 +248,55 @@ def test_metrics_endpoint_exposes_prometheus():
         thread.join(timeout=5)
 
 
+def test_ops_endpoints_gated_when_auth_configured(monkeypatch):
+    import threading
+    import urllib.error
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    from rift import api as api_module
+    from rift.api import Handler
+
+    for name in ("RIFT_API_TOKEN", "RIFT_SUPABASE_JWT_SECRET"):
+        monkeypatch.delenv(name, raising=False)
+    api_module._SEEN_WEBHOOK_KEYS.clear()
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        def get(path, token=None):
+            headers = {}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+            try:
+                with urllib.request.urlopen(
+                        urllib.request.Request(f"http://127.0.0.1:{port}{path}", headers=headers),
+                        timeout=5) as resp:
+                    return resp.getcode(), resp.read()
+            except urllib.error.HTTPError as exc:
+                return exc.code, exc.read()
+
+        # Open dev mode: ops endpoints reachable without credentials.
+        assert get("/metrics")[0] == 200
+        assert get("/api/ops/monitor")[0] == 200
+
+        monkeypatch.setenv("RIFT_API_TOKEN", "ops-secret")
+        assert get("/metrics")[0] == 401
+        assert get("/api/ops/monitor")[0] == 401
+        assert get("/metrics", token="wrong")[0] == 401
+        status, body = get("/metrics", token="ops-secret")
+        assert status == 200
+        assert b"rift_api_requests_total" in body
+        # Public health stays open even with auth configured.
+        assert get("/api/health")[0] == 200
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+
 def test_public_source_rejects_missing_identity_fields(tmp_path):
     from rift.health.sources import PublicDatasetSource
 

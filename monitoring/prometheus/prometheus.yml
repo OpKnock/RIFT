@@ -28,8 +28,11 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # RIFT API metrics
+  # RIFT API metrics (/metrics is bearer-gated whenever the API runs
+  # with JWT/service-token auth; mount rift-secrets/api-token here so the
+  # scrape keeps working in production).
   - job_name: 'rift-api'
+    bearer_token_file: /etc/prometheus/rift-api-token
     kubernetes_sd_configs:
       - role: pod
         namespaces:

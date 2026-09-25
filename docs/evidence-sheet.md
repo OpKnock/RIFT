@@ -36,7 +36,7 @@ robustness/uncertainty → Guardian display-safety → clinician dashboard.
 
 | Check | Result |
 |---|---|
-| Tests | 219 passing (current HEAD; frozen metric snapshot below predates test growth) |
+| Tests | 220 passing (current HEAD; frozen metric snapshot below predates test growth) |
 | Static analysis (Bandit) | 0 issues |
 | 14-day backtest agreement / sens / spec | 0.67 / 0.50 / 0.75 |
 | Held-out (30d) agreement / sens / spec | 0.87 / 0.33 / 0.93 |
