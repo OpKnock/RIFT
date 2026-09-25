@@ -39,7 +39,7 @@ Mission: help clinicians make safer, better-informed decisions under uncertainty
 ## Completed in the web-gathering cycle (code-addressable + executed)
 
 - Real PhysioNet ingestion executed: CHFDB `chf01` 250 Hz bytes → 333 reference beats → HR 66.5 bpm / HRV 39.6 ms through the repo's own adapter (`docs/real-data-ingestion.md`). Phase 2 → PARTIAL (live source still external).
-- Qiskit Aer QAOA backend: real SDK execution with shot sampling, matches exact on the reference instance; IBM hardware path implemented and fail-closed with verified setup steps (`src/rift/qpu.py`, `tests/test_qpu_aer.py`). Phase 11 → PARTIAL (first hardware run external).
+- Qiskit Aer QAOA backend: real SDK execution with shot sampling, matches exact on the reference instance; IBM hardware path implemented and fail-closed with verified setup steps (`src/rift/qpu.py`, `tests/test_qpu_aer.py`). **First hardware run EXECUTED 2026-09-26: `ibm_kingston`, gap 0.0 (see `docs/real-hardware-run.md`). Phase 11 → DONE (execution); advantage comparison per methodology still open.**
 - Crash-safe ledgers: `JsonlStore` (fsync append, strict replay) backs prospective + review ledgers via `RIFT_PROSPECTIVE_LEDGER` / `RIFT_REVIEWS_LEDGER` (`tests/test_durable.py`). Phases 14/15 → PARTIAL (deployment + backup ops external).
 - Abstention-harm analysis module (`health/abstention.py`, `tests/test_abstention.py`). Phase 13 → PARTIAL (harm study external).
 - Threat model, incident runbook with backup/restore (`docs/threat-model.md`, `docs/incident-runbook.md`). Phases 19/20 → PARTIAL (pen test, drills, operated RTO external).

@@ -17,7 +17,7 @@ a test or a documented external gate; a requirement with neither is void.
 | R-010 | Each Guardian rule has clinical owner/version | `guardian.RULE_METADATA` + `rule_metadata()` | `test_guardian_metadata.py` | verified (owner assignment external) |
 | R-011 | Silent prospective uses immutable locks | `health/prospective.py` | prospective tests | partial (deployment external) |
 | R-016 | Ledgers survive restarts | `durable.JsonlStore`, env-wired ledgers | `test_durable.py` | verified (backup ops external) |
-| R-017 | Quantum path is real SDK code, hardware-gated | `qpu.solve_on_aer` / `solve_on_ibm` | `test_qpu_aer.py` | verified (first hardware run external) |
+| R-017 | Quantum path is real SDK code, hardware-executed | `qpu.solve_on_aer` / `solve_on_ibm` | `test_qpu_aer.py` + `docs/real-hardware-run.md` (ibm_kingston, gap 0.0) | verified |
 | R-018 | Abstention harm is measured, not assumed | `health/abstention.py` | `test_abstention.py` | verified (harm study external) |
 | R-012 | Weights are fitted, never hard-coded | training manifests; fitting absent | — | external (data + fitting) |
 | R-013 | Validation precedes any clinical claim | study protocol template | — | external (hospital/IRB) |
