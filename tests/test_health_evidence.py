@@ -26,7 +26,7 @@ def _ehr():
 def test_outcome_rule_is_independent_of_risk_weights():
     # High model risk WITHOUT the observed criteria firing: proves the label
     # is not the model agreeing with itself.
-    borderline = WearableObservation(0, resting_hr=74.0, hrv_rmssd=25.0,
+    borderline = WearableObservation(day_index=0, resting_hr=74.0, hrv_rmssd=25.0,
                                      sleep_hours=3.0, activity_load=100.0)
     event, _ = realized_outcome(borderline)
     assert event is False
@@ -39,11 +39,11 @@ def test_outcome_rule_is_independent_of_risk_weights():
         day_index=0, resting_hr=74.0, hrv_rmssd=25.0, sleep_hours=3.0, activity_load=100.0)
     assert predict(borderline_state, base, _ehr())["risk"] >= 0.6
     # Clear spell day fires with criteria named.
-    spell = WearableObservation(0, resting_hr=78.0, hrv_rmssd=30.0,
+    spell = WearableObservation(day_index=0, resting_hr=78.0, hrv_rmssd=30.0,
                                 sleep_hours=4.0, activity_load=85.0)
     event, criteria = realized_outcome(spell)
     assert event is True and len(criteria) == 3  # HR gate + sleep + HRV
-    assert realized_outcome(WearableObservation(0))[0] is False
+    assert realized_outcome(WearableObservation(day_index=0))[0] is False
 
 
 def test_long_series_held_out_metrics():
