@@ -307,14 +307,16 @@
   },
   {
    "blockers": [
-    "real multi-patient clinical dataset for fairness evaluation"
+    "real clinical public dataset to replace synthetic example (format demo only)"
    ],
    "deployment_state": "not-applicable",
    "evidence": {
     "endpoints": [],
     "files": [
      "src/rift/health/cohort.py",
-     "src/rift/health/subgroups.py"
+     "src/rift/health/subgroups.py",
+     "data/public_example.csv",
+     "data/README.md"
     ],
     "tests": [
      "tests/test_health_training.py"
