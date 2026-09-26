@@ -98,6 +98,43 @@ def test_beta_applies_to_edges():
     assert 0.0 < p1 < 1.0
 
 
+def test_isotonic_boundary_exact_upper():
+    """Exact upper boundary should return the fitted value for that point, not previous."""
+    raw_probs = [0.1, 0.2]
+    fitted = [0.0, 1.0]
+    params = {"raw_probs": raw_probs, "fitted": fitted}
+    # At exact boundary 0.2, should return fitted[1] = 1.0, not fitted[0] = 0.0
+    assert apply_isotonic(0.2, params) == 1.0
+    assert apply_isotonic(0.1, params) == 0.0
+    # Just below boundary
+    assert apply_isotonic(0.199, params) == 0.0
+    assert apply_isotonic(0.201, params) == 1.0
+
+
+def test_isotonic_weighted_pava_with_duplicates():
+    """Weighted PAVA should weight each unique probability by its count."""
+    # Three observations at p=0.5: two events, one non-event -> avg 2/3
+    # One observation at p=0.7: one event -> avg 1.0
+    # One observation at p=0.3: one non-event -> avg 0.0
+    # The 0.5 point should have weight 3, others weight 1
+    cal = [
+        {"predicted_risk": 0.5, "realized_event": True},
+        {"predicted_risk": 0.5, "realized_event": True},
+        {"predicted_risk": 0.5, "realized_event": False},
+        {"predicted_risk": 0.7, "realized_event": True},
+        {"predicted_risk": 0.3, "realized_event": False},
+    ]
+    params = fit_isotonic_regression(cal)
+    # raw_probs should be [0.3, 0.5, 0.7] (unique)
+    assert params["raw_probs"] == [0.3, 0.5, 0.7]
+    # counts should reflect observation counts
+    assert params["counts"] == [1, 3, 1]
+    # PAVA should weight 0.5 more heavily (3 observations)
+    # avg_y: 0.3->0.0, 0.5->0.667, 0.7->1.0
+    # Since 0.667 < 1.0 and 0.0 < 0.667, no violations
+    assert params["fitted"] == [0.0, 2.0/3.0, 1.0]
+
+
 def test_empty_calibration_raises():
     with pytest.raises(ValueError):
         fit_platt_scaling([])
