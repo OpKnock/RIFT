@@ -1,5 +1,5 @@
-import { User, Shield, Bell, Palette, Key, Globe, Database, Trash2, Moon, Sun, Monitor, Save, Zap, CreditCard, Github, MessageSquare, AlertTriangle, Download } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { User, Shield, Bell, Palette, Key, Globe, Database, Moon, Sun, Monitor, Save } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -7,33 +7,101 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useTheme } from '@/components/providers/theme-provider'
+import { api, apiErrorMessage, type HealthStatus, type EngineMeta } from '@/services/api'
+
+const PROFILE_KEY = 'rift-profile-name'
 
 export function Settings() {
+  const { resolvedTheme, setTheme } = useTheme()
   const [activeTab, setActiveTab] = useState('profile')
-  const [loading] = useState(false)
+  const [displayName, setDisplayName] = useState(() => {
+    try {
+      return localStorage.getItem(PROFILE_KEY) || ''
+    } catch {
+      return ''
+    }
+  })
+  const [savedTick, setSavedTick] = useState(false)
+  const [tokenInput, setTokenInput] = useState('')
+  const [hasToken, setHasToken] = useState(() => api.getToken() !== null)
+  const [health, setHealth] = useState<HealthStatus | null>(null)
+  const [meta, setMeta] = useState<EngineMeta | null>(null)
+  const [statusError, setStatusError] = useState<string | null>(null)
+  const [pollAlerts, setPollAlerts] = useState(() => {
+    try {
+      return localStorage.getItem('rift-poll-alerts') !== 'off'
+    } catch {
+      return true
+    }
+  })
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([api.getHealth(), api.getMeta()])
+      .then(([h, m]) => {
+        if (cancelled) return
+        setHealth(h)
+        setMeta(m)
+      })
+      .catch((e) => { if (!cancelled) setStatusError(apiErrorMessage(e, 'Engine unreachable.')) })
+    return () => { cancelled = true }
+  }, [])
+
+  const saveProfile = () => {
+    try {
+      if (displayName.trim()) {
+        localStorage.setItem(PROFILE_KEY, displayName.trim())
+      } else {
+        localStorage.removeItem(PROFILE_KEY)
+      }
+      setSavedTick(true)
+      window.setTimeout(() => setSavedTick(false), 2000)
+    } catch {
+      /* storage unavailable */
+    }
+  }
+
+  const saveToken = () => {
+    if (!tokenInput.trim()) return
+    api.setToken(tokenInput.trim())
+    setTokenInput('')
+    setHasToken(true)
+  }
+
+  const clearToken = () => {
+    api.clearToken()
+    setHasToken(false)
+  }
+
+  const togglePollAlerts = (on: boolean) => {
+    setPollAlerts(on)
+    try {
+      localStorage.setItem('rift-poll-alerts', on ? 'on' : 'off')
+    } catch {
+      /* storage unavailable */
+    }
+  }
 
   const tabs = [
     { id: 'profile', label: 'Profile', icon: User },
     { id: 'security', label: 'Security', icon: Shield },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'appearance', label: 'Appearance', icon: Palette },
-    { id: 'api', label: 'API Keys', icon: Key },
+    { id: 'api', label: 'API Token', icon: Key },
     { id: 'integrations', label: 'Integrations', icon: Globe },
     { id: 'data', label: 'Data & Privacy', icon: Database },
-    { id: 'danger', label: 'Danger Zone', icon: Trash2 },
   ]
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 py-6 px-4 sm:px-6 lg:px-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-secondary-900 dark:text-white">Settings</h1>
-          <p className="text-secondary-600 dark:text-secondary-400 mt-1">Manage your account and preferences</p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold text-secondary-900 dark:text-white">Settings</h1>
+        <p className="text-secondary-600 dark:text-secondary-400 mt-1">Local preferences plus live server security posture. Nothing here pretends to manage server-side accounts.</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 gap-1 p-1 bg-secondary-100 dark:bg-secondary-800 rounded-lg">
+        <TabsList className="grid w-full grid-cols-4 md:grid-cols-7 gap-1 p-1 bg-secondary-100 dark:bg-secondary-800 rounded-lg">
           {tabs.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2 px-3 py-2">
               <tab.icon className="w-4 h-4" />
@@ -44,35 +112,12 @@ export function Settings() {
 
         <TabsContent value="profile" className="mt-6 space-y-6">
           <Card>
-            <div className="p-6 space-y-6">
-              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Profile Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Input label="Full Name" placeholder="John Doe" defaultValue="Research User" />
-                <Input label="Email" type="email" placeholder="user@example.com" defaultValue="research@rift.dev" />
-                <Input label="Organization" placeholder="Your organization" defaultValue="RIFT Research" />
-                <Input label="Role" placeholder="Your role" defaultValue="Researcher" />
-              </div>
-              <div className="flex items-center gap-4 pt-4 border-t border-secondary-100 dark:border-secondary-800">
-                <Button onClick={() => {}} disabled={loading}>
-                  <Save className="w-4 h-4 mr-2" />
-                  Save Changes
-                </Button>
-                <Button variant="outline">Cancel</Button>
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="p-6 space-y-6">
-              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Avatar</h2>
-              <div className="flex items-center gap-4">
-                <div className="w-20 h-20 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center overflow-hidden">
-                  <span className="text-2xl font-bold text-primary-600 dark:text-primary-400">RU</span>
-                </div>
-                <div>
-                  <Button variant="outline">Change Avatar</Button>
-                  <p className="text-sm text-secondary-500 dark:text-secondary-400 mt-1">JPG, PNG or GIF. Max 2MB.</p>
-                </div>
+            <div className="p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Display name (this browser)</h2>
+              <p className="text-sm text-secondary-500">Used to pre-fill reviewer IDs on approvals. Stored only here — the server never sees it except inside review payloads you submit.</p>
+              <Input label="Display name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="e.g. operator-1" />
+              <div className="flex items-center gap-3">
+                <Button onClick={saveProfile}><Save className="w-4 h-4 mr-2" />Save{savedTick ? 'd ✓' : ''}</Button>
               </div>
             </div>
           </Card>
@@ -80,117 +125,35 @@ export function Settings() {
 
         <TabsContent value="security" className="mt-6 space-y-6">
           <Card>
-            <div className="p-6 space-y-6">
-              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Password</h2>
-              <div className="space-y-4">
-                <Input label="Current Password" type="password" placeholder="Enter current password" />
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Input label="New Password" type="password" placeholder="Enter new password" />
-                  <Input label="Confirm Password" type="password" placeholder="Confirm new password" />
-                </div>
-                <Button onClick={() => {}} disabled={loading}>
-                  <Save className="w-4 h-4 mr-2" />
-                  Update Password
-                </Button>
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="p-6 space-y-6">
-              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Two-Factor Authentication</h2>
-              <p className="text-secondary-600 dark:text-secondary-400">Add an extra layer of security to your account.</p>
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-medium text-secondary-900 dark:text-white">Authenticator App</h3>
-                  <p className="text-secondary-600 dark:text-secondary-400 text-sm">Use Google Authenticator, Authy, or similar</p>
-                </div>
-                <Button variant="outline">Enable 2FA</Button>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="border-error-200 dark:border-error-800">
             <div className="p-6 space-y-4">
-              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Active Sessions</h2>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-4 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900 flex items-center justify-center">
-                      <Monitor className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-secondary-900 dark:text-white">Current Session</p>
-                      <p className="text-sm text-secondary-500 dark:text-secondary-400">Chrome on Windows • Active now</p>
-                    </div>
-                  </div>
-                  <Badge variant="success">Current</Badge>
-                </div>
-                <div className="flex items-center justify-between p-4 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-secondary-100 dark:bg-secondary-800 flex items-center justify-center">
-                      <Monitor className="w-5 h-5 text-secondary-600 dark:text-secondary-400" />
-                    </div>
-                    <div>
-                      <p className="font-medium text-secondary-900 dark:text-white">Mobile Session</p>
-                      <p className="text-sm text-secondary-500 dark:text-secondary-400">Safari on iOS • 2 hours ago</p>
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm" className="text-error-600 dark:text-error-400 hover:text-error-700 dark:hover:text-error-300">Revoke</Button>
-                </div>
+              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Server security posture (live)</h2>
+              {statusError && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{statusError}</p>}
+              {health && meta && !statusError && (
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  <div><dt className="text-secondary-500">Auth mode</dt><dd className="font-mono">{meta.auth.service_token_configured ? 'service-token (bearer-gated)' : 'open dev mode (no gate)'}</dd></div>
+                  <div><dt className="text-secondary-500">Persistence</dt><dd className="font-mono">{health.persistence.configured ? 'configured' : 'not configured'}</dd></div>
+                  <div><dt className="text-secondary-500">Billing</dt><dd className="font-mono">{health.billing.configured ? 'configured' : 'not configured'} ({health.billing.provider})</dd></div>
+                  <div><dt className="text-secondary-500">Engine</dt><dd className="font-mono">v{health.version} · {health.quantum_backend}</dd></div>
+                </dl>
+              )}
+              <div className="text-sm text-secondary-500 space-y-1 pt-2 border-t border-secondary-100 dark:border-secondary-800">
+                <p>MFA, secret rotation, SSO, and per-user accounts are operator duties — this UI cannot manage them because the server exposes no such endpoints.</p>
               </div>
-              <Button variant="ghost" className="w-full text-error-600 dark:text-error-400 hover:text-error-700 dark:hover:text-error-300">
-                <Trash2 className="w-4 h-4 mr-2" />
-                Revoke All Other Sessions
-              </Button>
             </div>
           </Card>
         </TabsContent>
 
         <TabsContent value="notifications" className="mt-6 space-y-6">
           <Card>
-            <div className="p-6 space-y-6">
-              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Email Notifications</h2>
-              <div className="space-y-4">
-                {[
-                  { label: 'Simulation completed', description: 'When a simulation finishes', enabled: true },
-                  { label: 'Experiment completed', description: 'When an experiment finishes', enabled: true },
-                  { label: 'Evidence bundle ready', description: 'When evidence bundle is generated', enabled: true },
-                  { label: 'Guardian alerts', description: 'When Guardian withholds a result', enabled: true },
-                  { label: 'Weekly summary', description: 'Weekly activity digest', enabled: false },
-                  { label: 'Security alerts', description: 'Security-related notifications', enabled: true },
-                  { label: 'Product updates', description: 'New features and announcements', enabled: false },
-                ].map((notification, index) => (
-                  <div key={index} className="flex items-center justify-between py-3 border-b border-secondary-100 dark:border-secondary-800 last:border-0">
-                    <div className="flex-1">
-                      <p className="font-medium text-secondary-900 dark:text-white">{notification.label}</p>
-                      <p className="text-sm text-secondary-500 dark:text-secondary-400">{notification.description}</p>
-                    </div>
-                    <Switch checked={notification.enabled} onChange={() => {}} />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="p-6">
-              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white mb-4">In-App Notifications</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-secondary-900 dark:text-white">Push Notifications</p>
-                    <p className="text-sm text-secondary-500 dark:text-secondary-400">Receive browser push notifications</p>
-                  </div>
-                  <Switch checked={true} onChange={() => {}} />
+            <div className="p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Firing-alert notifications</h2>
+              <p className="text-sm text-secondary-500">Controls the browser notifications offered on the Operations page. Stored locally; nothing is sent anywhere.</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-secondary-900 dark:text-white">Notify on firing alerts</p>
+                  <p className="text-sm text-secondary-500 dark:text-secondary-400">Requires browser permission, granted on the Operations page.</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-secondary-900 dark:text-white">Sound</p>
-                    <p className="text-sm text-secondary-500 dark:text-secondary-400">Play sound for notifications</p>
-                  </div>
-                  <Switch checked={false} onChange={() => {}} />
-                </div>
+                <Switch checked={pollAlerts} onChange={() => togglePollAlerts(!pollAlerts)} aria-label="Notify on firing alerts" />
               </div>
             </div>
           </Card>
@@ -198,228 +161,109 @@ export function Settings() {
 
         <TabsContent value="appearance" className="mt-6 space-y-6">
           <Card>
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-4">
               <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Theme</h2>
               <div className="grid grid-cols-3 gap-4">
-                {(['light', 'dark', 'system'] as const).map((theme) => (
+                {(['light', 'dark', 'system'] as const).map((t) => (
                   <button
-                    key={theme}
-                    onClick={() => { /* setTheme(theme) */ }}
+                    key={t}
+                    onClick={() => setTheme(t)}
+                    aria-pressed={(resolvedTheme === t) || (t === 'system' && resolvedTheme !== 'light' && resolvedTheme !== 'dark')}
                     className={cn(
-                      'relative p-4 rounded-xl border-2 transition-all',
+                      'p-4 rounded-xl border-2 transition-all',
                       'hover:border-primary-400 dark:hover:border-primary-500',
                       'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
                       'bg-white dark:bg-secondary-900'
                     )}
                   >
-                    <input type="radio" name="theme" value={theme} className="sr-only" />
-                    <div className="text-center">
-                      <div className={cn(
-                        'w-16 h-16 mx-auto rounded-xl mb-3 flex items-center justify-center',
-                        theme === 'light' && 'bg-white border border-secondary-200',
-                        theme === 'dark' && 'bg-secondary-900 border border-secondary-700',
-                        theme === 'system' && 'bg-gradient-to-br from-white to-secondary-900 border border-secondary-300 dark:border-secondary-600'
-                      )}>
-                        {theme === 'light' && <Sun className="w-8 h-8 text-yellow-500" />}
-                        {theme === 'dark' && <Moon className="w-8 h-8 text-blue-400" />}
-                        {theme === 'system' && <Monitor className="w-8 h-8 text-secondary-600" />}
-                      </div>
-                      <p className="font-medium text-secondary-900 dark:text-white capitalize">{theme}</p>
-                      <p className="text-xs text-secondary-500 dark:text-secondary-400 mt-1">
-                        {theme === 'light' ? 'Always light' : theme === 'dark' ? 'Always dark' : 'Match system'}
-                      </p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="p-6 space-y-6">
-              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Density</h2>
-              <div className="grid grid-cols-3 gap-4">
-                {['comfortable', 'compact', 'spacious'].map((density) => (
-                  <button key={density} className={cn(
-                    'relative p-4 rounded-xl border-2 transition-all',
-                    'hover:border-primary-400 dark:hover:border-primary-500',
-                    'focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                    'bg-white dark:bg-secondary-900'
-                  )}>
-                    <input type="radio" name="density" value={density} className="sr-only" />
                     <div className="text-center">
                       <div className="w-16 h-16 mx-auto rounded-xl mb-3 bg-secondary-100 dark:bg-secondary-800 flex items-center justify-center">
-                        {density === 'comfortable' && <span className="text-2xl">◻ ◻ ◻</span>}
-                        {density === 'compact' && <span className="text-sm">◻◻◻</span>}
-                        {density === 'spacious' && <span className="text-3xl">◻  ◻  ◻</span>}
+                        {t === 'light' && <Sun className="w-8 h-8 text-yellow-500" />}
+                        {t === 'dark' && <Moon className="w-8 h-8 text-blue-400" />}
+                        {t === 'system' && <Monitor className="w-8 h-8 text-secondary-600" />}
                       </div>
-                      <p className="font-medium text-secondary-900 dark:text-white capitalize">{density}</p>
-                      <p className="text-xs text-secondary-500 dark:text-secondary-400 mt-1">
-                        {density === 'comfortable' && 'Default spacing'}
-                        {density === 'compact' && 'Tighter spacing'}
-                        {density === 'spacious' && 'More breathing room'}
-                      </p>
+                      <p className="font-medium text-secondary-900 dark:text-white capitalize">{t}</p>
                     </div>
                   </button>
                 ))}
               </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="p-6 space-y-6">
-              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Sidebar</h2>
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-secondary-900 dark:text-white">Collapsed by default</p>
-                    <p className="text-sm text-secondary-500 dark:text-secondary-400">Start with sidebar collapsed</p>
-                  </div>
-                  <Switch checked={false} onChange={() => {}} />
-                </div>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-secondary-900 dark:text-white">Show descriptions</p>
-                    <p className="text-sm text-secondary-500 dark:text-secondary-400">Show item descriptions in sidebar</p>
-                  </div>
-                  <Switch checked={true} onChange={() => {}} />
-                </div>
-              </div>
+              <p className="text-sm text-secondary-500">Currently resolved: <span className="font-mono">{resolvedTheme}</span></p>
             </div>
           </Card>
         </TabsContent>
 
         <TabsContent value="api" className="mt-6 space-y-6">
           <Card>
-            <div className="p-6 space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">API Keys</h2>
-                <Button onClick={() => {}}>
-                  <Key className="w-4 h-4 mr-2" />
-                  Create New Key
-                </Button>
+            <div className="p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Service-token (this browser)</h2>
+              <p className="text-sm text-secondary-500">
+                When the operator sets <code className="font-mono">RIFT_API_TOKEN</code> on the server, paste the same token here to call gated endpoints
+                (<code className="font-mono">/metrics</code>, <code className="font-mono">/api/ops/monitor</code>). Stored only in this browser. Status: {hasToken ? <Badge variant="success">token set</Badge> : <Badge variant="secondary">no token</Badge>}
+              </p>
+              <div className="flex gap-3">
+                <Input type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} placeholder="Paste service token" aria-label="Service token" />
+                <Button onClick={saveToken} disabled={!tokenInput.trim()}>Save</Button>
+                {hasToken && <Button variant="outline" onClick={clearToken}>Clear</Button>}
               </div>
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Key Preview</th>
-                      <th>Permissions</th>
-                      <th>Last Used</th>
-                      <th>Expires</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td className="font-medium">Production API</td>
-                      <td className="font-mono text-sm">rf_live_abc123****xyz789</td>
-                      <td><Badge variant="secondary">Full Access</Badge></td>
-                      <td className="text-secondary-500">2 hours ago</td>
-                      <td className="text-secondary-500">Never</td>
-                      <td>
-                        <button className="p-2 rounded-lg text-error-600 hover:bg-error-50 dark:hover:bg-error-900/30" aria-label="Revoke">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="font-medium">Development Key</td>
-                      <td className="font-mono text-sm">rf_dev_def456****uvw012</td>
-                      <td><Badge variant="outline">Read Only</Badge></td>
-                      <td className="text-secondary-500">3 days ago</td>
-                      <td className="text-secondary-500">30 days</td>
-                      <td>
-                        <button className="p-2 rounded-lg text-error-600 hover:bg-error-50 dark:hover:bg-error-900/30" aria-label="Revoke">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+              <p className="text-sm text-secondary-500">Server-side keys, rotation, and per-user credentials are operator duties — no management endpoint exists.</p>
             </div>
           </Card>
         </TabsContent>
 
         <TabsContent value="integrations" className="mt-6 space-y-6">
           <Card>
-            <div className="p-6 space-y-6">
-              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">External Integrations</h2>
-              <p className="text-secondary-600 dark:text-secondary-400">Connect external services to extend RIFT's capabilities.</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {[
-                  { name: 'Supabase', description: 'Database & Auth', connected: true, icon: Database },
-                  { name: 'Supabase Realtime', description: 'Live subscriptions', connected: true, icon: Zap },
-                  { name: 'Lemon Squeezy', description: 'Billing & Subscriptions', connected: false, icon: CreditCard },
-                  { name: 'GitHub', description: 'Repository sync', connected: false, icon: Github },
-                  { name: 'Slack', description: 'Notifications', connected: false, icon: MessageSquare },
-                  { name: 'PagerDuty', description: 'Incident alerts', connected: false, icon: AlertTriangle },
-                ].map((integration) => (
-                  <div key={integration.name} className="flex items-center justify-between p-4 rounded-lg border border-secondary-200 dark:border-secondary-700">
-                    <div className="flex items-center gap-4">
-                      <div className="p-2 rounded-lg bg-primary-100 dark:bg-primary-900/30">
-                        <integration.icon className="w-5 h-5 text-primary-600 dark:text-primary-400" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-secondary-900 dark:text-white">{integration.name}</p>
-                        <p className="text-sm text-secondary-500 dark:text-secondary-400">{integration.description}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant={integration.connected ? 'success' : 'secondary'}>
-                        {integration.connected ? 'Connected' : 'Not Connected'}
-                      </Badge>
-                      <Button variant={integration.connected ? 'ghost' : 'outline'} size="sm">
-                        {integration.connected ? 'Disconnect' : 'Connect'}
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <div className="p-6 space-y-4">
+              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Integration status (live)</h2>
+              {statusError && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{statusError}</p>}
+              {health && !statusError && (
+                <ul className="space-y-2 text-sm">
+                  <li className="flex items-center gap-2">
+                    <Badge variant={health.persistence.configured ? 'success' : 'secondary'}>{health.persistence.configured ? 'connected' : 'not configured'}</Badge>
+                    <span>Supabase persistence — enables experiments, runs, and review durability</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Badge variant={health.billing.configured ? 'success' : 'secondary'}>{health.billing.configured ? 'connected' : 'not configured'}</Badge>
+                    <span>Billing ({health.billing.provider}) — disabled by default</span>
+                  </li>
+                </ul>
+              )}
+              <p className="text-sm text-secondary-500">There is no connect/disconnect action here because the server exposes none — integrations are configured with server environment variables by the operator.</p>
             </div>
           </Card>
         </TabsContent>
 
         <TabsContent value="data" className="mt-6 space-y-6">
           <Card>
-            <div className="p-6 space-y-6">
-              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Data Export</h2>
-              <p className="text-secondary-600 dark:text-secondary-400">Download your data in various formats.</p>
-              <div className="flex flex-wrap gap-3">
-                <Button variant="outline">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Profile (JSON)
-                </Button>
-                <Button variant="outline">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Runs (CSV)
-                </Button>
-                <Button variant="outline">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export Experiments (JSON)
-                </Button>
-                <Button variant="outline">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export All Data (ZIP)
-                </Button>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="border-error-200 dark:border-error-800">
             <div className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Delete Account</h2>
-                  <p className="text-secondary-600 dark:text-secondary-400">Permanently delete your account and all associated data.</p>
-                </div>
-                <Button variant="destructive" className="ml-auto">
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Account
-                </Button>
+              <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Local data</h2>
+              <p className="text-sm text-secondary-500">Export or clear what this browser holds (run history, event log, display name, cookie choices). Server-side data is operator-managed.</p>
+              <div className="flex flex-wrap gap-3">
+                <Button variant="outline" onClick={() => {
+                  const dump: Record<string, unknown> = {}
+                  for (const k of ['rift-local-runs', 'rift-event-log', PROFILE_KEY, 'rift_cookie_preferences']) {
+                    try {
+                      const raw = localStorage.getItem(k)
+                      dump[k] = raw ? JSON.parse(raw) : null
+                    } catch {
+                      dump[k] = null
+                    }
+                  }
+                  const blob = new Blob([JSON.stringify(dump, null, 2)], { type: 'application/json' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = 'rift-local-data.json'
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}>Export local data (JSON)</Button>
+                <Button variant="outline" onClick={() => {
+                  for (const k of ['rift-local-runs', 'rift-event-log', PROFILE_KEY]) {
+                    try { localStorage.removeItem(k) } catch { /* ignore */ }
+                  }
+                  setDisplayName('')
+                }}>Clear local data</Button>
               </div>
+              <p className="text-sm text-secondary-500">Account deletion and server-side retention are operator duties — see the deployment docs. Ledger backup procedure: copy the JSONL ledger files (see incident runbook).</p>
             </div>
           </Card>
         </TabsContent>
