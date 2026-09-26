@@ -1,26 +1,134 @@
 import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios'
-import { ApiResponse, PaginatedResponse, WebSocketMessage, SimulationProgress, Scenario, Experiment, ExperimentParameters, Run, LogEntry, EvidenceBundle, User } from '@/types'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
+export interface HealthStatus {
+  status: string
+  engine: string
+  version: string
+  quantum_backend: string
+  persistence: { configured: boolean }
+  billing: { configured: boolean; provider: string }
+}
+
+export interface EngineMeta {
+  engine: string
+  engine_version: string
+  quantum_backend: string
+  capabilities: string[]
+  optimizers: string[]
+  backends: string[]
+  limits: {
+    max_policy_variables: number
+    max_perturbations: number
+    max_futures: number
+    max_tree_depth: number
+    max_payload_bytes: number
+    max_name_length: number
+    max_qubo_variables: number
+    scenario_bounds: Record<string, [number, number]>
+  }
+  auth: { service_token_configured: boolean }
+}
+
+export interface DemoParams {
+  crowd?: number
+  smoke?: number
+  corridor_capacity?: number
+  block_b?: boolean
+}
+
+export interface RobustAssessment {
+  policy: Record<string, number>
+  score: number
+  worst_case_score: number
+  robustness_gap: number
+  feasible_under_all: boolean
+  worst_perturbation: Record<string, number>
+}
+
+export interface OptimizerResult {
+  assignment: Record<string, number>
+  energy: number
+  method: string
+  alpha?: number
+}
+
+export interface DemoPayload {
+  scenario: {
+    name: string
+    initial_state: Record<string, number>
+    interventions: Record<string, number[]>
+  }
+  futures: Array<{ policy: Record<string, number>; state: Record<string, number>; score: number; valid: boolean }>
+  robust: RobustAssessment[]
+  robust_optimization: {
+    classical: OptimizerResult
+    qaoa: OptimizerResult
+    cvar_qaoa: OptimizerResult
+  }
+  multivariable: {
+    variables: string[]
+    policy_count: number
+    exact: OptimizerResult
+    qaoa_projection: OptimizerResult & { approximation: boolean; objective: string }
+    projection_error: { max_absolute_gap: number; mean_absolute_gap: number }
+    top_policies: Array<{ assignment: Record<string, number>; nominal_cost: number; robust_cost: number; feasible: boolean; worst_perturbation: Record<string, number> }>
+  }
+  benchmark: Array<{ method: string; energy: number; assignment: Record<string, number>; runtime_ms: number; note: string }>
+  guardian: {
+    passed: boolean
+    checks: Array<{ passed: boolean; violations: string[] }>
+    scope: string
+    policy: Record<string, number>
+  }
+  reproducibility: {
+    engine_version: string
+    backend: string
+    perturbations: Array<Record<string, number>>
+    policy_variables: string[]
+    note: string
+  }
+}
+
+export interface MonitorSnapshot {
+  monitor: Record<string, unknown>
+  alerts: Array<{ rule: string; firing: boolean; reason: string }>
+}
+
+export interface ExperimentCreate {
+  name: string
+  description?: string
+  scenario_name?: string
+  initial_state?: Record<string, number>
+  perturbations?: Array<Record<string, number>>
+  policy_variables?: string[]
+  optimizer?: string
+  backend?: string
+  seed?: number | null
+}
+
+function apiErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data as { error?: string; detail?: string } | undefined
+    if (data?.detail) return `${data.error || 'request_failed'}: ${data.detail}`
+    if (data?.error) return data.error
+    if (error.response) return `Server responded ${error.response.status}`
+    return 'Server unreachable. Is the RIFT API running on :8080?'
+  }
+  return fallback
+}
+
 class ApiClient {
   private client: AxiosInstance
-  private ws: WebSocket | null = null
-  private progressCallbacks: Map<string, (progress: SimulationProgress) => void> = new Map()
 
   constructor() {
     this.client = axios.create({
       baseURL: API_BASE_URL,
-      timeout: 30000,
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      timeout: 60000,
+      headers: { 'Content-Type': 'application/json' },
     })
 
-    this.setupInterceptors()
-  }
-
-  private setupInterceptors() {
     this.client.interceptors.request.use(
       (config: InternalAxiosRequestConfig) => {
         const token = localStorage.getItem('auth_token')
@@ -34,197 +142,88 @@ class ApiClient {
 
     this.client.interceptors.response.use(
       (response) => response,
-      (error: AxiosError) => {
-        if (error.response?.status === 401) {
-          localStorage.removeItem('auth_token')
-          window.location.href = '/login'
-        }
-        return Promise.reject(error)
-      }
+      (error: AxiosError) => Promise.reject(error)
     )
   }
 
-  // Scenario API
-  async getScenarios(params?: { page?: number; pageSize?: number; search?: string }) {
-    const response = await this.client.get<PaginatedResponse<Scenario>>('/scenarios', { params })
+  async getHealth(): Promise<HealthStatus> {
+    const response = await this.client.get<HealthStatus>('/health')
     return response.data
   }
 
-  async getScenario(id: string) {
-    const response = await this.client.get<ApiResponse<Scenario>>(`/scenarios/${id}`)
+  async getMeta(): Promise<EngineMeta> {
+    const response = await this.client.get<EngineMeta>('/meta')
     return response.data
   }
 
-  async createScenario(data: Partial<Scenario>) {
-    const response = await this.client.post<ApiResponse<Scenario>>('/scenarios', data)
+  async runDemo(params: DemoParams = {}): Promise<DemoPayload> {
+    const query: Record<string, string> = {}
+    if (params.crowd !== undefined) query.crowd = String(params.crowd)
+    if (params.smoke !== undefined) query.smoke = String(params.smoke)
+    if (params.corridor_capacity !== undefined) query.corridor_capacity = String(params.corridor_capacity)
+    if (params.block_b) query.block_b = '1'
+    const response = await this.client.get<DemoPayload>('/demo', { params: query })
     return response.data
   }
 
-  async updateScenario(id: string, data: Partial<Scenario>) {
-    const response = await this.client.patch<ApiResponse<Scenario>>(`/scenarios/${id}`, data)
+  async getTwinDemo(day: number): Promise<Record<string, unknown>> {
+    const response = await this.client.get<Record<string, unknown>>('/twin/demo', { params: { t: day } })
     return response.data
   }
 
-  async deleteScenario(id: string) {
-    await this.client.delete(`/scenarios/${id}`)
-  }
-
-  async cloneScenario(id: string, name: string) {
-    const response = await this.client.post<ApiResponse<Scenario>>(`/scenarios/${id}/clone`, { name })
+  async getTwinEvidence(): Promise<Record<string, unknown>> {
+    const response = await this.client.get<Record<string, unknown>>('/twin/evidence')
     return response.data
   }
 
-  // Experiment API
-  async getExperiments(params?: { page?: number; pageSize?: number; status?: string }) {
-    const response = await this.client.get<PaginatedResponse<Experiment>>('/experiments', { params })
+  async getMonitor(): Promise<MonitorSnapshot> {
+    const response = await this.client.get<MonitorSnapshot>('/ops/monitor')
     return response.data
   }
 
-  async getExperiment(id: string) {
-    const response = await this.client.get<ApiResponse<Experiment>>(`/experiments/${id}`)
+  async createExperiment(spec: ExperimentCreate): Promise<Record<string, unknown>> {
+    const response = await this.client.post<Record<string, unknown>>('/experiments', spec)
     return response.data
   }
 
-  async createExperiment(data: Partial<Experiment>) {
-    const response = await this.client.post<ApiResponse<Experiment>>('/experiments', data)
+  async getExperiment(id: string): Promise<Record<string, unknown>> {
+    const response = await this.client.get<Record<string, unknown>>(`/experiments/${id}`)
     return response.data
   }
 
-  async runExperiment(id: string, parameters: ExperimentParameters) {
-    const response = await this.client.post<ApiResponse<Run>>(`/experiments/${id}/run`, parameters)
+  async getRun(id: string): Promise<Record<string, unknown>> {
+    const response = await this.client.get<Record<string, unknown>>(`/runs/${id}`)
     return response.data
   }
 
-  // Run API
-  async getRuns(params?: { page?: number; pageSize?: number; experimentId?: string }) {
-    const response = await this.client.get<PaginatedResponse<Run>>('/runs', { params })
+  async listRuns(experimentId: string): Promise<Record<string, unknown>> {
+    const response = await this.client.get<Record<string, unknown>>(`/experiments/${experimentId}/runs`)
     return response.data
   }
 
-  async getRun(id: string) {
-    const response = await this.client.get<ApiResponse<Run>>(`/runs/${id}`)
+  async submitReview(review: { action: string; evidence_id: string; reviewer_id: string; rationale?: string; supersedes?: string | null }): Promise<Record<string, unknown>> {
+    const response = await this.client.post<Record<string, unknown>>('/twin/reviews', review)
     return response.data
   }
 
-  async getRunLogs(id: string) {
-    const response = await this.client.get<ApiResponse<LogEntry[]>>(`/runs/${id}/logs`)
+  async listReviews(): Promise<{ stats: Record<string, unknown>; reviews: Array<Record<string, unknown>> }> {
+    const response = await this.client.get<{ stats: Record<string, unknown>; reviews: Array<Record<string, unknown>> }>('/twin/reviews')
     return response.data
   }
 
-  async cancelRun(id: string) {
-    await this.client.post(`/runs/${id}/cancel`)
-  }
-
-  // Evidence API
-  async getEvidence(runId: string) {
-    const response = await this.client.get<ApiResponse<EvidenceBundle>>(`/runs/${runId}/evidence`)
-    return response.data
-  }
-
-  async exportEvidence(runId: string, format: 'json' | 'pdf' = 'json') {
-    const response = await this.client.get(`/runs/${runId}/evidence/export`, {
-      params: { format },
-      responseType: format === 'pdf' ? 'blob' : 'json',
-    })
-    return response.data
-  }
-
-  // Scenario Builder API
-  async validateScenario(scenario: Partial<Scenario>) {
-    const response = await this.client.post<ApiResponse<{ valid: boolean; errors: string[] }>>(
-      '/scenarios/validate',
-      scenario
-    )
-    return response.data
-  }
-
-  async getScenarioTemplates() {
-    const response = await this.client.get<ApiResponse<Scenario[]>>('/scenarios/templates')
-    return response.data
-  }
-
-  // Health API
-  async getHealth() {
-    const response = await this.client.get<ApiResponse<{ status: string; version: string }>>('/health')
-    return response.data
-  }
-
-  async getMetrics() {
-    const response = await this.client.get('/metrics')
-    return response.data
-  }
-
-  // WebSocket for real-time progress
-  connectProgress(runId: string, callback: (progress: SimulationProgress) => void) {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.close()
-    }
-
-    this.ws = new WebSocket(`${API_BASE_URL.replace('http', 'ws')}/ws/progress/${runId}`)
-
-    this.ws.onmessage = (event) => {
-      try {
-        const message: WebSocketMessage<SimulationProgress> = JSON.parse(event.data)
-        if (message.type === 'progress') {
-          callback(message.payload)
-          this.progressCallbacks.get(runId)?.(message.payload)
-        }
-      } catch (error) {
-        console.error('Failed to parse progress message:', error)
-      }
-    }
-
-    this.ws.onerror = (error) => {
-      console.error('WebSocket error:', error)
-    }
-
-    this.ws.onclose = () => {
-      this.progressCallbacks.delete(runId)
-    }
-  }
-
-  disconnectProgress() {
-    if (this.ws) {
-      this.ws.close()
-      this.ws = null
-    }
-  }
-
-  onProgress(runId: string, callback: (progress: SimulationProgress) => void) {
-    this.progressCallbacks.set(runId, callback)
-  }
-
-  // Auth
-  async login(email: string, password: string) {
-    const response = await this.client.post<ApiResponse<{ token: string; user: User }>>('/auth/login', {
-      email,
-      password,
-    })
-    const { token } = response.data.data
-    localStorage.setItem('auth_token', token)
-    return response.data
-  }
-
-  async register(data: { name: string; email: string; password: string }) {
-    const response = await this.client.post<ApiResponse<{ token: string; user: User }>>('/auth/register', data)
-    const { token } = response.data.data
-    localStorage.setItem('auth_token', token)
-    return response.data
-  }
-
-  logout() {
-    localStorage.removeItem('auth_token')
-    window.location.href = '/login'
-  }
-
-  getToken() {
+  getToken(): string | null {
     return localStorage.getItem('auth_token')
   }
 
-  isAuthenticated() {
-    return !!this.getToken()
+  setToken(token: string): void {
+    localStorage.setItem('auth_token', token)
+  }
+
+  clearToken(): void {
+    localStorage.removeItem('auth_token')
   }
 }
 
 export const api = new ApiClient()
 export default api
+export { apiErrorMessage }
