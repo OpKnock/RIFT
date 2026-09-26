@@ -1,16 +1,29 @@
-import { useState } from 'react'
-import { Outlet, NavLink, useLocation } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Outlet, NavLink, Link, useLocation } from 'react-router-dom'
 import { Menu, Sun, Moon, Monitor, GitBranch, Play, Database, FlaskConical, Settings, Scale, ChevronLeft, ChevronRight, Bell, Github } from 'lucide-react'
 import { useTheme } from '@/components/providers/theme-provider'
 import { cn } from '@/utils/cn'
 import { MobileMenu } from './mobile-menu'
 import { UserMenu } from './user-menu'
+import { BackToTop } from '@/components/back-to-top'
 import { CommandPalette } from '@/components/ui/command-palette'
 import { useCommandPalette } from '@/hooks/use-command-palette'
 
 export function Layout() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine)
+
+  useEffect(() => {
+    const goOnline = () => setOnline(true)
+    const goOffline = () => setOnline(false)
+    window.addEventListener('online', goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online', goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [])
   const location = useLocation()
   const { resolvedTheme, setTheme } = useTheme()
   const { openCommandPalette } = useCommandPalette()
@@ -161,19 +174,24 @@ export function Layout() {
                 )}
               </button>
 
-              {/* Notifications */}
-              <button className="relative p-2 rounded-lg text-secondary-500 hover:bg-secondary-100 dark:text-secondary-400 dark:hover:bg-secondary-800 transition-colors" aria-label="Notifications">
+              {/* Alerts (live, evaluated server-side) */}
+              <Link to="/runs" className="p-2 rounded-lg text-secondary-500 hover:bg-secondary-100 dark:text-secondary-400 dark:hover:bg-secondary-800 transition-colors" aria-label="Operations and alerts">
                 <Bell className="w-5 h-5" aria-hidden="true" />
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-error-500 text-white text-xs font-medium rounded-full flex items-center justify-center">
-                  3
-                </span>
-              </button>
+              </Link>
 
               {/* User Menu */}
               <UserMenu />
             </div>
           </div>
         </header>
+
+        {!online && (
+          <div className="px-4 lg:px-6 pt-4" role="alert">
+            <p className="text-sm text-warning-600 dark:text-warning-400 border border-warning-200 dark:border-warning-800 rounded-lg px-3 py-2">
+              Offline — the local engine is unreachable until connectivity returns. Previously loaded pages remain readable.
+            </p>
+          </div>
+        )}
 
         {/* Page Content */}
         <div className="p-4 lg:p-6">
@@ -186,6 +204,8 @@ export function Layout() {
 
       {/* Command Palette */}
       <CommandPalette />
+
+      <BackToTop />
     </div>
   )
 }
