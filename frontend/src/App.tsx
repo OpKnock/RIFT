@@ -16,6 +16,7 @@ const Experiments = lazy(() => import('@/pages/experiments').then(m => ({ defaul
 const Evidence = lazy(() => import('@/pages/evidence').then(m => ({ default: m.Evidence })))
 const Settings = lazy(() => import('@/pages/settings').then(m => ({ default: m.Settings })))
 const Documentation = lazy(() => import('@/pages/documentation').then(m => ({ default: m.Documentation })))
+const Faq = lazy(() => import('@/pages/faq').then(m => ({ default: m.Faq })))
 const Legal = lazy(() => import('@/pages/legal').then(m => ({ default: m.Legal })))
 const PrivacyPolicy = lazy(() => import('@/pages/privacy-policy').then(m => ({ default: m.PrivacyPolicy })))
 const TermsOfService = lazy(() => import('@/pages/terms-of-service').then(m => ({ default: m.TermsOfService })))
@@ -41,6 +42,7 @@ function App() {
             <Route path="evidence" element={<Evidence />} />
             <Route path="settings" element={<Settings />} />
             <Route path="docs" element={<Documentation />} />
+            <Route path="faq" element={<Faq />} />
             <Route path="legal" element={<Legal />} />
             <Route path="legal/privacy" element={<PrivacyPolicy />} />
             <Route path="legal/terms" element={<TermsOfService />} />
