@@ -89,6 +89,20 @@ export interface DemoPayload {
     policy_variables: string[]
     note: string
   }
+  future_tree: Array<{
+    id: string
+    parent_id: string | null
+    depth: number
+    policy: Record<string, number>
+    score: number
+    valid: boolean
+    label: string
+  }>
+  causal_graph: {
+    nodes: string[]
+    edges: Array<{ cause: string; effect: string; strength: number }>
+  }
+  uncertainty: { risk_entropy: number }
 }
 
 export interface MonitorSnapshot {
