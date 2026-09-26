@@ -130,7 +130,7 @@ python -m venv .venv
 # Windows: .venv\Scripts\activate
 # macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]" -c constraints.txt
-pytest                                # 276 passed, 1 skipped
+pytest                                # 278 passed, 1 skipped
 rift demo                             # counterfactual lab (terminal)
 rift twin-demo                        # patient twin story (terminal)
 rift serve                            # http://127.0.0.1:8080
@@ -306,7 +306,7 @@ src/rift/health/           # patient twin: observations, adapters, timeline,
                            # training, FHIR, drift, monitoring, scrapers
 web/                       # dashboard: index.html + app.js + styles.css
 backend/supabase/migrations/  # 001→007, additive + idempotent + RLS
-tests/                     # 276 passed, 1 skipped incl. test_internal_audit_regression.py
+tests/                     # 278 passed, 1 skipped incl. test_internal_audit_regression.py
 docs/                      # architecture, PRD, api, patient-twin, evidence-sheet,
                            # security, deployment, billing, roadmap, ... (17 files)
 monitoring/                # Prometheus rules + config (single metric contract)
@@ -347,7 +347,7 @@ constraints.txt            # pinned research environment
 
 ```bash
 pip install -e ".[dev]" -c constraints.txt
-pytest                                  # 276 passed, 1 skipped
+pytest                                  # 278 passed, 1 skipped
 python scripts/validate_migrations.py   # 7 files ok
 python scripts/secret_scan.py           # clean
 python scripts/check_versions.py        # 1.0.0 ok
@@ -362,7 +362,7 @@ CI (`test.yml`): test + validate + security + real Docker build & `/api/health` 
 
 ## Status & open gates
 
-`v1.0.0` is a **final audited research-prototype implementation**: 276 passed, 1 skipped, SAST clean, real Docker 
+`v1.0.0` is a **final audited research-prototype implementation**: 278 passed, 1 skipped, SAST clean, real Docker 
 build green, no known P1/P2 defects, no open issues/PRs.
 
 It is **not** clinically validated or production-deployed. Open gates (documented, not hidden): governed clinical dataset + predefined endpoint + adequate event volume → independent external validation → prospective validation → clinical review/governance → live database/RLS, billing, FHIR, devices, alerting, edge TLS/CORS → jurisdiction-specific regulatory assessment. The 21-phase matrix reads COMPLETE at code scope only.
