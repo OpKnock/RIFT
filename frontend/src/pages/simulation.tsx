@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { FutureTree3D } from '@/components/twin-3d'
 import { logEvent } from '@/utils/event-log'
+import { paretoFront, scoreStats, equivalentGroups, confidenceFor, bestNominal, bestWorstCase } from '@/utils/analysis'
 import { demoCacheKey, readDemoCache, writeDemoCache, clearDemoCache } from '@/utils/demo-cache'
 import { driver, defaultParams } from '@/domains/smart-building'
 import { demoParamsSchema, formatZodError } from '@/contracts/v1'
@@ -86,8 +87,10 @@ export function Simulation() {
   const [reviewMsg, setReviewMsg] = useState<string | null>(null)
   const [reviewError, setReviewError] = useState<string | null>(null)
   const [ranAt, setRanAt] = useState<string | null>(null)
-  const [cacheHit, setCacheHit] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [cacheHit, setCacheHit] = useState(false)
+  const [delta, setDelta] = useState<{ label: string; dNominal: number | null; guardianBefore: boolean; guardianAfter: boolean } | null>(null)
+  const [deltaBusy, setDeltaBusy] = useState(false)
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory())
   const [compareIds, setCompareIds] = useState<[string, string]>(['', ''])
   const timerRef = useRef<number | null>(null)
@@ -290,6 +293,32 @@ export function Simulation() {
     }
   }
 
+  const handleWhatIf = async (fraction: number) => {
+    if (!result || !lastParams || !bounds || running || deltaBusy) return
+    const modified: RunParams = {
+      ...lastParams,
+      crowd: Math.min(bounds.crowd[1], Math.max(bounds.crowd[0], Math.round(lastParams.crowd * (1 + fraction)))),
+    }
+    setDeltaBusy(true)
+    setDelta(null)
+    try {
+      const payload = await api.runDemo({ crowd: modified.crowd, smoke: modified.smoke, corridor_capacity: modified.capacity, block_b: modified.blockB })
+      const before = result.robust.length > 0 ? Math.min(...result.robust.map((r) => r.score)) : null
+      const after = payload.robust.length > 0 ? Math.min(...payload.robust.map((r) => r.score)) : null
+      setDelta({
+        label: `crowd ${fraction > 0 ? '+' : ''}${Math.round(fraction * 100)}% (${modified.crowd})`,
+        dNominal: before !== null && after !== null ? after - before : null,
+        guardianBefore: result.guardian.passed,
+        guardianAfter: payload.guardian.passed,
+      })
+    } catch (e) {
+      setDelta({ label: 'what-if failed', dNominal: null, guardianBefore: result.guardian.passed, guardianAfter: false })
+      setError(apiErrorMessage(e, 'What-if run failed.'))
+    } finally {
+      setDeltaBusy(false)
+    }
+  }
+
   const handleApprove = async () => {
     setReviewMsg(null)
     setReviewError(null)
@@ -320,6 +349,15 @@ export function Simulation() {
   const comparePair = compareIds[0] && compareIds[1]
     ? [history.find((h) => h.key === compareIds[0]), history.find((h) => h.key === compareIds[1])]
     : [undefined, undefined]
+
+  const paretoFlags = result
+    ? paretoFront(result.robust.map((r) => ({ nominal: r.score, worst: r.worst_case_score })))
+    : []
+  const distStats = result ? scoreStats(result.futures.map((f) => f.score)) : null
+  const validCount = result ? result.futures.filter((f) => f.valid).length : 0
+  const equivGroups = result ? equivalentGroups(result.robust.map((r) => r.policy)) : []
+  const idxBestNominal = result ? bestNominal(result.robust) : null
+  const idxBestWorst = result ? bestWorstCase(result.robust) : null
 
   return (
     <div className="space-y-6">
@@ -450,27 +488,80 @@ export function Simulation() {
                 </div>
 
                 <div>
+                  <h3 className="font-medium text-secondary-900 dark:text-white mb-2">Policy enumeration</h3>
+                  <p className="text-sm text-secondary-600 dark:text-secondary-400">
+                    {result.futures.length} futures enumerated · {validCount} valid · {result.futures.length - validCount} pruned as infeasible.
+                    {distStats && (
+                      <> Score distribution: min <span className="font-mono">{distStats.min.toFixed(1)}</span>, mean <span className="font-mono">{distStats.mean.toFixed(1)}</span>, max <span className="font-mono">{distStats.max.toFixed(1)}</span>.</>
+                    )}
+                  </p>
+                  {result.futures.length - validCount > 0 && (
+                    <details className="text-sm mt-1">
+                      <summary className="cursor-pointer text-secondary-600 dark:text-secondary-400">Show pruned policies</summary>
+                      <ul className="font-mono text-xs mt-1 space-y-0.5">
+                        {result.futures.filter((f) => !f.valid).map((f, i) => (
+                          <li key={i}>{JSON.stringify(f.policy)} → score {f.score.toFixed(1)}</li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </div>
+
+                <div>
                   <h3 className="font-medium text-secondary-900 dark:text-white mb-2">Robust ranking + reasons</h3>
                   {result.robust.length === 0 && (
                     <p className="text-sm text-secondary-500">No feasible policies under the declared perturbations for this initial state.</p>
                   )}
                   {result.robust.length > 0 && (
                     <div className="table-container">
-                      <table className="table">
-                        <thead><tr><th>Policy</th><th>Nominal</th><th>Worst case</th><th>Gap</th><th>Feasible</th><th>Reason</th></tr></thead>
-                        <tbody>
-                          {result.robust.map((r, i) => (
-                            <tr key={i}>
-                              <td className="font-mono text-xs">{JSON.stringify(r.policy)}</td>
-                              <td className="font-mono">{r.score.toFixed(2)}</td>
-                              <td className="font-mono">{r.worst_case_score.toFixed(2)}</td>
-                              <td className="font-mono">{r.robustness_gap.toFixed(2)}</td>
-                              <td>{r.feasible_under_all ? 'yes' : 'no'}</td>
-                              <td className="text-xs max-w-xs">{reasonFor(r)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                    <table className="table">
+                      <thead><tr><th>Policy</th><th>Nominal</th><th>Worst case</th><th>Gap</th><th>Feasible</th><th>Pareto</th><th>Reason</th></tr></thead>
+                      <tbody>
+                        {result.robust.map((r, i) => (
+                          <tr key={i}>
+                            <td className="font-mono text-xs">{JSON.stringify(r.policy)}</td>
+                            <td className="font-mono">{r.score.toFixed(2)}</td>
+                            <td className="font-mono">{r.worst_case_score.toFixed(2)}</td>
+                            <td className="font-mono">{r.robustness_gap.toFixed(2)}</td>
+                            <td>{r.feasible_under_all ? 'yes' : 'no'}</td>
+                            <td>{paretoFlags[i] ? <Badge variant="success">non-dominated</Badge> : <span className="text-xs text-secondary-500">dominated</span>}</td>
+                            <td className="text-xs max-w-xs">{reasonFor(r)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  )}
+                  {equivGroups.length > 0 && (
+                    <p className="text-xs text-secondary-500 mt-1">{equivGroups.length} set(s) of exactly equivalent policies detected — identical assignments, same outcome.</p>
+                  )}
+                </div>
+
+                <div>
+                  <h3 className="font-medium text-secondary-900 dark:text-white mb-2">Trade-off + what-if</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mb-3">
+                    <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
+                      <p className="font-medium">Best nominal</p>
+                      <p className="font-mono text-xs">{idxBestNominal !== null ? JSON.stringify(result.robust[idxBestNominal].policy) : '—'}</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
+                      <p className="font-medium">Best worst-case</p>
+                      <p className="font-mono text-xs">{idxBestWorst !== null ? JSON.stringify(result.robust[idxBestWorst].policy) : '—'}</p>
+                    </div>
+                  </div>
+                  {idxBestNominal !== null && idxBestWorst !== null && idxBestNominal !== idxBestWorst && (
+                    <p className="text-xs text-secondary-500 mb-3">The nominal and worst-case optima differ — that disagreement is the trade-off to decide on.</p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleWhatIf(0.1)} disabled={deltaBusy || running}>What-if: crowd +10%</Button>
+                    <Button variant="outline" size="sm" onClick={() => handleWhatIf(-0.1)} disabled={deltaBusy || running}>What-if: crowd −10%</Button>
+                  </div>
+                  {deltaBusy && <p className="text-sm text-secondary-500 mt-2">Running what-if…</p>}
+                  {delta && !deltaBusy && (
+                    <div className="text-sm mt-2 p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
+                      <p className="font-medium">{delta.label}</p>
+                      <p className="font-mono">Δ best nominal: {delta.dNominal === null ? 'n/a (empty ranking on one side)' : (delta.dNominal >= 0 ? '+' : '') + delta.dNominal.toFixed(2)}</p>
+                      <p>Guardian: {delta.guardianBefore ? 'PASSED' : 'FAILED'} → {delta.guardianAfter ? 'PASSED' : 'FAILED'}</p>
                     </div>
                   )}
                 </div>
@@ -487,12 +578,14 @@ export function Simulation() {
                         <p className="font-medium">{o.label}</p>
                         <p className="font-mono">energy {o.r.energy.toFixed(3)}</p>
                         <p className="font-mono text-xs text-secondary-500">{o.r.method}</p>
+                        <p className="text-xs text-secondary-500 mt-1">{confidenceFor(o.r.method)}</p>
                       </div>
                     ))}
                   </div>
                   <p className="text-xs text-secondary-500 mt-2">
                     Routing guidance (client heuristic, not server routing): {result.multivariable.policy_count} policies ≤ exact-enumeration budget —
                     exact stays reference-grade here. QAOA paths are experimental; hardware needs operator credentials. No advantage claimed.
+                    Fallback: the service layer degrades to exact enumeration if a simulator path fails; every result above records its actual backend.
                   </p>
                 </div>
 
