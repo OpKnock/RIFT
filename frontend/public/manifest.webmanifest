@@ -1,0 +1,10 @@
+{
+  "name": "RIFT — Counterfactual Decision Intelligence",
+  "short_name": "RIFT",
+  "description": "Research prototype: counterfactual futures, robustness testing, Guardian verification.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#0ea5e9",
+  "icons": []
+}

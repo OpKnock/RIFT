@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { Play, Loader2, CheckCircle, XCircle, RotateCcw, ShieldCheck } from 'lucide-react'
+import { Play, Loader2, CheckCircle, XCircle, RotateCcw, ShieldCheck, Copy, Check } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { FutureTree3D } from '@/components/twin-3d'
+import { logEvent } from '@/utils/event-log'
 import { api, apiErrorMessage, type DemoPayload, type EngineMeta } from '@/services/api'
 
 interface RunParams {
@@ -58,6 +59,12 @@ function reasonFor(r: DemoPayload['robust'][number]): string {
 
 const DEFAULTS: RunParams = { crowd: 1200, smoke: 4, capacity: 60, blockB: false }
 
+const TEMPLATES: Array<{ name: string; desc: string; params: RunParams }> = [
+  { name: 'Evening rush', desc: 'High occupancy, moderate smoke, exit B open.', params: { crowd: 2500, smoke: 6, capacity: 80, blockB: false } },
+  { name: 'Night low occupancy', desc: 'Sparse crowd, light smoke, full capacity.', params: { crowd: 300, smoke: 2, capacity: 60, blockB: false } },
+  { name: 'Blocked exit drill', desc: 'Moderate crowd with corridor B closed.', params: { crowd: 1200, smoke: 4, capacity: 60, blockB: true } },
+]
+
 export function Simulation() {
   const [meta, setMeta] = useState<EngineMeta | null>(null)
   const [metaError, setMetaError] = useState<string | null>(null)
@@ -78,6 +85,8 @@ export function Simulation() {
   const [reviewAction, setReviewAction] = useState('ACCEPT')
   const [reviewMsg, setReviewMsg] = useState<string | null>(null)
   const [reviewError, setReviewError] = useState<string | null>(null)
+  const [ranAt, setRanAt] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory())
   const [compareIds, setCompareIds] = useState<[string, string]>(['', ''])
   const timerRef = useRef<number | null>(null)
@@ -167,10 +176,13 @@ export function Simulation() {
       const payload = await execute(params)
       setResult(payload)
       setLastParams(params)
+      setRanAt(new Date().toISOString())
       recordHistory(params, payload)
+      logEvent('simulation', `run completed: crowd=${params.crowd} smoke=${params.smoke} guardian=${payload.guardian.passed ? 'PASSED' : 'FAILED'}`)
       setPhase('')
     } catch (e) {
       setError(apiErrorMessage(e, 'Simulation failed.'))
+      logEvent('simulation', `run failed: ${apiErrorMessage(e, 'request failed')}`)
       setPhase('')
     } finally {
       if (timerRef.current !== null) {
@@ -192,6 +204,44 @@ export function Simulation() {
     setReviewError(null)
     setElapsed(0)
     setPhase('')
+    setRanAt(null)
+  }
+
+  const stale =
+    result !== null &&
+    lastParams !== null &&
+    (Number(crowd) !== lastParams.crowd ||
+      Number(smoke) !== lastParams.smoke ||
+      Number(capacity) !== lastParams.capacity ||
+      blockB !== lastParams.blockB)
+
+  const curlFor = (p: RunParams): string => {
+    const q = new URLSearchParams({
+      crowd: String(p.crowd),
+      smoke: String(p.smoke),
+      corridor_capacity: String(p.capacity),
+    })
+    if (p.blockB) q.set('block_b', '1')
+    return `curl "http://127.0.0.1:8080/api/demo?${q.toString()}"`
+  }
+
+  const handleCopyCurl = async () => {
+    if (!lastParams) return
+    try {
+      await navigator.clipboard.writeText(curlFor(lastParams))
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopied(false)
+    }
+  }
+
+  const applyTemplate = (t: (typeof TEMPLATES)[number]) => {
+    setCrowd(String(t.params.crowd))
+    setSmoke(String(t.params.smoke))
+    setCapacity(String(t.params.capacity))
+    setBlockB(t.params.blockB)
+    setError(null)
   }
 
   const handleBreak = async () => {
@@ -217,6 +267,10 @@ export function Simulation() {
       if (sweepCancel.current) break
     }
     setSweeping(false)
+    if (!sweepCancel.current) {
+      const failed = cells.filter((c) => c.guardianPassed === false).length
+      logEvent('sweep', `break-this-plan sweep finished: ${cells.length} cells, ${failed} Guardian failures`)
+    }
   }
 
   const handleApprove = async () => {
@@ -239,6 +293,7 @@ export function Simulation() {
       })
       const rid = (row as Record<string, unknown>)['review_id']
       setReviewMsg(`Recorded ${reviewAction} · ${String(rid).slice(0, 12)}…`)
+      logEvent('approval', `${reviewAction} recorded by ${reviewer.trim()} for current run`)
       setRationale('')
     } catch (e) {
       setReviewError(apiErrorMessage(e, 'Review rejected.'))
@@ -277,6 +332,22 @@ export function Simulation() {
                 <p>Engine: <span className="font-mono">v{meta.engine_version}</span></p>
               </div>
             )}
+            <div>
+              <p className="text-xs font-medium text-secondary-500 dark:text-secondary-400 mb-2">Templates (local presets — engine supports one scenario type)</p>
+              <div className="flex flex-wrap gap-2">
+                {TEMPLATES.map((t) => (
+                  <button
+                    key={t.name}
+                    onClick={() => applyTemplate(t)}
+                    disabled={running}
+                    title={t.desc}
+                    className="text-xs px-2.5 py-1.5 rounded-lg border border-secondary-300 dark:border-secondary-600 hover:bg-secondary-100 dark:hover:bg-secondary-800 transition-colors disabled:opacity-50"
+                  >
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="flex gap-2">
               <Button onClick={() => handleRun()} disabled={running || !meta} className="flex-1">
                 {running ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />{phase || 'Running…'} · {elapsed} ms</>) : (<><Play className="w-4 h-4 mr-2" />Run Simulation</>)}
@@ -309,7 +380,28 @@ export function Simulation() {
                   <span className="text-xs text-secondary-500">{result.guardian.scope}</span>
                   <span className="text-xs text-secondary-500 font-mono">round-trip {elapsed} ms</span>
                   <span className="text-xs text-secondary-500">risk entropy {result.uncertainty.risk_entropy.toFixed(3)}</span>
+                  <button onClick={handleCopyCurl} className="text-xs text-primary-600 hover:underline inline-flex items-center gap-1" aria-label="Copy as curl">
+                    {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}{copied ? 'Copied' : 'Copy as curl'}
+                  </button>
                 </div>
+                {stale && (
+                  <p className="text-sm text-warning-600 dark:text-warning-400 border border-warning-200 dark:border-warning-800 rounded-lg px-3 py-2" role="status">
+                    Inputs changed since this result — it is stale. Re-run to recompute.
+                  </p>
+                )}
+                {ranAt && !stale && (
+                  <p className="text-xs text-secondary-500">Computed {new Date(ranAt).toLocaleTimeString()} · valid only for the exact inputs shown above.</p>
+                )}
+                {!result.guardian.passed && (
+                  <div className="text-sm border border-error-200 dark:border-error-800 rounded-lg px-3 py-2 space-y-1" role="alert">
+                    <p className="font-medium text-error-700 dark:text-error-300">Incident mode: Guardian withheld this result.</p>
+                    <ul className="list-disc list-inside text-secondary-600 dark:text-secondary-400">
+                      <li>Do not act on these numbers — display is frozen by policy.</li>
+                      <li>Try the Break-this-plan sweep to find passing inputs, or adjust the initial state.</li>
+                      <li>Record the outcome via Human approval below so the audit trail shows the decision.</li>
+                    </ul>
+                  </div>
+                )}
 
                 <div>
                   <h3 className="font-medium text-secondary-900 dark:text-white mb-2">3D future tree ({result.future_tree.length} nodes)</h3>
