@@ -394,6 +394,8 @@ def apply_isotonic(p_raw: float, params: dict) -> float:
 
     Isotonic regression produces a piecewise constant (step) function.
     Returns the fitted value for the interval containing p_raw.
+
+    The mapping is right-continuous: p_raw == raw_probs[i] returns fitted[i].
     """
     raw_probs = params["raw_probs"]
     fitted = params["fitted"]
@@ -402,8 +404,9 @@ def apply_isotonic(p_raw: float, params: dict) -> float:
     if p_raw >= raw_probs[-1]:
         return fitted[-1]
     # Step function: find the interval and return the fitted value for that interval
+    # Right-continuous: p_raw == raw_probs[i] maps to fitted[i]
     for i in range(len(raw_probs) - 1):
-        if raw_probs[i] <= p_raw <= raw_probs[i + 1]:
+        if raw_probs[i] <= p_raw < raw_probs[i + 1]:
             return fitted[i]
     return fitted[-1]
 
