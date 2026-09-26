@@ -17,7 +17,7 @@ reasoning + CHAOS robustness + Guardian display-safety + evidence contract.
 Synthetic EHR + 14-day replayable wearable stream (dashboard/demo),
 60-day development/held-out series, independent 60-day external series,
 strict-schema CSV adapter (`PublicDatasetSource`) ready for public data.
-No real patient data anywhere in this build.
+No raw real-patient data is committed in this build.
 
 ## Core capabilities (all implemented, all tested)
 
