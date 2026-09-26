@@ -8,6 +8,8 @@ import { Switch } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTheme } from '@/components/providers/theme-provider'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { readUtm } from '@/hooks/use-utm'
 import { api, apiErrorMessage, type HealthStatus, type EngineMeta } from '@/services/api'
 
 const PROFILE_KEY = 'rift-profile-name'
@@ -25,6 +27,8 @@ export function Settings() {
   const [savedTick, setSavedTick] = useState(false)
   const [tokenInput, setTokenInput] = useState('')
   const [hasToken, setHasToken] = useState(() => api.getToken() !== null)
+  const [confirmClear, setConfirmClear] = useState(false)
+  const [utm] = useState(() => readUtm())
   const [health, setHealth] = useState<HealthStatus | null>(null)
   const [meta, setMeta] = useState<EngineMeta | null>(null)
   const [statusError, setStatusError] = useState<string | null>(null)
@@ -240,7 +244,7 @@ export function Settings() {
               <div className="flex flex-wrap gap-3">
                 <Button variant="outline" onClick={() => {
                   const dump: Record<string, unknown> = {}
-                  for (const k of ['rift-local-runs', 'rift-event-log', PROFILE_KEY, 'rift_cookie_preferences']) {
+                  for (const k of ['rift-local-runs', 'rift-event-log', PROFILE_KEY, 'rift_cookie_preferences', 'rift-utm-first-touch']) {
                     try {
                       const raw = localStorage.getItem(k)
                       dump[k] = raw ? JSON.parse(raw) : null
@@ -256,13 +260,26 @@ export function Settings() {
                   a.click()
                   URL.revokeObjectURL(url)
                 }}>Export local data (JSON)</Button>
-                <Button variant="outline" onClick={() => {
+                <Button variant="outline" onClick={() => setConfirmClear(true)}>Clear local data</Button>
+              </div>
+              <p className="text-sm text-secondary-500">
+                First-touch attribution: <span className="font-mono">{utm ? `utm_source=${utm.utm_source || '—'} utm_medium=${utm.utm_medium || '—'} utm_campaign=${utm.utm_campaign || '—'}` : 'no UTM parameters recorded'}</span>.
+                Captured once from the landing URL, stored only here, included in the export above.
+              </p>
+              <ConfirmDialog
+                open={confirmClear}
+                title="Clear local data?"
+                body="Removes run history, event log, and display name from this browser. This cannot be undone. Server-side data is unaffected."
+                confirmLabel="Clear everything local"
+                onCancel={() => setConfirmClear(false)}
+                onConfirm={() => {
                   for (const k of ['rift-local-runs', 'rift-event-log', PROFILE_KEY]) {
                     try { localStorage.removeItem(k) } catch { /* ignore */ }
                   }
                   setDisplayName('')
-                }}>Clear local data</Button>
-              </div>
+                  setConfirmClear(false)
+                }}
+              />
               <p className="text-sm text-secondary-500">Account deletion and server-side retention are operator duties — see the deployment docs. Ledger backup procedure: copy the JSONL ledger files (see incident runbook).</p>
             </div>
           </Card>

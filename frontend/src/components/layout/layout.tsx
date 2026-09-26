@@ -6,6 +6,11 @@ import { cn } from '@/utils/cn'
 import { MobileMenu } from './mobile-menu'
 import { UserMenu } from './user-menu'
 import { BackToTop } from '@/components/back-to-top'
+import { FloatingContact } from '@/components/floating-contact'
+import { ScrollProgress } from '@/components/scroll-progress'
+import { Footer } from '@/components/layout/footer'
+import { useRouteTitle } from '@/hooks/use-route-title'
+import { useUtm } from '@/hooks/use-utm'
 import { CommandPalette } from '@/components/ui/command-palette'
 import { useCommandPalette } from '@/hooks/use-command-palette'
 
@@ -27,6 +32,8 @@ export function Layout() {
   const location = useLocation()
   const { resolvedTheme, setTheme } = useTheme()
   const { openCommandPalette } = useCommandPalette()
+  useRouteTitle()
+  useUtm()
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen)
 
@@ -42,6 +49,13 @@ export function Layout() {
 
   return (
     <div className="min-h-screen bg-secondary-50 dark:bg-secondary-950">
+      <ScrollProgress />
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[100] focus:px-3 focus:py-2 focus:rounded-lg focus:bg-primary-600 focus:text-white text-sm"
+      >
+        Skip to content
+      </a>
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
         <div
@@ -63,7 +77,7 @@ export function Layout() {
       >
         {/* Logo */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-secondary-200 dark:border-secondary-700">
-          <div className="flex items-center gap-3">
+          <Link to="/dashboard" className="flex items-center gap-3" aria-label="RIFT home">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-primary-600 text-white font-bold text-sm">
               R
             </div>
@@ -72,7 +86,7 @@ export function Layout() {
                 RIFT
               </span>
             )}
-          </div>
+          </Link>
           <button
             onClick={toggleSidebar}
             className="p-2 rounded-lg text-secondary-500 hover:bg-secondary-100 dark:text-secondary-400 dark:hover:bg-secondary-800 transition-colors"
@@ -194,9 +208,10 @@ export function Layout() {
         )}
 
         {/* Page Content */}
-        <div className="p-4 lg:p-6">
+        <div id="main-content" className="p-4 lg:p-6">
           <Outlet />
         </div>
+        <Footer />
       </main>
 
       {/* Mobile Menu */}
@@ -206,6 +221,7 @@ export function Layout() {
       <CommandPalette />
 
       <BackToTop />
+      <FloatingContact />
     </div>
   )
 }
