@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { FutureTree3D } from '@/components/twin-3d'
 import { logEvent } from '@/utils/event-log'
 import { paretoFront, scoreStats, equivalentGroups, confidenceFor, bestNominal, bestWorstCase } from '@/utils/analysis'
+import { fuzzParams, classifyDisturbance, groupFailureModes, survivalRate, type FuzzCell } from '@/utils/chaos'
 import { demoCacheKey, readDemoCache, writeDemoCache, clearDemoCache } from '@/utils/demo-cache'
 import { driver, defaultParams } from '@/domains/smart-building'
 import { demoParamsSchema, formatZodError } from '@/contracts/v1'
@@ -91,10 +92,15 @@ export function Simulation() {
   const [cacheHit, setCacheHit] = useState(false)
   const [delta, setDelta] = useState<{ label: string; dNominal: number | null; guardianBefore: boolean; guardianAfter: boolean } | null>(null)
   const [deltaBusy, setDeltaBusy] = useState(false)
+  const [fuzzN, setFuzzN] = useState('8')
+  const [fuzzSeed, setFuzzSeed] = useState('7')
+  const [fuzzing, setFuzzing] = useState(false)
+  const [fuzzCells, setFuzzCells] = useState<Array<FuzzCell & { guardianPassed: boolean | null; robustCount: number | null; error: string | null }>>([])
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory())
   const [compareIds, setCompareIds] = useState<[string, string]>(['', ''])
   const timerRef = useRef<number | null>(null)
   const sweepCancel = useRef(false)
+  const fuzzCancel = useRef(false)
 
   useEffect(() => {
     let cancelled = false
@@ -108,6 +114,7 @@ export function Simulation() {
     return () => {
       if (timerRef.current !== null) window.clearInterval(timerRef.current)
       sweepCancel.current = true
+      fuzzCancel.current = true
     }
   }, [])
 
@@ -318,6 +325,35 @@ export function Simulation() {
       setDeltaBusy(false)
     }
   }
+
+  const handleFuzz = async () => {
+    if (!bounds || fuzzing) return
+    const n = Math.min(24, Math.max(1, Math.floor(Number(fuzzN) || 0)))
+    const seed = Math.floor(Number(fuzzSeed) || 0)
+    if (!Number.isFinite(n) || n < 1) return
+    setFuzzCells([])
+    setFuzzing(true)
+    fuzzCancel.current = false
+    const cells = fuzzParams(seed, n, { crowd: bounds.crowd, smoke: bounds.smoke, corridor_capacity: bounds.corridor_capacity })
+    const out: Array<FuzzCell & { guardianPassed: boolean | null; robustCount: number | null; error: string | null }> = []
+    for (const c of cells) {
+      if (fuzzCancel.current) break
+      try {
+        const payload = await api.runDemo({ crowd: c.crowd, smoke: c.smoke, corridor_capacity: c.capacity, block_b: blockB })
+        out.push({ ...c, guardianPassed: payload.guardian.passed, robustCount: payload.robust.length, error: null })
+      } catch (e) {
+        out.push({ ...c, guardianPassed: null, robustCount: null, error: apiErrorMessage(e, 'request failed') })
+      }
+      setFuzzCells([...out])
+    }
+    setFuzzing(false)
+    if (!fuzzCancel.current) {
+      const failed = out.filter((c) => c.guardianPassed === false).length
+      logEvent('sweep', `fuzz run finished: seed=${seed} n=${out.length}, ${failed} Guardian failures`)
+    }
+  }
+
+  const failedHistory = history.filter((h) => !h.guardianPassed)
 
   const handleApprove = async () => {
     setReviewMsg(null)
@@ -631,6 +667,73 @@ export function Simulation() {
                   </div>
                 </div>
 
+                <div>
+                  <h3 className="font-medium text-secondary-900 dark:text-white mb-2">Survival analysis</h3>
+                  {(() => {
+                    const feasible = result.robust.filter((r) => r.feasible_under_all).length
+                    const rate = survivalRate(feasible, result.robust.length)
+                    const gaps = result.robust.map((r) => r.robustness_gap)
+                    const worstDegradation = gaps.length > 0 ? Math.max(...gaps) : null
+                    const margin = idxBestNominal !== null && idxBestWorst !== null
+                      ? result.robust[idxBestWorst].worst_case_score - result.robust[idxBestNominal].score
+                      : null
+                    const fragile = result.robust.filter((r) => !r.feasible_under_all).length
+                    return (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm mb-2">
+                        <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
+                          <p className="text-xs text-secondary-500">Survival rate</p>
+                          <p className="font-mono font-medium">{rate === null ? 'n/a' : `${(rate * 100).toFixed(0)}% (${feasible}/${result.robust.length})`}</p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
+                          <p className="text-xs text-secondary-500">Worst degradation (gap)</p>
+                          <p className="font-mono font-medium">{worstDegradation === null ? 'n/a' : worstDegradation.toFixed(2)}</p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
+                          <p className="text-xs text-secondary-500">Cost of robustness</p>
+                          <p className="font-mono font-medium">{margin === null ? 'n/a' : (margin >= 0 ? '+' : '') + margin.toFixed(2)}</p>
+                        </div>
+                        <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
+                          <p className="text-xs text-secondary-500">Fragile decisions</p>
+                          <p className="font-mono font-medium">{fragile}</p>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                  {(() => {
+                    const modes = groupFailureModes(result.robust)
+                    if (modes.length === 0) return <p className="text-xs text-secondary-500">No failure modes — every ranked policy survives all declared perturbations.</p>
+                    return (
+                      <div className="text-sm">
+                        <p className="font-medium mb-1">Failure modes (by worst perturbation)</p>
+                        <ul className="space-y-1">
+                          {modes.map((m) => (
+                            <li key={m.perturbation} className="font-mono text-xs">{m.perturbation} — breaks {m.count} polic{m.count === 1 ? 'y' : 'ies'}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )
+                  })()}
+                </div>
+
+                <div>
+                  <h3 className="font-medium text-secondary-900 dark:text-white mb-2">Disturbance families (declared by engine)</h3>
+                  <ul className="space-y-1 text-sm">
+                    {result.reproducibility.perturbations.map((p, i) => (
+                      <li key={i} className="font-mono text-xs">
+                        <Badge variant="secondary">{classifyDisturbance(p)}</Badge> {JSON.stringify(p)}
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-secondary-500 mt-2">
+                    Assumption attack map: perturbed fields {(() => {
+                      const attacked = [...new Set(result.reproducibility.perturbations.flatMap((p) => Object.keys(p)))]
+                      const assumed = Object.keys(result.scenario.initial_state)
+                      const overlap = attacked.filter((k) => assumed.includes(k))
+                      return overlap.length > 0 ? overlap.join(', ') : 'none overlap the recorded initial state'
+                    })()} — probabilistic, rare-event, and user-defined disturbances are not served by this engine configuration.
+                  </p>
+                </div>
+
                 <div className="text-xs text-secondary-500 space-y-1 pt-2 border-t border-secondary-100 dark:border-secondary-800">
                   <p>Reproducibility: engine v{result.reproducibility.engine_version} · backend <span className="font-mono">{result.reproducibility.backend}</span> · {result.reproducibility.note}</p>
                   <p>Benchmark notes:</p>
@@ -706,6 +809,76 @@ export function Simulation() {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <div className="p-6 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Scenario fuzzing (seeded)</h2>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleFuzz} disabled={fuzzing || !meta}>
+                {fuzzing ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Fuzzing…</>) : 'Run Fuzz'}
+              </Button>
+              {fuzzing && <Button variant="ghost" onClick={() => { fuzzCancel.current = true }}>Stop</Button>}
+            </div>
+          </div>
+          <p className="text-sm text-secondary-500">
+            Bounded random sampling of initial states with a fixed seed — deterministic fuzzing, sequential, cancellable.
+            Rare-event, Monte Carlo, and user-defined disturbance families are not served by this engine configuration.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input label="Samples (1–24)" type="number" value={fuzzN} onChange={(e) => setFuzzN(e.target.value)} />
+            <Input label="Fuzz seed (integer)" value={fuzzSeed} onChange={(e) => setFuzzSeed(e.target.value)} />
+          </div>
+          {fuzzCells.length > 0 && (
+            <div className="table-container">
+              <table className="table">
+                <thead><tr><th>#</th><th>Crowd</th><th>Smoke</th><th>Capacity</th><th>Guardian</th><th>Policies</th></tr></thead>
+                <tbody>
+                  {fuzzCells.map((c, i) => (
+                    <tr key={i}>
+                      <td className="font-mono">{i + 1}</td>
+                      <td className="font-mono">{c.crowd}</td>
+                      <td className="font-mono">{c.smoke}</td>
+                      <td className="font-mono">{c.capacity}</td>
+                      <td>{c.guardianPassed === null ? <span className="text-error-600 text-sm">{c.error}</span> : <Badge variant={c.guardianPassed ? 'success' : 'error'}>{c.guardianPassed ? 'PASSED' : 'FAILED'}</Badge>}</td>
+                      <td className="font-mono">{c.robustCount === null ? '—' : c.robustCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </Card>
+
+      <Card>
+        <div className="p-6 space-y-3">
+          <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Regression set (from failed runs)</h2>
+          <p className="text-sm text-secondary-500">Every locally recorded Guardian failure becomes a regression case. Re-running re-executes the exact inputs against the live engine.</p>
+          {failedHistory.length === 0 && <p className="text-sm text-secondary-500">No failures recorded yet — nothing to regress.</p>}
+          {failedHistory.length > 0 && (
+            <ul className="space-y-2">
+              {failedHistory.map((h) => (
+                <li key={h.key + h.time} className="flex items-center justify-between gap-3 text-sm p-2 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
+                  <span className="font-mono text-xs">{new Date(h.time).toLocaleTimeString()} · {h.params.crowd}, {h.params.smoke}, {h.params.capacity}{h.params.blockB ? ', blocked' : ''}</span>
+                  <button
+                    className="text-primary-600 hover:underline text-sm"
+                    onClick={() => {
+                      setCrowd(String(h.params.crowd))
+                      setSmoke(String(h.params.smoke))
+                      setCapacity(String(h.params.capacity))
+                      setBlockB(h.params.blockB)
+                      handleRun(h.params)
+                    }}
+                  >
+                    Re-run
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </div>
       </Card>

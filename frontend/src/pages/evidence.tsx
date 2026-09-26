@@ -119,6 +119,35 @@ export function Evidence() {
       </Card>
 
       <Card>
+        <div className="p-6 space-y-3">
+          <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Noise stress by severity (from bundle)</h2>
+          <p className="text-sm text-secondary-500">Sensor-noise magnitudes vs agreement and uncertainty — the served severity ladder, not a client invention.</p>
+          {(() => {
+            const rows = (data as Record<string, unknown> | null)?.stress as { rows?: Array<{ noise_magnitude: number; days: number; agreement: number | null; mean_uncertainty: number | null }> } | undefined
+            if (!data) return <p className="text-sm text-secondary-500">Loading…</p>
+            if (!rows?.rows || rows.rows.length === 0) return <p className="text-sm text-secondary-500">No stress rows in this bundle.</p>
+            return (
+              <div className="table-container">
+                <table className="table">
+                  <thead><tr><th>Noise magnitude</th><th>Days</th><th>Agreement</th><th>Mean uncertainty</th></tr></thead>
+                  <tbody>
+                    {rows.rows.map((r, i) => (
+                      <tr key={i}>
+                        <td className="font-mono">{r.noise_magnitude}</td>
+                        <td className="font-mono">{r.days}</td>
+                        <td className="font-mono">{r.agreement === null ? '—' : r.agreement.toFixed(3)}</td>
+                        <td className="font-mono">{r.mean_uncertainty === null ? '—' : r.mean_uncertainty.toFixed(4)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
+          })()}
+        </div>
+      </Card>
+
+      <Card>
         <div className="p-6">
           <h2 className="text-lg font-semibold text-secondary-900 dark:text-white mb-3">Frozen evidence bundle</h2>
           {loading && <p className="text-sm text-secondary-500">Loading evidence…</p>}
