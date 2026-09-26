@@ -20,7 +20,7 @@ Mission: help clinicians make safer, better-informed decisions under uncertainty
 | 8 | Legitimate QUBO | DONE | Exact fitting + equivalence tests, reported gaps | — |
 | 9 | No fake advantage | PARTIAL | Zero claims; exact-vs-sim benchmarks | Full classical battery (MILP/CP-SAT/SA/tabu) → **in progress below** |
 | 10 | Define advantage | DONE | Policy: "no advantage demonstrated" by default | — |
-| 11 | Real hardware | EXTERNAL | Gated `qpu.py` boundary | Credentials, hardware, full-benchmark runs |
+| 11 | Real hardware | PARTIAL | Hardware execution DONE (`ibm_kingston`, gap 0.0) | Full classical benchmark + statistical significance for advantage claim |
 | 12 | Formal Guardian | PARTIAL | 16 rules, stages, tested, unbypassable | Per-rule clinical owner + hazard mapping → **in progress below** |
 | 13 | Uncertainty/abstention | PARTIAL | Decomposition, calibration repair, WITHHOLD | Abstention-harm study (needs clinical data) |
 | 14 | Clinician UI + audit | PARTIAL | Full-explanation dashboard | ACCEPT/REJECT/OVERRIDE/REQUEST REVIEW + audit → **in progress below** |
