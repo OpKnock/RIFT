@@ -1,286 +1,166 @@
-import { useState } from 'react'
-import { Play, RefreshCw, ChevronDown, ChevronUp, Download, CheckCircle, Loader2, XCircle, AlertCircle } from 'lucide-react'
-import { cn } from '@/utils/cn'
+import { useEffect, useState } from 'react'
+import { Play, Loader2, CheckCircle, XCircle } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/input'
-
-const mockRuns = [
-  { id: 'run-001', scenario: 'Cardiac Strain v2.1', status: 'completed', duration: '2m 34s', agreement: '87%', backend: 'exact', seed: 42, started: '2 hours ago' },
-  { id: 'run-002', scenario: 'Sepsis Challenge v1.0', status: 'running', duration: '1m 12s', agreement: '—', backend: 'qaoa-simulator', seed: 123, started: '5 min ago' },
-  { id: 'run-003', scenario: 'MIT-BIH Arrhythmia', status: 'completed', duration: '4m 12s', agreement: '92%', backend: 'exact', seed: 7, started: '1 day ago' },
-  { id: 'run-004', scenario: 'FANTASIA Normal Sinus', status: 'failed', duration: '45s', agreement: '—', backend: 'qaoa-simulator', seed: 42, started: '3 days ago' },
-  { id: 'run-005', scenario: 'CHFDB Heart Failure', status: 'completed', duration: '3m 18s', agreement: '78%', backend: 'exact', seed: 99, started: '1 week ago' },
-]
-
-const backends = ['exact', 'qaoa-simulator', 'qaoa-hardware', 'heuristic']
+import { Badge } from '@/components/ui/badge'
+import { api, apiErrorMessage, type DemoPayload, type EngineMeta } from '@/services/api'
 
 export function Simulation() {
-  const [scenarioId, setScenarioId] = useState('')
-  const [backend, setBackend] = useState('exact')
-  const [seed, setSeed] = useState(42)
-  const [perturbations, setPerturbations] = useState('')
+  const [meta, setMeta] = useState<EngineMeta | null>(null)
+  const [metaError, setMetaError] = useState<string | null>(null)
+  const [crowd, setCrowd] = useState('1200')
+  const [smoke, setSmoke] = useState('4')
+  const [capacity, setCapacity] = useState('60')
+  const [blockB, setBlockB] = useState(false)
   const [running, setRunning] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [currentRun, setCurrentRun] = useState<typeof mockRuns[0] | null>(null)
-  const [showHistory, setShowHistory] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<DemoPayload | null>(null)
+  const [elapsedMs, setElapsedMs] = useState<number | null>(null)
 
-  const handleRun = () => {
-    if (!scenarioId) return
+  useEffect(() => {
+    let cancelled = false
+    api.getMeta()
+      .then((m) => { if (!cancelled) setMeta(m) })
+      .catch((e) => { if (!cancelled) setMetaError(apiErrorMessage(e, 'Failed to load engine metadata.')) })
+    return () => { cancelled = true }
+  }, [])
+
+  const bounds = meta?.limits.scenario_bounds
+  const clamp = (raw: string, lo: number, hi: number): number | null => {
+    const v = Number(raw)
+    if (!Number.isFinite(v) || v < lo || v > hi) return null
+    return v
+  }
+
+  const handleRun = async () => {
+    setError(null)
+    setResult(null)
+    if (!bounds) { setError('Engine metadata not loaded yet.'); return }
+    const c = clamp(crowd, bounds.crowd[0], bounds.crowd[1])
+    const s = clamp(smoke, bounds.smoke[0], bounds.smoke[1])
+    const k = clamp(capacity, bounds.corridor_capacity[0], bounds.corridor_capacity[1])
+    if (c === null || s === null || k === null) {
+      setError(`Inputs out of engine bounds: crowd [${bounds.crowd}], smoke [${bounds.smoke}], capacity [${bounds.corridor_capacity}].`)
+      return
+    }
     setRunning(true)
-    setProgress(0)
-    
-    // Simulate progress
-    const interval = setInterval(() => {
-      setProgress(prev => {
-        if (prev >= 90) {
-          clearInterval(interval)
-          return 100
-        }
-        return prev + Math.random() * 15
-      })
-    }, 500)
-
-    // Simulate completion
-    setTimeout(() => {
-      clearInterval(interval)
-      setProgress(100)
+    const t0 = performance.now()
+    try {
+      const payload = await api.runDemo({ crowd: c, smoke: s, corridor_capacity: k, block_b: blockB })
+      setResult(payload)
+      setElapsedMs(Math.round(performance.now() - t0))
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Simulation failed.'))
+    } finally {
       setRunning(false)
-      setCurrentRun({
-        id: `run-${Date.now()}`,
-        scenario: mockRuns.find(s => s.id === scenarioId)?.scenario || 'Unknown',
-        status: 'completed',
-        duration: `${Math.floor(Math.random() * 3) + 1}m ${Math.floor(Math.random() * 60)}s`,
-        agreement: `${Math.floor(Math.random() * 20) + 70}%`,
-        backend,
-        seed,
-        started: 'Just now',
-      })
-    }, 3000)
+    }
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-secondary-900 dark:text-white">Simulation</h1>
-          <p className="text-secondary-600 dark:text-secondary-400 mt-1">
-            Run counterfactual simulations with CHAOS robustness testing
-          </p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold text-secondary-900 dark:text-white">Simulation</h1>
+        <p className="text-secondary-600 dark:text-secondary-400 mt-1">
+          Executes the real engine via <code className="font-mono text-sm">GET /api/demo</code> — smart-building emergency, deterministic.
+        </p>
       </div>
 
-      {/* Configuration Panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Configuration */}
-        <Card className="lg:col-span-2">
-          <h2 className="text-lg font-semibold text-secondary-900 dark:text-white mb-4">Simulation Configuration</h2>
-          
-          <div className="space-y-4">
-            <div>
-              <label className="label">Scenario</label>
-              <Select
-                value={scenarioId}
-                onChange={(e) => setScenarioId(e.target.value)}
-                options={[
-                  { value: '', label: 'Select a scenario...' },
-                  { value: 'scn-001', label: 'Cardiac Strain v2.1' },
-                  { value: 'scn-002', label: 'Sepsis Challenge v1.0' },
-                  { value: 'scn-003', label: 'MIT-BIH Arrhythmia' },
-                  { value: 'scn-004', label: 'FANTASIA Normal Sinus' },
-                  { value: 'scn-005', label: 'CHFDB Heart Failure' },
-                ]}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="label">Optimization Backend</label>
-                <Select
-                  value={backend}
-                  onChange={(e) => setBackend(e.target.value)}
-                  options={backends.map(b => ({ value: b, label: b.charAt(0).toUpperCase() + b.slice(1).replace('-', ' ') }))}
-                />
+        <Card>
+          <div className="p-6 space-y-4">
+            <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Initial State</h2>
+            {metaError && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{metaError}</p>}
+            <Input label={`Crowd [${bounds ? `${bounds.crowd[0]}–${bounds.crowd[1]}` : '…'}]`} type="number" value={crowd} onChange={(e) => setCrowd(e.target.value)} />
+            <Input label={`Smoke [${bounds ? `${bounds.smoke[0]}–${bounds.smoke[1]}` : '…'}]`} type="number" value={smoke} onChange={(e) => setSmoke(e.target.value)} />
+            <Input label={`Corridor capacity [${bounds ? `${bounds.corridor_capacity[0]}–${bounds.corridor_capacity[1]}` : '…'}]`} type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} />
+            <label className="flex items-center gap-2 text-sm text-secondary-700 dark:text-secondary-300">
+              <input type="checkbox" checked={blockB} onChange={(e) => setBlockB(e.target.checked)} className="h-4 w-4 rounded border-secondary-300 text-primary-600" />
+              Block corridor B (+penalty)
+            </label>
+            {meta && (
+              <div className="text-xs text-secondary-500 dark:text-secondary-400 space-y-1 pt-2 border-t border-secondary-100 dark:border-secondary-800">
+                <p>Optimizers: <span className="font-mono">{meta.optimizers.join(', ')}</span></p>
+                <p>Backend: <span className="font-mono">{meta.backends.join(', ')}</span></p>
+                <p>Engine: <span className="font-mono">v{meta.engine_version}</span></p>
               </div>
-
-              <div>
-                <label className="label">Random Seed</label>
-                <Input
-                  type="number"
-                  value={seed}
-                  onChange={(e) => setSeed(Number(e.target.value))}
-                  min={0}
-                  max={2147483647}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="label">Perturbations (comma-separated)</label>
-              <Input
-                value={perturbations}
-                onChange={(e) => setPerturbations(e.target.value)}
-                placeholder="e.g., noise:0.05, stale:2, bias:hr:5"
-              />
-              <p className="text-xs text-secondary-500 dark:text-secondary-400 mt-1">
-                Format: perturbation_type:parameter,perturbation_type:parameter
-              </p>
-            </div>
-
-            <div className="flex items-center gap-4 pt-4 border-t border-secondary-100 dark:border-secondary-800">
-              <Button 
-                onClick={handleRun} 
-                disabled={running || !scenarioId}
-                className="flex-1"
-              >
-                {running ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Running...
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-4 h-4 mr-2" />
-                    Run Simulation
-                  </>
-                )}
-              </Button>
-              <Button variant="secondary" onClick={() => setShowHistory(!showHistory)}>
-                {showHistory ? <ChevronUp className="w-4 h-4 mr-2" /> : <ChevronDown className="w-4 h-4 mr-2" />}
-                {showHistory ? 'Hide History' : 'Show History'}
-              </Button>
-            </div>
+            )}
+            <Button onClick={handleRun} disabled={running || !meta} className="w-full">
+              {running ? (<><Loader2 className="w-4 h-4 mr-2 animate-spin" />Running…</>) : (<><Play className="w-4 h-4 mr-2" />Run Simulation</>)}
+            </Button>
+            {error && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{error}</p>}
           </div>
         </Card>
 
-        {/* Progress Panel */}
-        <Card>
-          <h2 className="text-lg font-semibold text-secondary-900 dark:text-white mb-4">Simulation Progress</h2>
-          
-          {running && (
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-secondary-600 dark:text-secondary-400">Progress</span>
-                  <span className="font-mono font-medium">{progress}%</span>
-                </div>
-                <div className="h-2 bg-secondary-200 dark:bg-secondary-700 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary-600 transition-all duration-300 ease-out"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Backend</p>
-                  <p className="font-medium capitalize">{backend}</p>
-                </div>
-                <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Seed</p>
-                  <p className="font-mono">{seed}</p>
-                </div>
-                <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Perturbations</p>
-                  <p className="font-mono text-xs truncate">{perturbations || 'none'}</p>
-                </div>
-                <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
-                  <p className="text-xs text-secondary-500 dark:text-secondary-400">Progress</p>
-                  <p className="font-mono font-medium">{progress}%</p>
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {currentRun && !running && (
-            <div className="p-4 rounded-lg bg-success-50 dark:bg-success-900/30 border border-success-200 dark:border-success-800">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-success-800 dark:text-success-200">Simulation Complete</h3>
-                <Badge variant="success">Completed</Badge>
-              </div>
-              <div className="grid grid-cols-3 gap-4 text-sm mb-4">
-                <div>
-                  <p className="text-xs text-secondary-500">Agreement</p>
-                  <p className="font-mono font-medium text-lg">{currentRun.agreement}</p>
+        <Card className="lg:col-span-2">
+          <div className="p-6">
+            <h2 className="text-lg font-semibold text-secondary-900 dark:text-white mb-4">Result</h2>
+            {!result && !running && <p className="text-sm text-secondary-500">Configure the initial state and run. The engine response appears here with method labels.</p>}
+            {running && <p className="text-sm text-secondary-500">Executing… (synchronous engine call, timed locally)</p>}
+            {result && (
+              <div className="space-y-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant={result.guardian.passed ? 'success' : 'error'}>
+                    {result.guardian.passed ? <CheckCircle className="w-3 h-3 mr-1" /> : <XCircle className="w-3 h-3 mr-1" />}
+                    Guardian {result.guardian.passed ? 'PASSED' : 'FAILED'}
+                  </Badge>
+                  <span className="text-xs text-secondary-500">{result.guardian.scope}</span>
+                  {elapsedMs !== null && <span className="text-xs text-secondary-500 font-mono">round-trip {elapsedMs} ms</span>}
                 </div>
                 <div>
-                  <p className="text-xs text-secondary-500">Duration</p>
-                  <p className="font-mono">{currentRun.duration}</p>
+                  <h3 className="font-medium text-secondary-900 dark:text-white mb-2">Robust ranking</h3>
+                  {result.robust.length === 0 && (
+                    <p className="text-sm text-secondary-500">No feasible policies under the declared perturbations for this initial state. Adjust the inputs or inspect the Guardian checks.</p>
+                  )}
+                  {result.robust.length > 0 && (
+                  <div className="table-container">
+                    <table className="table">
+                      <thead><tr><th>Policy</th><th>Nominal</th><th>Worst case</th><th>Gap</th><th>Feasible</th></tr></thead>
+                      <tbody>
+                        {result.robust.map((r, i) => (
+                          <tr key={i}>
+                            <td className="font-mono text-xs">{JSON.stringify(r.policy)}</td>
+                            <td className="font-mono">{r.score.toFixed(2)}</td>
+                            <td className="font-mono">{r.worst_case_score.toFixed(2)}</td>
+                            <td className="font-mono">{r.robustness_gap.toFixed(2)}</td>
+                            <td>{r.feasible_under_all ? 'yes' : 'no'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  )}
                 </div>
                 <div>
-                  <p className="text-xs text-secondary-500">Backend</p>
-                  <p className="font-mono capitalize">{currentRun.backend}</p>
+                  <h3 className="font-medium text-secondary-900 dark:text-white mb-2">Optimizer comparison</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                    {[
+                      { label: 'Exact (classical)', r: result.robust_optimization.classical },
+                      { label: 'QAOA simulator', r: result.robust_optimization.qaoa },
+                      { label: 'QAOA CVaR tail', r: result.robust_optimization.cvar_qaoa },
+                    ].map((o) => (
+                      <div key={o.label} className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
+                        <p className="font-medium">{o.label}</p>
+                        <p className="font-mono">energy {o.r.energy.toFixed(3)}</p>
+                        <p className="font-mono text-xs text-secondary-500">{o.r.method}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="text-xs text-secondary-500 space-y-1 pt-2 border-t border-secondary-100 dark:border-secondary-800">
+                  <p>Reproducibility: engine v{result.reproducibility.engine_version} · backend <span className="font-mono">{result.reproducibility.backend}</span> · {result.reproducibility.note}</p>
+                  <p>Benchmark notes:</p>
+                  <ul className="list-disc list-inside">
+                    {result.benchmark.map((b) => (
+                      <li key={b.method}><span className="font-mono">{b.method}</span> — {b.note}</li>
+                    ))}
+                  </ul>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <Button variant="secondary" size="sm" onClick={() => { setCurrentRun(null); }}>
-                  <RefreshCw className="w-4 h-4 mr-2" />
-                  Run Again
-                </Button>
-                <Button variant="ghost" size="sm">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export
-                </Button>
-              </div>
-            </div>
-          )}
-          
-          {showHistory && (
-            <div className="mt-6">
-              <h3 className="font-semibold text-secondary-900 dark:text-white mb-3">Run History</h3>
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Run ID</th>
-                      <th>Scenario</th>
-                      <th>Status</th>
-                      <th>Duration</th>
-                      <th>Agreement</th>
-                      <th>Backend</th>
-                      <th>Seed</th>
-                      <th>Started</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {mockRuns.map((run) => {
-                      const status = statusColors[run.status as keyof typeof statusColors] || statusColors.pending
-                      return (
-                        <tr key={run.id} className="hover:bg-secondary-50 dark:hover:bg-secondary-800/50">
-                          <td className="font-mono text-sm">{run.id}</td>
-                          <td className="font-medium">{run.scenario}</td>
-                          <td>
-                            <Badge className={cn(status.bg, status.text)}>
-                              <status.icon className="w-3 h-3 mr-1.5" aria-hidden="true" />
-                              {run.status.charAt(0).toUpperCase() + run.status.slice(1)}
-                            </Badge>
-                          </td>
-                          <td className="font-mono text-sm">{run.duration}</td>
-                          <td className="font-mono">{run.agreement}</td>
-                          <td className="text-secondary-600 dark:text-secondary-400 capitalize">{run.backend}</td>
-                          <td className="font-mono">{run.seed}</td>
-                          <td className="text-secondary-500 dark:text-secondary-400">{run.started}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </Card>
       </div>
     </div>
   )
 }
-
-const statusColors = {
-  completed: { bg: 'bg-success-100 dark:bg-success-900/30', text: 'text-success-700 dark:text-success-300', icon: CheckCircle },
-  running: { bg: 'bg-primary-100 dark:bg-primary-900/30', text: 'text-primary-700 dark:text-primary-300', icon: Loader2 },
-  failed: { bg: 'bg-error-100 dark:bg-error-900/30', text: 'text-error-700 dark:text-error-300', icon: XCircle },
-  pending: { bg: 'bg-warning-100 dark:bg-warning-900/30', text: 'text-warning-700 dark:text-warning-300', icon: AlertCircle },
-} as const

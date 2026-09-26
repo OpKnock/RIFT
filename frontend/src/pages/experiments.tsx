@@ -1,53 +1,44 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-
-interface ExperimentRow {
-  id: string
-  name?: string
-  status?: string
-}
+import { api, apiErrorMessage } from '@/services/api'
 
 export function Experiments() {
-  const [items, setItems] = useState<ExperimentRow[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [name, setName] = useState('')
-
-  const load = async () => {
-    setLoading(true)
-    setError(null)
-    try {
-      const res = await fetch('/api/experiments')
-      if (!res.ok) throw new Error(`Server responded ${res.status}`)
-      const body = await res.json()
-      const list = body?.data ?? body ?? []
-      setItems(Array.isArray(list) ? list : [])
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to load experiments.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => { load() }, [])
+  const [fetchId, setFetchId] = useState('')
+  const [result, setResult] = useState<unknown>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
 
   const create = async () => {
     if (!name.trim()) { setError('Experiment name is required.'); return }
     setError(null)
+    setResult(null)
+    setBusy(true)
     try {
-      const res = await fetch('/api/experiments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name }),
-      })
-      if (!res.ok) throw new Error(`Server responded ${res.status}`)
+      const row = await api.createExperiment({ name })
+      setResult(row)
       setName('')
-      await load()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create experiment.')
+      setError(apiErrorMessage(e, 'Failed to create experiment.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const fetchOne = async () => {
+    if (!fetchId.trim()) { setError('Experiment ID is required.'); return }
+    setError(null)
+    setResult(null)
+    setBusy(true)
+    try {
+      const row = await api.getExperiment(fetchId.trim())
+      setResult(row)
+    } catch (e) {
+      setError(apiErrorMessage(e, 'Failed to fetch experiment.'))
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -55,26 +46,24 @@ export function Experiments() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold text-secondary-900 dark:text-white">Experiments</h1>
-        <p className="text-secondary-600 dark:text-secondary-400 mt-1">Live data from <code className="font-mono text-sm">GET / POST /api/experiments</code>.</p>
+        <p className="text-secondary-600 dark:text-secondary-400 mt-1">
+          Real <code className="font-mono text-sm">POST /api/experiments</code> and <code className="font-mono text-sm">GET /api/experiments/{'{id}'}</code>.
+          There is no list endpoint — and no persistence without Supabase (server answers 503). Both facts are shown, not hidden.
+        </p>
       </div>
       <Card>
         <div className="p-6 space-y-4">
           <div className="flex gap-3">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="New experiment name" />
-            <Button onClick={create}>Create</Button>
+            <Button onClick={create} disabled={busy}>Create</Button>
           </div>
-          {loading && <p className="text-sm text-secondary-500">Loading…</p>}
+          <div className="flex gap-3">
+            <Input value={fetchId} onChange={(e) => setFetchId(e.target.value)} placeholder="Experiment UUID to fetch" />
+            <Button variant="outline" onClick={fetchOne} disabled={busy}>Fetch</Button>
+          </div>
           {error && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{error}</p>}
-          {!loading && !error && items.length === 0 && <p className="text-sm text-secondary-500">No experiments yet.</p>}
-          {!loading && !error && items.length > 0 && (
-            <ul className="divide-y divide-secondary-100 dark:divide-secondary-800">
-              {items.map((x) => (
-                <li key={x.id} className="py-3 flex items-center justify-between">
-                  <div><p className="font-medium font-mono text-sm">{x.id}</p><p className="text-sm text-secondary-500">{x.name || 'Untitled'}</p></div>
-                  <Link className="text-primary-600 hover:underline text-sm" to={`/simulation`}>Open in Simulation</Link>
-                </li>
-              ))}
-            </ul>
+          {result !== null && !error && (
+            <pre className="text-xs overflow-x-auto bg-secondary-50 dark:bg-secondary-800 p-4 rounded-lg">{JSON.stringify(result, null, 2)}</pre>
           )}
         </div>
       </Card>
