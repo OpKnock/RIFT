@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { FutureTree3D } from '@/components/twin-3d'
-import { logEvent } from '@/utils/event-log'
+import { logEvent, REPLAY_HANDOFF_KEY, type ReplayParams } from '@/utils/event-log'
 import { paretoFront, scoreStats, equivalentGroups, confidenceFor, bestNominal, bestWorstCase } from '@/utils/analysis'
 import { fuzzParams, classifyDisturbance, groupFailureModes, survivalRate, type FuzzCell } from '@/utils/chaos'
 import { demoCacheKey, readDemoCache, writeDemoCache, clearDemoCache } from '@/utils/demo-cache'
@@ -88,6 +88,7 @@ export function Simulation() {
   const [reviewMsg, setReviewMsg] = useState<string | null>(null)
   const [reviewError, setReviewError] = useState<string | null>(null)
   const [ranAt, setRanAt] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Date.now())
   const [copied, setCopied] = useState(false)
   const [cacheHit, setCacheHit] = useState(false)
   const [delta, setDelta] = useState<{ label: string; dNominal: number | null; guardianBefore: boolean; guardianAfter: boolean } | null>(null)
@@ -107,16 +108,51 @@ export function Simulation() {
     api.getMeta()
       .then((m) => { if (!cancelled) setMeta(m) })
       .catch((e) => { if (!cancelled) setMetaError(apiErrorMessage(e, 'Failed to load engine metadata.')) })
+    try {
+      const raw = localStorage.getItem(REPLAY_HANDOFF_KEY)
+      if (raw) {
+        localStorage.removeItem(REPLAY_HANDOFF_KEY)
+        const p = JSON.parse(raw) as ReplayParams
+        if (p && Number.isFinite(p.crowd) && Number.isFinite(p.smoke) && Number.isFinite(p.capacity)) {
+          setCrowd(String(p.crowd))
+          setSmoke(String(p.smoke))
+          setCapacity(String(p.capacity))
+          setBlockB(!!p.blockB)
+          setError('Inputs loaded from event history — press Run Simulation to re-execute.')
+        }
+      }
+    } catch {
+      /* no handoff present */
+    }
     return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
+    const clock = window.setInterval(() => setNow(Date.now()), 30000)
     return () => {
+      window.clearInterval(clock)
       if (timerRef.current !== null) window.clearInterval(timerRef.current)
       sweepCancel.current = true
       fuzzCancel.current = true
     }
   }, [])
+
+  const expired = ranAt !== null && now - Date.parse(ranAt) > 15 * 60 * 1000
+
+  const retryFuzzCell = async (index: number) => {
+    const cell = fuzzCells[index]
+    if (!cell || fuzzing) return
+    try {
+      const payload = await api.runDemo({ crowd: cell.crowd, smoke: cell.smoke, corridor_capacity: cell.capacity, block_b: blockB })
+      setFuzzCells((prev) => prev.map((c, i) => (i === index
+        ? { ...c, guardianPassed: payload.guardian.passed, robustCount: payload.robust.length, error: null }
+        : c)))
+    } catch (e) {
+      setFuzzCells((prev) => prev.map((c, i) => (i === index
+        ? { ...c, guardianPassed: null, robustCount: null, error: apiErrorMessage(e, 'request failed') }
+        : c)))
+    }
+  }
 
   const bounds = meta?.limits.scenario_bounds
 
@@ -204,7 +240,7 @@ export function Simulation() {
       setLastParams(params)
       setRanAt(new Date().toISOString())
       recordHistory(params, payload)
-      logEvent('simulation', `run completed: crowd=${params.crowd} smoke=${params.smoke} guardian=${payload.guardian.passed ? 'PASSED' : 'FAILED'}`)
+      logEvent('simulation', `run completed: crowd=${params.crowd} smoke=${params.smoke} guardian=${payload.guardian.passed ? 'PASSED' : 'FAILED'}`, params)
       setPhase('')
     } catch (e) {
       setError(apiErrorMessage(e, 'Simulation failed.'))
@@ -489,8 +525,13 @@ export function Simulation() {
                     Inputs changed since this result — it is stale. Re-run to recompute.
                   </p>
                 )}
-                {ranAt && !stale && (
-                  <p className="text-xs text-secondary-500">Computed {new Date(ranAt).toLocaleTimeString()} · valid only for the exact inputs shown above.</p>
+                {ranAt && !stale && !expired && (
+                  <p className="text-xs text-secondary-500">Computed {new Date(ranAt).toLocaleTimeString()} · valid only for the exact inputs shown above · expires after 15 min.</p>
+                )}
+                {ranAt && !stale && expired && (
+                  <p className="text-sm text-warning-600 dark:text-warning-400 border border-warning-200 dark:border-warning-800 rounded-lg px-3 py-2" role="status">
+                    Decision expired (older than 15 min) — re-run to refresh. Expired results stay readable but must not drive action.
+                  </p>
                 )}
                 <details className="text-sm">
                   <summary className="cursor-pointer font-medium text-secondary-900 dark:text-white">
@@ -843,7 +884,7 @@ export function Simulation() {
                       <td className="font-mono">{c.crowd}</td>
                       <td className="font-mono">{c.smoke}</td>
                       <td className="font-mono">{c.capacity}</td>
-                      <td>{c.guardianPassed === null ? <span className="text-error-600 text-sm">{c.error}</span> : <Badge variant={c.guardianPassed ? 'success' : 'error'}>{c.guardianPassed ? 'PASSED' : 'FAILED'}</Badge>}</td>
+                      <td>{c.guardianPassed === null ? <span className="text-error-600 text-sm">{c.error} <button className="text-primary-600 hover:underline" onClick={() => retryFuzzCell(i)}>Retry</button></span> : <Badge variant={c.guardianPassed ? 'success' : 'error'}>{c.guardianPassed ? 'PASSED' : 'FAILED'}</Badge>}</td>
                       <td className="font-mono">{c.robustCount === null ? '—' : c.robustCount}</td>
                     </tr>
                   ))}

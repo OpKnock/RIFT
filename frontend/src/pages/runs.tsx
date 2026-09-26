@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { api, apiErrorMessage } from '@/services/api'
 import { readEvents, type AppEvent } from '@/utils/event-log'
+import { SOURCE_DEFS, MQTT_NOTE, type SourceProbe } from '@/utils/sources'
 
 const POLL_MS = 5000
 
@@ -17,7 +18,12 @@ export function Runs() {
   const [entitlementError, setEntitlementError] = useState<string | null>(null)
   const [notifState, setNotifState] = useState<string>(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
   const [events, setEvents] = useState<AppEvent[]>(() => readEvents())
+  const [paused, setPaused] = useState(false)
+  const [probes, setProbes] = useState<Record<string, SourceProbe>>({})
+  const [probing, setProbing] = useState(false)
   const seenFiring = useRef<Set<string>>(new Set())
+  const pausedRef = useRef(false)
+  pausedRef.current = paused
 
   useEffect(() => {
     let cancelled = false
@@ -45,13 +51,40 @@ export function Runs() {
         .catch((e) => { if (!cancelled) setError(apiErrorMessage(e, 'Failed to load monitor.')) })
         .finally(() => { if (!cancelled) setLoading(false) })
     }
-    load()
+    if (!paused) load()
     api.getBillingStatus()
       .then((b) => { if (!cancelled) setBilling(b) })
       .catch(() => { if (!cancelled) setBilling(null) })
-    const timer = window.setInterval(load, POLL_MS)
+    const timer = window.setInterval(() => {
+      if (!pausedRef.current) load()
+    }, POLL_MS)
     return () => { cancelled = true; window.clearInterval(timer) }
-  }, [])
+  }, [paused])
+
+  const probeAll = async () => {
+    setProbing(true)
+    const out: Record<string, SourceProbe> = {}
+    const checks: Array<[string, () => Promise<unknown>]> = [
+      ['health', () => api.getHealth()],
+      ['meta', () => api.getMeta()],
+      ['demo', () => api.runDemo({})],
+      ['twin-demo', () => api.getTwinDemo(0)],
+      ['twin-evidence', () => api.getTwinEvidence()],
+      ['monitor', () => api.getMonitor()],
+      ['reviews', () => api.listReviews()],
+    ]
+    for (const [key, fn] of checks) {
+      const t0 = performance.now()
+      try {
+        await fn()
+        out[key] = { key, ok: true, latencyMs: Math.round(performance.now() - t0), checkedAt: new Date().toISOString(), detail: null }
+      } catch (e) {
+        out[key] = { key, ok: false, latencyMs: Math.round(performance.now() - t0), checkedAt: new Date().toISOString(), detail: apiErrorMessage(e, 'probe failed') }
+      }
+      setProbes({ ...out })
+    }
+    setProbing(false)
+  }
 
   const checkEntitlement = async () => {
     setEntitlement(null)
@@ -85,6 +118,16 @@ export function Runs() {
           <div className="mt-2">
             <Button variant="outline" size="sm" onClick={enableNotifications}>Enable browser notifications for firing alerts</Button>
           </div>
+        )}
+        <div className="mt-2 flex gap-2">
+          <Button variant={paused ? 'outline' : 'secondary'} size="sm" onClick={() => setPaused(!paused)}>
+            {paused ? 'Resume polling (end outage drill)' : 'Pause polling (outage drill)'}
+          </Button>
+        </div>
+        {paused && (
+          <p className="text-sm text-warning-600 dark:text-warning-400 mt-2" role="status">
+            Outage drill active: subscriber polling paused. Counters freeze; on resume the next poll catches up. No data is fabricated while paused.
+          </p>
         )}
       </div>
       <Card>
@@ -133,6 +176,42 @@ export function Runs() {
                 })()}
               </div>
               <div>
+                <h2 className="font-medium text-secondary-900 dark:text-white mb-2">Source registry + heartbeat</h2>
+                <p className="text-sm text-secondary-500 mb-2">
+                  Every upstream this UI consumes, with on-demand heartbeat (latency + ok/fail measured live here).
+                  Freshness and reliability below are client-observed at probe time — not server telemetry. Experiments are write-gated (no safe probe exists), shown as such.
+                </p>
+                <div className="mb-3">
+                  <Button variant="outline" size="sm" onClick={probeAll} disabled={probing}>
+                    {probing ? 'Probing…' : 'Probe all sources'}
+                  </Button>
+                </div>
+                <div className="table-container mb-2">
+                  <table className="table">
+                    <thead><tr><th>Source</th><th>Target</th><th>Auth</th><th>Heartbeat</th><th>Freshness</th><th>Quality notes</th></tr></thead>
+                    <tbody>
+                      {SOURCE_DEFS.map((s) => {
+                        const p = probes[s.key]
+                        return (
+                          <tr key={s.key}>
+                            <td className="font-medium text-sm">{s.label}<br /><span className="font-mono text-xs text-secondary-500">{s.kind}</span></td>
+                            <td className="font-mono text-xs">{s.target}</td>
+                            <td className="text-xs">{s.auth}</td>
+                            <td>
+                              {!p && <span className="text-xs text-secondary-500">not probed</span>}
+                              {p && <Badge variant={p.ok ? 'success' : 'error'}>{p.ok ? `ok · ${p.latencyMs} ms` : 'FAIL'}</Badge>}
+                            </td>
+                            <td className="font-mono text-xs">{p?.checkedAt ? new Date(p.checkedAt).toLocaleTimeString() : '—'}</td>
+                            <td className="text-xs max-w-xs">{p?.detail || s.qualityNotes}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-secondary-500">{MQTT_NOTE}</p>
+              </div>
+              <div>
                 <h2 className="font-medium text-secondary-900 dark:text-white mb-2">Usage metering (live counters)</h2>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm mb-3">
                   {[
@@ -170,10 +249,25 @@ export function Runs() {
                 {events.length > 0 && (
                   <ul className="space-y-1 text-sm max-h-64 overflow-y-auto">
                     {events.map((e, i) => (
-                      <li key={`${e.time}-${i}`} className="flex gap-2">
+                      <li key={`${e.time}-${i}`} className="flex gap-2 items-center">
                         <span className="font-mono text-xs text-secondary-500 whitespace-nowrap">{new Date(e.time).toLocaleTimeString()}</span>
                         <Badge variant="secondary">{e.kind}</Badge>
                         <span className="text-secondary-700 dark:text-secondary-300">{e.detail}</span>
+                        {e.params && (
+                          <button
+                            className="text-primary-600 hover:underline text-sm whitespace-nowrap"
+                            onClick={() => {
+                              try {
+                                localStorage.setItem('rift-replay-params', JSON.stringify(e.params))
+                              } catch {
+                                /* storage unavailable */
+                              }
+                              window.location.href = '/simulation'
+                            }}
+                          >
+                            Load in Simulation
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>
