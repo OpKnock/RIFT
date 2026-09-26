@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { FutureTree3D } from '@/components/twin-3d'
 import { logEvent } from '@/utils/event-log'
+import { demoCacheKey, readDemoCache, writeDemoCache, clearDemoCache } from '@/utils/demo-cache'
 import { api, apiErrorMessage, type DemoPayload, type EngineMeta } from '@/services/api'
 
 interface RunParams {
@@ -86,6 +87,7 @@ export function Simulation() {
   const [reviewMsg, setReviewMsg] = useState<string | null>(null)
   const [reviewError, setReviewError] = useState<string | null>(null)
   const [ranAt, setRanAt] = useState<string | null>(null)
+  const [cacheHit, setCacheHit] = useState(false)
   const [copied, setCopied] = useState(false)
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory())
   const [compareIds, setCompareIds] = useState<[string, string]>(['', ''])
@@ -155,7 +157,17 @@ export function Simulation() {
   const execute = async (params: RunParams): Promise<DemoPayload> => {
     const started = performance.now()
     setPhase('sending request')
+    const key = demoCacheKey(params, meta?.engine_version || 'unknown')
+    const cached = readDemoCache(key)
+    if (cached) {
+      setCacheHit(true)
+      setPhase('rendering cached response')
+      setElapsed(Math.round(performance.now() - started))
+      return cached
+    }
+    setCacheHit(false)
     const payload = await api.runDemo({ crowd: params.crowd, smoke: params.smoke, corridor_capacity: params.capacity, block_b: params.blockB })
+    writeDemoCache(key, payload)
     setPhase('rendering response')
     setElapsed(Math.round(performance.now() - started))
     return payload
@@ -205,6 +217,7 @@ export function Simulation() {
     setElapsed(0)
     setPhase('')
     setRanAt(null)
+    setCacheHit(false)
   }
 
   const stale =
@@ -309,7 +322,8 @@ export function Simulation() {
       <div>
         <h1 className="text-3xl font-bold text-secondary-900 dark:text-white">Simulation</h1>
         <p className="text-secondary-600 dark:text-secondary-400 mt-1">
-          Executes the real engine via <code className="font-mono text-sm">GET /api/demo</code> — smart-building emergency, deterministic for identical inputs.
+          Executes the real engine via <code className="font-mono text-sm">GET /api/demo</code> — smart-building emergency.
+          Decision content is deterministic for identical inputs (verified: only wall-clock timings vary).
         </p>
       </div>
 
@@ -380,6 +394,14 @@ export function Simulation() {
                   <span className="text-xs text-secondary-500">{result.guardian.scope}</span>
                   <span className="text-xs text-secondary-500 font-mono">round-trip {elapsed} ms</span>
                   <span className="text-xs text-secondary-500">risk entropy {result.uncertainty.risk_entropy.toFixed(3)}</span>
+                  {cacheHit && <Badge variant="secondary">CACHE HIT — identical inputs + engine version</Badge>}
+                  <button
+                    onClick={() => { clearDemoCache() }}
+                    className="text-xs text-secondary-500 hover:underline"
+                    title="Clears fingerprint-keyed demo cache in this browser"
+                  >
+                    Clear cache
+                  </button>
                   <button onClick={handleCopyCurl} className="text-xs text-primary-600 hover:underline inline-flex items-center gap-1" aria-label="Copy as curl">
                     {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}{copied ? 'Copied' : 'Copy as curl'}
                   </button>

@@ -91,7 +91,33 @@ export function Runs() {
                 </ul>
               </div>
               <div>
-                <h2 className="font-medium text-secondary-900 dark:text-white mb-2">Snapshot</h2>
+                <h2 className="font-medium text-secondary-900 dark:text-white mb-2">Per-route traffic (live counters)</h2>
+                {(() => {
+                  const routes = (snapshot?.routes || {}) as Record<string, { requests: number; failures: number; p50_ms: number | null; p95_ms: number | null }>
+                  const entries = Object.entries(routes)
+                  if (entries.length === 0) return <p className="text-sm text-secondary-500">No requests recorded yet in this server process.</p>
+                  return (
+                    <div className="table-container">
+                      <table className="table">
+                        <thead><tr><th>Route</th><th>Requests</th><th>Failures</th><th>p50 ms</th><th>p95 ms</th></tr></thead>
+                        <tbody>
+                          {entries.map(([route, s]) => (
+                            <tr key={route}>
+                              <td className="font-mono text-xs">{route}</td>
+                              <td className="font-mono">{s.requests}</td>
+                              <td className="font-mono">{s.failures}</td>
+                              <td className="font-mono">{s.p50_ms === null ? '—' : s.p50_ms.toFixed(1)}</td>
+                              <td className="font-mono">{s.p95_ms === null ? '—' : s.p95_ms.toFixed(1)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )
+                })()}
+              </div>
+              <div>
+                <h2 className="font-medium text-secondary-900 dark:text-white mb-2">Raw snapshot</h2>
                 <pre className="text-xs overflow-x-auto bg-secondary-50 dark:bg-secondary-800 p-4 rounded-lg">{JSON.stringify(snapshot, null, 2)}</pre>
               </div>
               <div>
