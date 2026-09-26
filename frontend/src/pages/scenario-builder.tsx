@@ -4,6 +4,8 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/input'
+import { experimentSpecSchema, formatZodError } from '@/contracts/v1'
+import { parseSeed } from '@/utils/seed'
 import { api, apiErrorMessage, type EngineMeta } from '@/services/api'
 
 export function ScenarioBuilder() {
@@ -15,6 +17,7 @@ export function ScenarioBuilder() {
   const [crowd, setCrowd] = useState('1200')
   const [smoke, setSmoke] = useState('4')
   const [capacity, setCapacity] = useState('60')
+  const [seedRaw, setSeedRaw] = useState('42')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [created, setCreated] = useState<unknown>(null)
@@ -47,19 +50,29 @@ export function ScenarioBuilder() {
         initial_state[key] = v
       }
     }
+    const seedParsed = parseSeed(seedRaw)
+    if (!seedParsed.ok) {
+      setError(seedParsed.error)
+      return
+    }
+    const checked = experimentSpecSchema.safeParse({
+      name,
+      description,
+      scenario_name: 'smart-building-emergency',
+      initial_state,
+      perturbations: [],
+      policy_variables: [],
+      optimizer: 'exact',
+      backend: 'statevector-simulator',
+      seed: seedParsed.value,
+    })
+    if (!checked.success) {
+      setError(`Invalid spec: ${formatZodError(checked.error)}`)
+      return
+    }
     setSaving(true)
     try {
-      const row = await api.createExperiment({
-        name,
-        description,
-        scenario_name: 'smart-building-emergency',
-        initial_state,
-        perturbations: [],
-        policy_variables: [],
-        optimizer: 'exact',
-        backend: 'statevector-simulator',
-        seed: 42,
-      })
+      const row = await api.createExperiment(checked.data)
       setCreated(row)
     } catch (e) {
       setError(apiErrorMessage(e, 'Failed to save scenario.'))
@@ -88,6 +101,7 @@ export function ScenarioBuilder() {
             <Input label="Smoke" type="number" value={smoke} onChange={(e) => setSmoke(e.target.value)} />
             <Input label="Corridor capacity" type="number" value={capacity} onChange={(e) => setCapacity(e.target.value)} />
           </div>
+          <Input label="Seed (integer, abs ≤ 2^62, empty for none)" value={seedRaw} onChange={(e) => setSeedRaw(e.target.value)} placeholder="42" />
           {error && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{error}</p>}
           {created !== null && !error && (
             <pre className="text-xs overflow-x-auto bg-secondary-50 dark:bg-secondary-800 p-4 rounded-lg">{JSON.stringify(created, null, 2)}</pre>
