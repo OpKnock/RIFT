@@ -641,6 +641,8 @@ Examples:
   ./local.sh diag           # Full diagnostics
   ./local.sh reset          # Clean reset
 EOF
-}
+            ;;
+        esac
+    }
 
 main "$@"
