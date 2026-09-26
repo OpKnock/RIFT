@@ -711,6 +711,128 @@ class Handler(BaseHTTPRequestHandler):
                            request_id=request_id)
                 self._finish(timer, request_id, "GET", path, 500, "internal")
             return
+        if path == "/api/operations/incidents":
+            _, ok = self._identity(request_id)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
+            try:
+                from .operations import incident_store
+                from .operations.incidents import IncidentStatus, IncidentSeverity, IncidentType
+
+                status = (query.get("status") or [None])[0]
+                severity = (query.get("severity") or [None])[0]
+                type_ = (query.get("type") or [None])[0]
+
+                incidents = incident_store.list(
+                    status=IncidentStatus(status) if status else None,
+                    severity=IncidentSeverity(severity) if severity else None,
+                    type=IncidentType(type_) if type_ else None,
+                    limit=100,
+                )
+                self._send(200, json.dumps([i.to_dict() for i in incidents]), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
+            except Exception:
+                self._send(500, json.dumps({"error": "incidents_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
+            return
+
+        if path.startswith("/api/operations/incidents/") and not path.endswith("/action"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 4:
+                incident_id = parts[3]
+                _, ok = self._identity(request_id)
+                if not ok:
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
+                    return
+                try:
+                    from .operations import incident_store
+                    incident = incident_store.get(incident_id)
+                    if incident:
+                        self._send(200, json.dumps(incident.to_dict()), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 200)
+                    else:
+                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 404, "not_found")
+                except Exception:
+                    self._send(500, json.dumps({"error": "incidents_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 500, "internal")
+                return
+
+        if path == "/api/operations/decisions":
+            _, ok = self._identity(request_id)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
+            try:
+                from .operations import decision_store
+                from .operations.decisions import DecisionStatus
+
+                status = (query.get("status") or [None])[0]
+                scenario_id = (query.get("scenario_id") or [None])[0]
+
+                decisions = decision_store.list(
+                    status=DecisionStatus(status) if status else None,
+                    scenario_id=scenario_id,
+                    limit=100,
+                )
+                self._send(200, json.dumps([d.to_dict() for d in decisions]), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
+            except Exception:
+                self._send(500, json.dumps({"error": "decisions_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
+            return
+
+        if path.startswith("/api/operations/decisions/") and not path.endswith("/action"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 4:
+                decision_id = parts[3]
+                _, ok = self._identity(request_id)
+                if not ok:
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
+                    return
+                try:
+                    from .operations import decision_store
+                    decision = decision_store.get(decision_id)
+                    if decision:
+                        self._send(200, json.dumps(decision.to_dict()), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 200)
+                    else:
+                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 404, "not_found")
+                except Exception:
+                    self._send(500, json.dumps({"error": "decisions_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 500, "internal")
+                return
+
+        if path == "/api/explainability/audit":
+            _, ok = self._identity(request_id)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
+            try:
+                from .explainability import audit_log
+                self._send(200, json.dumps({"records": [r.to_dict() for r in audit_log.query(limit=200)]}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
+            except Exception:
+                self._send(500, json.dumps({"error": "audit_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
+            return
+
+        if path == "/api/explainability/evidence":
+            _, ok = self._identity(request_id)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
+            try:
+                from .explainability import evidence_store
+                self._send(200, json.dumps({"packages": [p.to_dict() for p in evidence_store._packages.values()]}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
+            except Exception:
+                self._send(500, json.dumps({"error": "evidence_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
+            return
+
         if path == "/api/twin/evidence":
             try:
                 from .health.demo_data import demo_series
@@ -1355,6 +1477,151 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self._finish(timer, request_id, "POST", path, 200)
             return
+        if path == "/api/operations/incidents":
+            body, raw = self._read_json()
+            if body == "overflow":
+                self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 413, "validation")
+                return
+            if body is None:
+                self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
+            _, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+            if not ok:
+                self._finish(timer, request_id, "POST", path, 401, "auth")
+                return
+            try:
+                from .operations import incident_store
+                from .operations.incidents import IncidentType, IncidentSeverity
+
+                incident = incident_store.create(
+                    type=IncidentType(body.get("type", "manual")),
+                    severity=IncidentSeverity(body.get("severity", "medium")),
+                    title=body.get("title", ""),
+                    description=body.get("description", ""),
+                    trigger_alert_id=body.get("trigger_alert_id"),
+                    tags=body.get("tags", []),
+                )
+                self._send(201, json.dumps(incident.to_dict()), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 201)
+            except ValueError as exc:
+                self._send(400, json.dumps({"error": "invalid_request", "detail": str(exc)[:300]}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+            except Exception:
+                log_event("internal_error", request_id=request_id, route="incidents-create")
+                self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 500, "internal")
+            return
+
+        if path.startswith("/api/operations/incidents/") and path.endswith("/action"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 5:
+                incident_id = parts[3]
+                body, raw = self._read_json()
+                if body == "overflow":
+                    self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 413, "validation")
+                    return
+                if body is None:
+                    self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
+                _, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+                if not ok:
+                    self._finish(timer, request_id, "POST", path, 401, "auth")
+                    return
+                try:
+                    from .operations import incident_store
+                    from .operations.incidents import IncidentStatus
+
+                    incident = incident_store.get(incident_id)
+                    if not incident:
+                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+                        self._finish(timer, request_id, "POST", path, 404, "not_found")
+                        return
+                    action = body.get("action", "")
+                    note = body.get("note", "")
+                    actor = "api-user"  # would come from auth in production
+                    if action == "acknowledge":
+                        incident.acknowledge(actor, note)
+                    elif action == "investigate":
+                        incident.investigate(actor, note)
+                    elif action == "resolve":
+                        incident.resolve(actor, note)
+                    elif action == "close":
+                        incident.close(actor, note)
+                    elif action == "reopen":
+                        incident.reopen(actor, note)
+                    else:
+                        self._send(400, json.dumps({"error": "invalid_action"}), request_id=request_id)
+                        self._finish(timer, request_id, "POST", path, 400, "validation")
+                        return
+                    self._send(200, json.dumps(incident.to_dict()), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 200)
+                except ValueError as exc:
+                    self._send(400, json.dumps({"error": "invalid_action", "detail": str(exc)[:300]}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                except Exception:
+                    log_event("internal_error", request_id=request_id, route="incidents-action")
+                    self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 500, "internal")
+                return
+
+        if path.startswith("/api/operations/decisions/") and path.endswith("/action"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 5:
+                decision_id = parts[3]
+                body, raw = self._read_json()
+                if body == "overflow":
+                    self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 413, "validation")
+                    return
+                if body is None:
+                    self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
+                _, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+                if not ok:
+                    self._finish(timer, request_id, "POST", path, 401, "auth")
+                    return
+                try:
+                    from .operations import decision_store
+                    from .operations.decisions import DecisionAction
+
+                    decision = decision_store.get(decision_id)
+                    if not decision:
+                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+                        self._finish(timer, request_id, "POST", path, 404, "not_found")
+                        return
+                    action = body.get("action", "")
+                    note = body.get("note", "")
+                    actor = "api-user"  # would come from auth in production
+                    if action == "accept":
+                        decision.accept(actor, note, body.get("guardian_verdict"))
+                    elif action == "reject":
+                        decision.reject(actor, note, body.get("guardian_verdict"))
+                    elif action == "override":
+                        decision.override(actor, note, body.get("guardian_verdict"))
+                    elif action == "request_review":
+                        decision.request_review(actor, note)
+                    elif action == "execute":
+                        decision.execute(actor, body.get("result", {}))
+                    else:
+                        self._send(400, json.dumps({"error": "invalid_action"}), request_id=request_id)
+                        self._finish(timer, request_id, "POST", path, 400, "validation")
+                        return
+                    self._send(200, json.dumps(decision.to_dict()), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 200)
+                except ValueError as exc:
+                    self._send(400, json.dumps({"error": "invalid_action", "detail": str(exc)[:300]}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                except Exception:
+                    log_event("internal_error", request_id=request_id, route="decisions-action")
+                    self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 500, "internal")
+                return
+
         if path == "/api/billing/webhook":
             body, raw = self._read_json()
             config = get_billing_config()

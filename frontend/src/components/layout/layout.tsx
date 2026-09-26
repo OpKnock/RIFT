@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink, Link, useLocation } from 'react-router-dom'
-import { Menu, Sun, Moon, Monitor, GitBranch, Play, Database, FlaskConical, Settings, Scale, ChevronLeft, ChevronRight, Bell, Github } from 'lucide-react'
+import { Menu, Sun, Moon, Monitor, GitBranch, Play, Database, FlaskConical, Settings, Scale, ChevronLeft, ChevronRight, Bell, Github, AlertTriangle, Search } from 'lucide-react'
 import { useTheme } from '@/components/providers/theme-provider'
 import { cn } from '@/utils/cn'
 import { MobileMenu } from './mobile-menu'
@@ -44,6 +44,8 @@ export function Layout() {
     { name: 'Runs', href: '/runs', icon: Database, description: 'View run history' },
     { name: 'Experiments', href: '/experiments', icon: FlaskConical, description: 'Manage experiments' },
     { name: 'Evidence', href: '/evidence', icon: Scale, description: 'View evidence' },
+    { name: 'Incidents', href: '/incidents', icon: AlertTriangle, description: 'Incident lifecycle' },
+    { name: 'Explainability', href: '/explainability', icon: Search, description: 'Decision reasoning' },
     { name: 'Settings', href: '/settings', icon: Settings, description: 'Configuration' },
   ]
 
