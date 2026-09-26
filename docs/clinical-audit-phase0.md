@@ -1,7 +1,7 @@
 # Phase-0 Audit: What RIFT Actually Is (v1.0.0, commit-pinned)
 
-Source-level audit of all 66 Python modules, 15 API endpoints, 7 migrations,
-29 test files, CI workflows, containers, and datasets. Classification scale:
+Source-level audit of all 70 Python modules, 14 API endpoints, 7 migrations,
+41 test files, CI workflows, containers, and datasets. Classification scale:
 
 - **production-capable** — correct, tested, deployable as software
 - **research-grade** — correct methodology, synthetic/unvalidated data
@@ -20,9 +20,9 @@ Source-level audit of all 66 Python modules, 15 API endpoints, 7 migrations,
 | Multivariable projection | `multivariable.py` | research-grade | approximate, gap reported, never hidden |
 | CVaR (lowest-cost tail) | `cvar.py` | production-capable | documented non-standard definition |
 | QAOA statevector simulator | `qaoa.py` | demonstration-only | correct math, simulator only |
-| QPU adapter | `qpu.py` | placeholder | raises `NotImplementedError` by design |
+| QPU adapter | `qpu.py` | production-capable (gated) | `solve_on_aer` (AerSimulator), `solve_on_ibm` (IBM hardware), credentials-gated |
 | Verifier / limits / runner / experiments | `verifier.py`, `limits.py`, `runner.py`, `experiments.py` | production-capable | bounds fail loudly, fingerprinted specs |
-| Benchmark suite | `benchmark.py` | research-grade | exact vs sim only; no MILP/CP-SAT/SA/tabu yet |
+| Benchmark suite | `benchmark.py` | research-grade | exact, QAOA-sim, SA, tabu; no MILP/CP-SAT yet |
 
 ## Patient twin pipeline — research-grade with demonstration-only model
 
@@ -55,7 +55,7 @@ Source-level audit of all 66 Python modules, 15 API endpoints, 7 migrations,
 
 | Component | Class | Evidence |
 |---|---|---|
-| HTTP API (15 endpoints) | production-capable | boundaries, 4xx/5xx discipline, request IDs |
+| HTTP API (14 endpoints) | production-capable | boundaries, 4xx/5xx discipline, request IDs |
 | Auth (open/token/JWT) + ownership | production-capable | fail-closed 401s, 403 mismatch, spoof-proof JWT |
 | Rate limiting | production-capable | fixed-window, 429+Retry-After, tested |
 | Billing webhooks | production-capable | HMAC, DB-unique idempotency, resume-on-retry, 502-retry |
@@ -63,7 +63,7 @@ Source-level audit of all 66 Python modules, 15 API endpoints, 7 migrations,
 | Monitoring (`/metrics` contract) | production-capable | single vocabulary, contract-tested; delivery absent by design |
 | Docker production image | production-capable | builds in CI + smoke test; root image is legacy demo |
 | K8s manifests | research-grade | complete templates, JWT required in prod; **no live cluster** |
-| CI (test/validate/security/build) | production-capable | 223 green, Bandit/Semgrep 0, constraints-pinned |
+| CI (test/validate/security/build) | production-capable | 278 passed, 1 skipped, Bandit/Semgrep 0, constraints-pinned |
 | Accessibility configs | placeholder | pa11y/axe/Lighthouse configs exist; manual, non-blocking |
 
 ## Data — the honest boundary
@@ -72,6 +72,7 @@ Source-level audit of all 66 Python modules, 15 API endpoints, 7 migrations,
 |---|---|
 | Synthetic demo/cohort series | demonstration-only (pipeline validation only) |
 | BIDSleep / exam-stress / sepsis / CHFDB seams | research-grade ingestion; real bytes, **not** model validation |
+| MIT-BIH / NSRDB / FANTASIA / EDB / LTAFDB / QTDB | research-grade ingestion; real bytes, **not** model validation |
 | Committed `.LEGACY.csv` | retired artifact, must not be used |
 | Governed clinical cohort | **unimplemented** (external: hospital, IRB, DUA) |
 
@@ -85,4 +86,4 @@ Demo EHR/wearables · seeded spell schedules · synthetic outcome rule · synthe
 
 ## README-vs-reality check
 
-The README claims: research prototype, synthetic demo, no clinical validation, no production deployment, simulator ≠ hardware, 223 tests, SAST clean. **All verified accurate** against this audit. No component is preserved merely for impressiveness; placeholders (`qpu.py`, prospective persistence, live integrations) are labeled as such in code and docs.
+The README claims: research prototype, synthetic demo, no clinical validation, no production deployment, simulator ≠ hardware, 278 passed/1 skipped tests, SAST clean. **All verified accurate** against this audit. No component is preserved merely for impressiveness; placeholders (prospective persistence, live integrations) are labeled as such in code and docs.
