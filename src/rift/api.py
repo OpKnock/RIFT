@@ -735,7 +735,10 @@ class Handler(BaseHTTPRequestHandler):
                 calibration = calibration_report(
                     [d for d in held_out["per_day"] if d["day"] < 45],
                     [d for d in held_out["per_day"] if d["day"] >= 45],
+                    methods=("platt", "isotonic", "beta"),
                 )
+                # Use Platt for external validation (backward compatibility)
+                platt_params = calibration["methods"]["platt"]["params"]
                 external = external_validation(
                     stream=demo_series(
                         seed=EXTERNAL_SERIES_CONFIG["seed"],
@@ -743,7 +746,7 @@ class Handler(BaseHTTPRequestHandler):
                         spells=EXTERNAL_SERIES_CONFIG["spells"],
                     ),
                     ehr=ehr,
-                    params=calibration["params"],
+                    params=platt_params,
                     source_id=EXTERNAL_SERIES_CONFIG["source_id"],
                     day_start=0,
                     day_end=EXTERNAL_SERIES_CONFIG["days"] - 1,
@@ -768,11 +771,13 @@ class Handler(BaseHTTPRequestHandler):
                     "cohort": __import__("rift.health.cohort", fromlist=["cohort_backtest"]).cohort_backtest(),
                     "prospective": __import__("rift.health.prospective", fromlist=["manager"]).manager.stats(),
                     "calibration_repair": {
-                        "method": "platt-scaling fit on days 30-44 only",
-                        "params": calibration["params"],
+                        "method": "platt-scaling fit on days 30-44 only (also isotonic, beta)",
+                        "params": calibration["methods"]["platt"]["params"],
                         "test_window": "days 45-59 (untouched)",
-                        "raw": {k: calibration["raw"][k] for k in ("brier", "ece")},
-                        "calibrated": {k: calibration["calibrated"][k] for k in ("brier", "ece")},
+                        "raw": {k: calibration["methods"]["platt"]["raw"][k] for k in ("brier", "ece")},
+                        "calibrated": {k: calibration["methods"]["platt"]["calibrated"][k] for k in ("brier", "ece")},
+                        "isotonic": {k: calibration["methods"]["isotonic"]["calibrated"][k] for k in ("brier", "ece")},
+                        "beta": {k: calibration["methods"]["beta"]["calibrated"][k] for k in ("brier", "ece")},
                     },
                     "external_validation": {
                         k: external[k] for k in (

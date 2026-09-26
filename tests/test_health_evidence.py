@@ -278,10 +278,11 @@ def test_platt_repair_improves_ece_without_wrecking_brier():
     assert apply_platt(0.2, params) <= apply_platt(0.8, params)
     # Deterministic fit.
     assert fit_platt_scaling(cal_days) == params
-    result = calibration_report(cal_days, test_days)
-    assert result["calibrated"]["ece"] is not None
-    assert result["calibrated"]["ece"] < result["raw"]["ece"]
-    assert result["calibrated"]["brier"] <= result["raw"]["brier"] + 0.02
+    result = calibration_report(cal_days, test_days, methods=("platt",))
+    # New structure: methods.platt.calibrated
+    assert result["methods"]["platt"]["calibrated"]["ece"] is not None
+    assert result["methods"]["platt"]["calibrated"]["ece"] < result["methods"]["platt"]["raw"]["ece"]
+    assert result["methods"]["platt"]["calibrated"]["brier"] <= result["methods"]["platt"]["raw"]["brier"] + 0.02
     # Operating behavior untouched: raw risks in the report are unmodified.
     assert all(d["predicted_risk"] <= 1.0 for d in test_days)
 
