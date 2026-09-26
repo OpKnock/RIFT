@@ -14,7 +14,7 @@
 ## Checked and passing (evidence in repo/tests)
 - Static analysis: `bandit -r src` reports **zero issues** (triaged 2026-09-23: one medium `urlopen` hardened with an endpoint allowlist; low `try/except/pass` sites converted to redacted `log_event` diagnostics except three justified `nosec` best-effort paths; `assert` replaced with an explicit raise). Enforced in CI (`security` job).
 - Supply chain: RIFT's runtime dependencies are `[]`; auditing the full declared closure (`pytest`, `supabase`, `qiskit`, `qiskit-ibm-runtime`) with pip-audit found **no known vulnerabilities**. (The host machine's global environment has unrelated CVEs in packages RIFT never imports — not a repo finding.)
-- Static analysis: Semgrep (`semgrep --config auto --error src`) reports **zero findings** (CI `security` job). Bandit + Semgrep + test gates provide automated SAST coverage.
+- Static analysis: Semgrep (`semgrep --config auto --error src`) reports **zero findings** when run locally/manually; not currently an active CI gate (CI `security` job runs Bandit only). Bandit + test gates provide automated SAST coverage in CI; Semgrep provides supplementary coverage.
 - Webhook HMAC verification fail-closed; forged signatures get 401 (`tests/test_api_boundaries.py`, `tests/test_api_hardening.py`).
 - Webhook replay returns `duplicate: true` via in-memory + DB idempotency keys.
 - Upstream errors return generic 502 + request ID; no tracebacks (`test_upstream_errors_do_not_leak`).

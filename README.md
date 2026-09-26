@@ -233,7 +233,7 @@ Guardian is a display-safety layer, not a certification mechanism and not a subs
 
 ## Quantum layer
 
-Candidate decisions are represented as QUBOs with a `QuantumOptimizer` interface. The shipped path is a dependency-free QAOA statevector simulator; exact classical enumeration is always the reference baseline. No hardware speedup is claimed. The optional Qiskit/IBM adapter is gated until credentials, backend selection, transpilation, sampling, and result validation are configured (`qpu.py` raises `NotImplementedError` by design).
+Candidate decisions are represented as QUBOs with a `QuantumOptimizer` interface. The shipped path is a dependency-free QAOA statevector simulator; exact classical enumeration is always the reference baseline. No hardware speedup is claimed. The optional Qiskit/IBM adapter is gated until credentials, backend selection, transpilation, sampling, and result validation are configured (`qpu.py` provides `solve_on_aer` for AerSimulator and `solve_on_ibm` for IBM hardware; both fail closed without credentials/backend configuration).
 
 ---
 

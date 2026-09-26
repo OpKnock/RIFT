@@ -243,25 +243,27 @@
    "name": "Decision-aware counterfactual engine",
    "status": "COMPLETE"
   },
-  {
-   "blockers": [
-    "real QPU hardware execution (explicitly NotImplemented by design)"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/optimizer.py",
-     "src/rift/qaoa.py",
-     "src/rift/qpu.py"
+{
+    "blockers": [
+      "full classical benchmark comparison (MILP/CP-SAT) on same instances",
+      "statistical + practical significance demonstration for quantum advantage"
     ],
-    "tests": [
-     "tests/test_qaoa.py"
-    ]
-   },
-   "id": 12,
-   "name": "Robust optimization 2.0",
-   "status": "COMPLETE"
+    "deployment_state": "not-applicable",
+    "evidence": {
+      "endpoints": [],
+      "files": [
+        "src/rift/optimizer.py",
+        "src/rift/qaoa.py",
+        "src/rift/qpu.py"
+      ],
+      "tests": [
+        "tests/test_qaoa.py",
+        "tests/test_qpu_aer.py"
+      ]
+    },
+    "id": 12,
+    "name": "Robust optimization 2.0",
+    "status": "COMPLETE"
   },
   {
    "blockers": [
