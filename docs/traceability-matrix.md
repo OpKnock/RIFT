@@ -5,7 +5,7 @@ a test or a documented external gate; a requirement with neither is void.
 
 | Req | Requirement | Design | Verification | Status |
 |---|---|---|---|---|
-| R-001 | Predictions carry patient/time provenance | `health/twin.py`, `observations.py` | 223-test suite (provenance subset) | verified |
+| R-001 | Predictions carry patient/time provenance | `health/twin.py`, `observations.py` | 281-test suite (provenance subset) | verified |
 | R-002 | No prediction on inadequate evidence | 100/100 adequacy gate, WITHHOLD | adequacy tests | verified |
 | R-003 | Guardian cannot be bypassed by optimizer | stage ordering, tests incl. adversarial | guardian tests | verified |
 | R-004 | Evidence bundles are tamper-evident | HMAC-signed, versioned schema | evidence tests | verified |

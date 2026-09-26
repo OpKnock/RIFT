@@ -46,7 +46,7 @@ def degrade_noisy(state: PatientState, seed: int = 7, magnitude: float = 0.05) -
 
 def degrade_biased(state: PatientState, seed: int = 7, bias: dict[str, float] | None = None) -> PatientState:
     """Simulate systematic sensor bias (e.g., wrist HR reads +5 bpm high)."""
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # nosec B311 -- reproducible test/demo noise, never a security boundary
     d = state.to_dict()
     bias = bias or {"resting_hr": 5.0, "hrv_rmssd": -5.0, "sleep_hours": 0.5, "activity_load": 0.2}
     for field, b in bias.items():
@@ -58,7 +58,7 @@ def degrade_biased(state: PatientState, seed: int = 7, bias: dict[str, float] | 
 
 def degrade_temporal_shift(state: PatientState, seed: int = 7, hours: int = 2) -> PatientState:
     """Simulate circadian phase shift (e.g., night shift worker data)."""
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # nosec B311 -- reproducible test/demo noise, never a security boundary
     d = state.to_dict()
     # Sleep phase shift: HR typically lower at night, HRV higher
     if d.get("sleep_hours") is not None:
@@ -71,7 +71,7 @@ def degrade_temporal_shift(state: PatientState, seed: int = 7, hours: int = 2) -
 
 def degrade_correlated_dropout(state: PatientState, seed: int = 7, p: float = 0.3) -> PatientState:
     """Simulate correlated sensor failure (e.g., wrist device off → HR + HRV + sleep all missing)."""
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # nosec B311 -- reproducible test/demo noise, never a security boundary
     d = state.to_dict()
     if rng.random() < p:
         for field in ("resting_hr", "hrv_rmssd", "sleep_hours"):
@@ -79,6 +79,92 @@ def degrade_correlated_dropout(state: PatientState, seed: int = 7, p: float = 0.
         d["activity_load"] = d.get("activity_load", 0.0)  # step count often survives
         d["data_quality"] = max(0.0, d.get("data_quality", 1.0) - 0.5)
     return PatientState(**d)
+
+
+# ---- Named degradation functions (for audit-friendly output) ----
+
+def _degrade_sensor_dropout_resting_hr(state: PatientState) -> PatientState:
+    return degrade_missing(state, "resting_hr")
+
+
+def _degrade_sensor_dropout_hrv(state: PatientState) -> PatientState:
+    return degrade_missing(state, "hrv_rmssd")
+
+
+def _degrade_sensor_dropout_sleep(state: PatientState) -> PatientState:
+    return degrade_missing(state, "sleep_hours")
+
+
+def _degrade_sensor_dropout_activity(state: PatientState) -> PatientState:
+    return degrade_missing(state, "activity_load")
+
+
+def _degrade_stale_3(state: PatientState) -> PatientState:
+    return degrade_stale(state, 3)
+
+
+def _degrade_stale_7(state: PatientState) -> PatientState:
+    return degrade_stale(state, 7)
+
+
+def _degrade_stale_14(state: PatientState) -> PatientState:
+    return degrade_stale(state, 14)
+
+
+def _degrade_noise_002(state: PatientState) -> PatientState:
+    return degrade_noisy(state, magnitude=0.02)
+
+
+def _degrade_noise_005(state: PatientState) -> PatientState:
+    return degrade_noisy(state, magnitude=0.05)
+
+
+def _degrade_noise_010(state: PatientState) -> PatientState:
+    return degrade_noisy(state, magnitude=0.10)
+
+
+def _degrade_bias_hr(state: PatientState) -> PatientState:
+    return degrade_biased(state, bias={"resting_hr": 5.0})
+
+
+def _degrade_bias_hrv(state: PatientState) -> PatientState:
+    return degrade_biased(state, bias={"hrv_rmssd": -10.0})
+
+
+def _degrade_bias_sleep(state: PatientState) -> PatientState:
+    return degrade_biased(state, bias={"sleep_hours": 1.5})
+
+
+def _degrade_temporal_2(state: PatientState) -> PatientState:
+    return degrade_temporal_shift(state, hours=2)
+
+
+def _degrade_temporal_6(state: PatientState) -> PatientState:
+    return degrade_temporal_shift(state, hours=6)
+
+
+def _degrade_temporal_12(state: PatientState) -> PatientState:
+    return degrade_temporal_shift(state, hours=12)
+
+
+def _degrade_corr_02(state: PatientState) -> PatientState:
+    return degrade_correlated_dropout(state, p=0.2)
+
+
+def _degrade_corr_05(state: PatientState) -> PatientState:
+    return degrade_correlated_dropout(state, p=0.5)
+
+
+def _degrade_corr_08(state: PatientState) -> PatientState:
+    return degrade_correlated_dropout(state, p=0.8)
+
+
+def _degrade_combined_realistic(state: PatientState) -> PatientState:
+    """Combined realistic degradation: noise + staleness + bias applied together."""
+    s = degrade_noisy(state, magnitude=0.03)
+    s = degrade_stale(s, extra_days=2)
+    s = degrade_biased(s, bias={"resting_hr": 3.0})
+    return s
 
 
 # ---- Combinatorial degradation suites ----
@@ -92,40 +178,38 @@ class DegradationSuite:
 # Pre-defined suites matching clinical failure modes
 DEGRADATION_SUITES = {
     "sensor_dropout": DegradationSuite("sensor_dropout", [
-        lambda s: degrade_missing(s, "resting_hr"),
-        lambda s: degrade_missing(s, "hrv_rmssd"),
-        lambda s: degrade_missing(s, "sleep_hours"),
-        lambda s: degrade_missing(s, "activity_load"),
+        _degrade_sensor_dropout_resting_hr,
+        _degrade_sensor_dropout_hrv,
+        _degrade_sensor_dropout_sleep,
+        _degrade_sensor_dropout_activity,
     ]),
     "stale_data": DegradationSuite("stale_data", [
-        lambda s: degrade_stale(s, 3),
-        lambda s: degrade_stale(s, 7),
-        lambda s: degrade_stale(s, 14),
+        _degrade_stale_3,
+        _degrade_stale_7,
+        _degrade_stale_14,
     ]),
     "sensor_noise": DegradationSuite("sensor_noise", [
-        lambda s: degrade_noisy(s, magnitude=0.02),
-        lambda s: degrade_noisy(s, magnitude=0.05),
-        lambda s: degrade_noisy(s, magnitude=0.10),
+        _degrade_noise_002,
+        _degrade_noise_005,
+        _degrade_noise_010,
     ]),
     "systematic_bias": DegradationSuite("systematic_bias", [
-        lambda s: degrade_biased(s, bias={"resting_hr": 5.0}),
-        lambda s: degrade_biased(s, bias={"hrv_rmssd": -10.0}),
-        lambda s: degrade_biased(s, bias={"sleep_hours": 1.5}),
+        _degrade_bias_hr,
+        _degrade_bias_hrv,
+        _degrade_bias_sleep,
     ]),
     "temporal_shift": DegradationSuite("temporal_shift", [
-        lambda s: degrade_temporal_shift(s, hours=2),
-        lambda s: degrade_temporal_shift(s, hours=6),
-        lambda s: degrade_temporal_shift(s, hours=12),
+        _degrade_temporal_2,
+        _degrade_temporal_6,
+        _degrade_temporal_12,
     ]),
     "correlated_dropout": DegradationSuite("correlated_dropout", [
-        lambda s: degrade_correlated_dropout(s, p=0.2),
-        lambda s: degrade_correlated_dropout(s, p=0.5),
-        lambda s: degrade_correlated_dropout(s, p=0.8),
+        _degrade_corr_02,
+        _degrade_corr_05,
+        _degrade_corr_08,
     ]),
     "combined_realistic": DegradationSuite("combined_realistic", [
-        lambda s: degrade_noisy(s, magnitude=0.03),
-        lambda s: degrade_stale(s, extra_days=2),
-        lambda s: degrade_biased(s, bias={"resting_hr": 3.0}),
+        _degrade_combined_realistic,
     ]),
 }
 
