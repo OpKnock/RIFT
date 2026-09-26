@@ -4,6 +4,7 @@ import { Play, FlaskConical, Scale, ArrowRight } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { EXPECTED_ENGINE_VERSION } from '@/config'
 import { api, apiErrorMessage, type HealthStatus, type EngineMeta } from '@/services/api'
 
 export function Dashboard() {
@@ -39,6 +40,11 @@ export function Dashboard() {
             {health && <Badge variant={health.status === 'ok' ? 'success' : 'error'}>{health.status}</Badge>}
           </div>
           {error && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{error}</p>}
+          {health && health.version !== EXPECTED_ENGINE_VERSION && (
+            <p className="text-sm text-warning-600 dark:text-warning-400 border border-warning-200 dark:border-warning-800 rounded-lg px-3 py-2" role="alert">
+              Engine v{health.version} does not match this UI&apos;s expected v{EXPECTED_ENGINE_VERSION} — responses may use a different contract.
+            </p>
+          )}
           {health && meta && !error && (
             <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div><dt className="text-secondary-500">Version</dt><dd className="font-mono">v{health.version}</dd></div>

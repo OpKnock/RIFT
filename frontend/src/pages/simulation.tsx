@@ -7,6 +7,9 @@ import { Badge } from '@/components/ui/badge'
 import { FutureTree3D } from '@/components/twin-3d'
 import { logEvent } from '@/utils/event-log'
 import { demoCacheKey, readDemoCache, writeDemoCache, clearDemoCache } from '@/utils/demo-cache'
+import { driver, defaultParams } from '@/domains/smart-building'
+import { demoParamsSchema, formatZodError } from '@/contracts/v1'
+import { detectEngineKind, labelOf } from '@/utils/data-kind'
 import { api, apiErrorMessage, type DemoPayload, type EngineMeta } from '@/services/api'
 
 interface RunParams {
@@ -58,13 +61,9 @@ function reasonFor(r: DemoPayload['robust'][number]): string {
   return parts.join(' ')
 }
 
-const DEFAULTS: RunParams = { crowd: 1200, smoke: 4, capacity: 60, blockB: false }
+const DEFAULTS: RunParams = defaultParams()
 
-const TEMPLATES: Array<{ name: string; desc: string; params: RunParams }> = [
-  { name: 'Evening rush', desc: 'High occupancy, moderate smoke, exit B open.', params: { crowd: 2500, smoke: 6, capacity: 80, blockB: false } },
-  { name: 'Night low occupancy', desc: 'Sparse crowd, light smoke, full capacity.', params: { crowd: 300, smoke: 2, capacity: 60, blockB: false } },
-  { name: 'Blocked exit drill', desc: 'Moderate crowd with corridor B closed.', params: { crowd: 1200, smoke: 4, capacity: 60, blockB: true } },
-]
+const TEMPLATES = driver.templates()
 
 export function Simulation() {
   const [meta, setMeta] = useState<EngineMeta | null>(null)
@@ -129,6 +128,11 @@ export function Simulation() {
         return null
       }
       out[key] = v
+    }
+    const parsed = demoParamsSchema.safeParse({ crowd: out.crowd, smoke: out.smoke, corridor_capacity: out.corridor_capacity, block_b: blockB })
+    if (!parsed.success) {
+      setError(`Invalid inputs: ${formatZodError(parsed.error)}`)
+      return null
     }
     return { crowd: out.crowd, smoke: out.smoke, capacity: out.corridor_capacity, blockB }
   }
@@ -249,7 +253,7 @@ export function Simulation() {
     }
   }
 
-  const applyTemplate = (t: (typeof TEMPLATES)[number]) => {
+  const applyTemplate = (t: { params: RunParams }) => {
     setCrowd(String(t.params.crowd))
     setSmoke(String(t.params.smoke))
     setCapacity(String(t.params.capacity))
@@ -414,6 +418,21 @@ export function Simulation() {
                 {ranAt && !stale && (
                   <p className="text-xs text-secondary-500">Computed {new Date(ranAt).toLocaleTimeString()} · valid only for the exact inputs shown above.</p>
                 )}
+                <details className="text-sm">
+                  <summary className="cursor-pointer font-medium text-secondary-900 dark:text-white">
+                    Assumption registry <span className="font-mono text-xs text-secondary-500">data: {labelOf(detectEngineKind())}</span>
+                  </summary>
+                  <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 text-xs">
+                    <div><dt className="text-secondary-500">Scenario</dt><dd className="font-mono">{result.scenario.name}</dd></div>
+                    <div><dt className="text-secondary-500">Initial state</dt><dd className="font-mono">{JSON.stringify(result.scenario.initial_state)}</dd></div>
+                    <div><dt className="text-secondary-500">Perturbations ({result.reproducibility.perturbations.length} declared)</dt><dd className="font-mono break-all">{JSON.stringify(result.reproducibility.perturbations)}</dd></div>
+                    <div><dt className="text-secondary-500">Policy variables</dt><dd className="font-mono">{result.reproducibility.policy_variables.join(', ')}</dd></div>
+                    <div><dt className="text-secondary-500">Backend</dt><dd className="font-mono">{result.reproducibility.backend}</dd></div>
+                    <div><dt className="text-secondary-500">Engine</dt><dd className="font-mono">v{result.reproducibility.engine_version}</dd></div>
+                    <div><dt className="text-secondary-500">Seed</dt><dd className="font-mono">n/a — fixed demo configuration (no sampling)</dd></div>
+                    <div><dt className="text-secondary-500">Guardian scope</dt><dd className="font-mono">{result.guardian.scope}</dd></div>
+                  </dl>
+                </details>
                 {!result.guardian.passed && (
                   <div className="text-sm border border-error-200 dark:border-error-800 rounded-lg px-3 py-2 space-y-1" role="alert">
                     <p className="font-medium text-error-700 dark:text-error-300">Incident mode: Guardian withheld this result.</p>
