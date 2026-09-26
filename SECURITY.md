@@ -36,6 +36,6 @@ Out of scope: the synthetic demo model itself (it is intentionally unvalidated â
 
 ## Audited posture (v1.0.0)
 
-- 223 tests, Bandit 0 findings, Semgrep 0 findings, secret scan clean.
+- 281 tests, Bandit 0 findings, Semgrep 0 findings, secret scan clean.
 - Bearer/JWT auth with fail-closed 401s; per-row ownership checks; HMAC webhook verification with durable idempotency; HTTPS-only FHIR fetching with host allowlist and private-IP refusal.
 - Full audit record: `docs/security.md`. Known open gates (live infra, clinical validation) are listed in `docs/release-checklist.md`, not hidden.

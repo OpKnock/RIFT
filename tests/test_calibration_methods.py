@@ -96,3 +96,69 @@ def test_beta_applies_to_edges():
     p1 = apply_beta(0.999, params)
     assert 0.0 < p0 < 1.0
     assert 0.0 < p1 < 1.0
+
+
+def test_empty_calibration_raises():
+    with pytest.raises(ValueError):
+        fit_platt_scaling([])
+    with pytest.raises(ValueError):
+        fit_isotonic_regression([])
+    with pytest.raises(ValueError):
+        fit_beta_calibration([])
+
+
+def test_single_observation_calibration():
+    single = [{"predicted_risk": 0.5, "realized_event": True}]
+    params = fit_platt_scaling(single)
+    p = apply_platt(0.5, params)
+    assert 0.0 <= p <= 1.0
+    params_iso = fit_isotonic_regression(single)
+    p = apply_isotonic(0.5, params_iso)
+    assert 0.0 <= p <= 1.0
+    params_beta = fit_beta_calibration(single)
+    p = apply_beta(0.5, params_beta)
+    assert 0.0 <= p <= 1.0
+
+
+def test_identical_probabilities_calibration():
+    identical = [
+        {"predicted_risk": 0.5, "realized_event": False},
+        {"predicted_risk": 0.5, "realized_event": True},
+        {"predicted_risk": 0.5, "realized_event": True},
+    ]
+    params = fit_isotonic_regression(identical)
+    # All identical raw probs should map to single fitted value
+    assert len(params["raw_probs"]) == 1
+    assert len(params["fitted"]) == 1
+    p = apply_isotonic(0.5, params)
+    assert p == params["fitted"][0]
+
+
+def test_extreme_probabilities_calibration():
+    extreme = [
+        {"predicted_risk": 0.001, "realized_event": False},
+        {"predicted_risk": 0.01, "realized_event": False},
+        {"predicted_risk": 0.99, "realized_event": True},
+        {"predicted_risk": 0.999, "realized_event": True},
+    ]
+    params = fit_platt_scaling(extreme)
+    p0 = apply_platt(0.001, params)
+    p1 = apply_platt(0.999, params)
+    assert 0.0 < p0 < p1 < 1.0
+    params_iso = fit_isotonic_regression(extreme)
+    p0 = apply_isotonic(0.001, params_iso)
+    p1 = apply_isotonic(0.999, params_iso)
+    assert 0.0 <= p0 <= p1 <= 1.0
+    params_beta = fit_beta_calibration(extreme)
+    p0 = apply_beta(0.001, params_beta)
+    p1 = apply_beta(0.999, params_beta)
+    assert 0.0 < p0 < p1 < 1.0
+
+
+def test_isotonic_empty_raw_probs():
+    params = fit_isotonic_regression([{"predicted_risk": 0.5, "realized_event": True}])
+    # apply_isotonic with p outside range should clamp
+    p_low = apply_isotonic(0.0, params)
+    p_high = apply_isotonic(1.0, params)
+    assert p_low == params["fitted"][0]
+    assert p_high == params["fitted"][0]

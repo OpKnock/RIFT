@@ -307,6 +307,8 @@ def fit_platt_scaling(calibration_days: list[dict]) -> dict:
     order, so the fit is reproducible. Never fit on the test window —
     doing so would turn calibration repair into metric gaming.
     """
+    if not calibration_days:
+        raise ValueError("calibration_days must not be empty")
     a_grid = [i * 0.5 for i in range(0, 11)]  # A >= 0 only: the map must be
     b_grid = [i * 0.5 for i in range(-10, 11)]  # order-preserving, never invert risk
     best = None
@@ -343,6 +345,8 @@ def fit_isotonic_regression(calibration_days: list[dict]) -> dict:
     with the fitted values at each unique raw probability. Deterministic
     tie-breaking: average the labels for equal raw probabilities.
     """
+    if not calibration_days:
+        raise ValueError("calibration_days must not be empty")
     from collections import defaultdict
     # Group by raw probability, average the realized events
     groups = defaultdict(list)
@@ -402,6 +406,8 @@ def fit_beta_calibration(calibration_days: list[dict]) -> dict:
     Deterministic coarse grid search over (a, b, c) minimizing log-loss.
     For p_raw in (0,1), logit(p) = log(p/(1-p)).
     """
+    if not calibration_days:
+        raise ValueError("calibration_days must not be empty")
     best = None
     best_loss = float("inf")
     # Coarse grid

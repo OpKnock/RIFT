@@ -1,7 +1,7 @@
 # Release checklist — RIFT v1.0.0
 
 - [ ] `pip install -e ".[dev]" -c constraints.txt` clean on Python 3.11
-- [ ] `pytest` green (currently 223 tests)
+- [ ] `pytest` green (currently 281 tests)
 - [ ] `python scripts/validate_migrations.py` ok (001→007 in order, RLS on)
 - [ ] `python scripts/secret_scan.py` ok
 - [ ] `python scripts/check_versions.py` ok (pyproject ↔ package ↔ health)
