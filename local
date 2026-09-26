@@ -1,0 +1,646 @@
+#!/usr/bin/env bash
+# RIFT Local Deployment - One-command startup, reset, health, test, demo
+# Usage: ./local.sh [start|stop|restart|reset|health|test|demo|logs|shell]
+
+set -euo pipefail
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Config
+RIFT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+COMPOSE_FILE="${RIFT_ROOT}/docker-compose.local.yml"
+ENV_FILE="${RIFT_ROOT}/.env.local"
+PID_FILE="${RIFT_ROOT}/.rift.pid"
+LOG_DIR="${RIFT_ROOT}/logs"
+
+# Ensure directories
+mkdir -p "${LOG_DIR}"
+
+# Logging
+log() { echo -e "${BLUE}[$(date '+%H:%M:%S')]${NC} $*"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $*"; }
+error() { echo -e "${RED}[ERROR]${NC} $*"; }
+success() { echo -e "${GREEN}[OK]${NC} $*"; }
+
+# Check prerequisites
+check_prereqs() {
+    local missing=()
+    command -v docker >/dev/null || missing+=("docker")
+    command -v docker-compose >/dev/null || missing+=("docker-compose")
+    command -v python3 >/dev/null || missing+=("python3")
+    command -v node >/dev/null || missing+=("node")
+    command -v npm >/dev/null || missing+=("npm")
+
+    if [ ${#missing[@]} -gt 0 ]; then
+        error "Missing prerequisites: ${missing[*]}"
+        return 1
+    fi
+    success "Prerequisites OK"
+}
+
+# Generate local env file
+gen_env() {
+    cat > "${ENV_FILE}" <<EOF
+# RIFT Local Development Environment
+# Generated: $(date -Iseconds)
+
+# Environment
+RIFT_ENV=development
+RIFT_API_URL=http://localhost:8080
+RIFT_WS_URL=ws://localhost:8080
+
+# Database
+DATABASE_URL=sqlite:///./rift_local.db
+# For PostgreSQL: postgresql://rift:rift@db:5432/rift
+
+# Redis
+REDIS_URL=redis://localhost:6379/0
+
+# Quantum
+IBM_QPU_TOKEN=${IBM_QPU_TOKEN:-}
+QUANTUM_BACKEND=statevector-simulator
+
+# Security
+RIFT_API_TOKEN=dev-token-change-in-production
+JWT_SECRET=dev-jwt-secret-change-in-production
+WEBHOOK_SECRET=dev-webhook-secret-change-in-production
+
+# Billing (optional)
+LEMON_SQUEEZY_API_KEY=${LEMON_SQUEEZY_API_KEY:-}
+LEMON_SQUEEZY_STORE_ID=${LEMON_SQUEEZY_STORE_ID:-}
+LEMON_SQUEEZY_WEBHOOK_SECRET=${LEMON_SQUEEZY_WEBHOOK_SECRET:-}
+
+# Monitoring
+PROMETHEUS_PORT=9090
+GRAFANA_PORT=3000
+HEALTH_CHECK_INTERVAL=10
+
+# Logging
+LOG_LEVEL=DEBUG
+LOG_FORMAT=json
+LOG_OUTPUT=stdout
+
+# Development
+DEBUG=true
+HOT_RELOAD=true
+EOF
+    success "Generated ${ENV_FILE}"
+}
+
+# Generate docker-compose for local dev
+gen_compose() {
+    cat > "${COMPOSE_FILE}" <<'EOF'
+version: '3.8'
+
+services:
+  rift-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8080:8080"
+    environment:
+      - RIFT_ENV=development
+      - DATABASE_URL=sqlite:///./rift_local.db
+      - REDIS_URL=redis://redis:6379/0
+      - RIFT_API_TOKEN=dev-token
+      - JWT_SECRET=dev-jwt-secret
+      - WEBHOOK_SECRET=dev-webhook-secret
+      - LOG_LEVEL=DEBUG
+      - LOG_FORMAT=json
+    volumes:
+      - ./src:/app/src:ro
+      - ./tests:/app/tests:ro
+      - ./pyproject.toml:/app/pyproject.toml:ro
+      - ./constraints.txt:/app/constraints.txt:ro
+      - rift_data:/app/data
+    depends_on:
+      - redis
+    command: python -m rift.api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  rift-frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8080/api
+      - VITE_WS_URL=ws://localhost:8080
+    volumes:
+      - ./frontend/src:/app/src:ro
+      - ./frontend/public:/app/public:ro
+      - ./frontend/package.json:/app/package.json:ro
+      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
+    command: npm run dev -- --host 0.0.0.0
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  rift_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+EOF
+    success "Generated ${COMPOSE_FILE}"
+}
+
+# Generate Dockerfile.dev
+gen_dockerfile_dev() {
+    cat > "${RIFT_ROOT}/Dockerfile.dev" <<'EOF'
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python deps
+COPY constraints.txt .
+RUN pip install --no-cache-dir -r constraints.txt
+
+# Install package in dev mode
+COPY pyproject.toml .
+RUN pip install -e .
+
+# Expose API port
+EXPOSE 8080
+
+# Health check
+HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=5 \
+    CMD curl -f http://localhost:8080/api/health || exit 1
+
+# Default command (overridden in compose)
+CMD ["python", "-m", "rift.api"]
+EOF
+    success "Generated Dockerfile.dev"
+}
+
+# Generate frontend Dockerfile.dev
+gen_frontend_dockerfile_dev() {
+    cat > "${RIFT_ROOT}/frontend/Dockerfile.dev" <<'EOF'
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install deps
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Expose Vite dev server
+EXPOSE 5173
+
+# Dev server with hot reload
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+EOF
+    success "Generated frontend/Dockerfile.dev"
+}
+
+# Start services
+start() {
+    log "Starting RIFT local environment..."
+
+    check_prereqs || return 1
+
+    # Generate configs if missing
+    [ -f "${ENV_FILE}" ] || gen_env
+    [ -f "${COMPOSE_FILE}" ] || gen_compose
+    [ -f "${RIFT_ROOT}/Dockerfile.dev" ] || gen_dockerfile_dev
+    [ -f "${RIFT_ROOT}/frontend/Dockerfile.dev" ] || gen_frontend_dockerfile_dev
+
+    # Load env
+    set -a
+    source "${ENV_FILE}"
+    set +a
+
+    # Start services
+    log "Starting Docker services..."
+    docker-compose -f "${COMPOSE_FILE}" --env-file "${ENV_FILE}" up -d
+
+    # Wait for health
+    log "Waiting for services to be healthy..."
+    local retries=30
+    while [ $retries -gt 0 ]; do
+        if docker-compose -f "${COMPOSE_FILE}" ps --format "table {{.Service}}\t{{.Status}}" | grep -q "unhealthy"; then
+            warn "Some services unhealthy, waiting..."
+        elif docker-compose -f "${COMPOSE_FILE}" ps --format "table {{.Service}}\t{{.Status}}" | grep -q "starting"; then
+            warn "Services starting..."
+        else
+            break
+        fi
+        sleep 2
+        retries=$((retries - 1))
+    done
+
+    # Verify API
+    if curl -sf "http://localhost:8080/api/health" >/dev/null; then
+        success "RIFT API is healthy at http://localhost:8080"
+    else
+        error "RIFT API health check failed"
+        return 1
+    fi
+
+    # Verify Frontend
+    if curl -sf "http://localhost:5173" >/dev/null; then
+        success "RIFT Frontend is running at http://localhost:5173"
+    else
+        warn "Frontend may still be starting"
+    fi
+
+    # Show status
+    docker-compose -f "${COMPOSE_FILE}" ps
+    success "RIFT local environment started!"
+    log "API: http://localhost:8080"
+    log "Frontend: http://localhost:5173"
+    log "Prometheus: http://localhost:9090"
+    log "Grafana: http://localhost:3000 (admin/admin)"
+}
+
+# Stop services
+stop() {
+    log "Stopping RIFT local environment..."
+    docker-compose -f "${COMPOSE_FILE}" down
+    success "Stopped"
+}
+
+# Restart services
+restart() {
+    stop
+    start
+}
+
+# Reset to clean state
+reset() {
+    warn "Resetting RIFT local environment to clean state..."
+    stop
+
+    # Remove volumes
+    docker-compose -f "${COMPOSE_FILE}" down -v
+
+    # Remove local database
+    rm -f "${RIFT_ROOT}/rift_local.db"
+    rm -f "${RIFT_ROOT}/rift_local.db-wal"
+    rm -f "${RIFT_ROOT}/rift_local.db-shm"
+
+    # Remove logs
+    rm -rf "${LOG_DIR}"
+    mkdir -p "${LOG_DIR}"
+
+    # Remove generated configs
+    rm -f "${ENV_FILE}"
+    rm -f "${COMPOSE_FILE}"
+
+    # Remove node_modules and dist
+    rm -rf "${RIFT_ROOT}/frontend/node_modules"
+    rm -rf "${RIFT_ROOT}/frontend/dist"
+
+    # Remove Python cache
+    find "${RIFT_ROOT}/src" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+    find "${RIFT_ROOT}/tests" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
+
+    success "Reset complete. Run './local.sh start' to start fresh."
+}
+
+# Health check
+health() {
+    log "Running health checks..."
+
+    local all_ok=true
+
+    # API health
+    if curl -sf "http://localhost:8080/api/health" | jq -e '.status == "ok"' >/dev/null 2>&1; then
+        success "API: Healthy"
+    else
+        error "API: Unhealthy"
+        all_ok=false
+    fi
+
+    # API meta
+    if curl -sf "http://localhost:8080/api/meta" | jq -e '.engine_version' >/dev/null 2>&1; then
+        success "API Meta: OK"
+    else
+        error "API Meta: Failed"
+        all_ok=false
+    fi
+
+    # Database
+    if curl -sf "http://localhost:8080/api/persistence/status" | jq -e '.configured == true' >/dev/null 2>&1; then
+        success "Database: Connected"
+    else
+        warn "Database: Not configured (using SQLite fallback)"
+    fi
+
+    # Redis
+    if docker-compose -f "${COMPOSE_FILE}" exec -T redis redis-cli ping 2>/dev/null | grep -q PONG; then
+        success "Redis: Connected"
+    else
+        error "Redis: Not responding"
+        all_ok=false
+    fi
+
+    # Prometheus
+    if curl -sf "http://localhost:9090/-/healthy" >/dev/null 2>&1; then
+        success "Prometheus: Healthy"
+    else
+        warn "Prometheus: Not responding"
+    fi
+
+    # Grafana
+    if curl -sf "http://localhost:3000/api/health" >/dev/null 2>&1; then
+        success "Grafana: Healthy"
+    else
+        warn "Grafana: Not responding"
+    fi
+
+    # Frontend
+    if curl -sf "http://localhost:5173" >/dev/null 2>&1; then
+        success "Frontend: Running"
+    else
+        warn "Frontend: Not responding"
+    fi
+
+    # Disk space
+    local disk_avail=$(df -h "${RIFT_ROOT}" | awk 'NR==2 {print $4}')
+    log "Disk available: ${disk_avail}"
+
+    # Memory
+    local mem_avail=$(free -h | awk 'NR==2 {print $7}')
+    log "Memory available: ${mem_avail}"
+
+    if [ "$all_ok" = true ]; then
+        success "All critical health checks passed!"
+        return 0
+    else
+        error "Some health checks failed"
+        return 1
+    fi
+}
+
+# Run tests
+test() {
+    log "Running test suite..."
+
+    # Python tests
+    log "Running Python tests..."
+    if docker-compose -f "${COMPOSE_FILE}" exec -T rift-api python -m pytest tests/ -x -q; then
+        success "Python tests passed"
+    else
+        error "Python tests failed"
+        return 1
+    fi
+
+    # Frontend tests (if configured)
+    if [ -f "${RIFT_ROOT}/frontend/package.json" ] && grep -q '"test"' "${RIFT_ROOT}/frontend/package.json"; then
+        log "Running Frontend tests..."
+        if docker-compose -f "${COMPOSE_FILE}" exec -T rift-frontend npm test -- --run; then
+            success "Frontend tests passed"
+        else
+            error "Frontend tests failed"
+            return 1
+        fi
+    fi
+
+    success "All tests passed!"
+}
+
+# Run demo
+demo() {
+    log "Running RIFT demo..."
+
+    # Health check first
+    if ! curl -sf "http://localhost:8080/api/health" >/dev/null; then
+        error "API not healthy. Run './local.sh start' first."
+        return 1
+    fi
+
+    # Run demo
+    log "Running /api/demo..."
+    local demo_result
+    demo_result=$(curl -s "http://localhost:8080/api/demo" | jq .)
+
+    echo "${demo_result}" | jq '.guardian, .robust | length, .[0].policy'
+
+    # Twin demo
+    log "Running /api/twin/demo?t=13..."
+    curl -s "http://localhost:8080/api/twin/demo?t=13" | jq '{day_index, patient_id, risk: .risk.risk, guardian: .guardian.action}'
+
+    # Monitor
+    log "Running /api/ops/monitor..."
+    curl -s "http://localhost:8080/api/ops/monitor" | jq '{requests_total, failure_rate, guardian_reject_rate}'
+
+    success "Demo complete!"
+}
+
+# Show logs
+logs() {
+    local service="${1:-}"
+    if [ -n "${service}" ]; then
+        docker-compose -f "${COMPOSE_FILE}" logs -f --tail=100 "${service}"
+    else
+        docker-compose -f "${COMPOSE_FILE}" logs -f --tail=100
+    fi
+}
+
+# Shell into container
+shell() {
+    local service="${1:-rift-api}"
+    docker-compose -f "${COMPOSE_FILE}" exec "${service}" /bin/bash
+}
+
+# Diagnostics
+diag() {
+    log "Running full environment diagnostics..."
+
+    echo "=== System Info ==="
+    uname -a
+    echo "Docker: $(docker --version)"
+    echo "Docker Compose: $(docker-compose --version)"
+    echo "Python: $(python3 --version)"
+    echo "Node: $(node --version)"
+    echo "NPM: $(npm --version)"
+
+    echo ""
+    echo "=== Docker Status ==="
+    docker-compose -f "${COMPOSE_FILE}" ps
+
+    echo ""
+    echo "=== Resource Usage ==="
+    docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.NetIO}}\t{{.BlockIO}}"
+
+    echo ""
+    echo "=== Disk Usage ==="
+    df -h "${RIFT_ROOT}"
+
+    echo ""
+    echo "=== Network ==="
+    docker network ls | grep rift
+
+    echo ""
+    echo "=== Volumes ==="
+    docker volume ls | grep rift
+
+    echo ""
+    echo "=== API Endpoints ==="
+    curl -sf "http://localhost:8080/api/health" | jq .
+    curl -sf "http://localhost:8080/api/meta" | jq '.engine_version, .capabilities, .optimizers'
+
+    success "Diagnostics complete"
+}
+
+# Init demo data
+init_demo() {
+    log "Initializing demo data..."
+
+    # The demo data is built into the Python package
+    # This just verifies it's accessible
+    if curl -sf "http://localhost:8080/api/twin/demo?t=0" >/dev/null; then
+        success "Demo data accessible"
+    else
+        error "Demo data not accessible"
+        return 1
+    fi
+
+    # Initialize local database if using SQLite
+    if [ -f "${RIFT_ROOT}/rift_local.db" ]; then
+        log "SQLite database exists"
+    else
+        log "SQLite database will be created on first API call"
+    fi
+
+    success "Demo data initialized"
+}
+
+# Main
+main() {
+    local cmd="${1:-help}"
+
+    case "${cmd}" in
+        start)
+            start
+            ;;
+        stop)
+            stop
+            ;;
+        restart)
+            restart
+            ;;
+        reset)
+            reset
+            ;;
+        health)
+            health
+            ;;
+        test)
+            test
+            ;;
+        demo)
+            demo
+            ;;
+        logs)
+            logs "${2:-}"
+            ;;
+        shell)
+            shell "${2:-rift-api}"
+            ;;
+        diag)
+            diag
+            ;;
+        init)
+            init_demo
+            ;;
+        gen-config)
+            gen_env
+            gen_compose
+            gen_dockerfile_dev
+            gen_frontend_dockerfile_dev
+            success "Generated all config files"
+            ;;
+        help|*)
+            cat <<EOF
+RIFT Local Deployment Manager
+
+Usage: ./local.sh <command> [args]
+
+Commands:
+  start       Start all services (API, Frontend, Redis, Prometheus, Grafana)
+  stop        Stop all services
+  restart     Restart all services
+  reset       Reset to clean state (removes volumes, DB, logs, cache)
+  health      Run health checks
+  test        Run test suite (Python + Frontend)
+  demo        Run API demo
+  logs [svc]  Show logs (optional: service name)
+  shell [svc] Open shell in container (default: rift-api)
+  diag        Run full environment diagnostics
+  init        Initialize demo data
+  gen-config  Generate config files (Dockerfile.dev, docker-compose, .env)
+  help        Show this help
+
+Examples:
+  ./local.sh start          # Start everything
+  ./local.sh health         # Check health
+  ./local.sh test           # Run tests
+  ./local.sh demo           # Run demo
+  ./local.sh logs rift-api  # Follow API logs
+  ./local.sh shell          # Shell into API container
+  ./local.sh diag           # Full diagnostics
+  ./local.sh reset          # Clean reset
+EOF
+}
+
+main "$@"
