@@ -12,7 +12,7 @@ substrate that anticipates it.
 
 ## 2. Design controls (design input → output → verification → validation)
 - Procedure: requirement per feature, trace input→output→V&V.
-- Substrate: `docs/traceability-matrix.md`, 281 tests, phase-matrix discipline.
+- Substrate: `docs/traceability-matrix.md`, 276 passed, 1 skipped, phase-matrix discipline.
 - Missing: formal design reviews with clinical sign-off.
 
 ## 3. Risk management (ISO 14971)
