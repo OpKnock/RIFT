@@ -14,6 +14,8 @@ const Runs = lazy(() => import('@/pages/runs').then(m => ({ default: m.Runs })))
 const RunDetail = lazy(() => import('@/pages/run-detail').then(m => ({ default: m.RunDetail })))
 const Experiments = lazy(() => import('@/pages/experiments').then(m => ({ default: m.Experiments })))
 const Evidence = lazy(() => import('@/pages/evidence').then(m => ({ default: m.Evidence })))
+const Incidents = lazy(() => import('@/pages/incidents').then(m => ({ default: m.Incidents })))
+const Explainability = lazy(() => import('@/pages/explainability').then(m => ({ default: m.Explainability })))
 const Settings = lazy(() => import('@/pages/settings').then(m => ({ default: m.Settings })))
 const Documentation = lazy(() => import('@/pages/documentation').then(m => ({ default: m.Documentation })))
 const Faq = lazy(() => import('@/pages/faq').then(m => ({ default: m.Faq })))
@@ -40,6 +42,8 @@ function App() {
             <Route path="runs/:id" element={<RunDetail />} />
             <Route path="experiments" element={<Experiments />} />
             <Route path="evidence" element={<Evidence />} />
+            <Route path="incidents" element={<Incidents />} />
+            <Route path="explainability" element={<Explainability />} />
             <Route path="settings" element={<Settings />} />
             <Route path="docs" element={<Documentation />} />
             <Route path="faq" element={<Faq />} />

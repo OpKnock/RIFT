@@ -122,6 +122,51 @@ export interface ExperimentCreate {
   seed?: number | null
 }
 
+export interface Incident {
+  id: string
+  type: string
+  severity: string
+  title: string
+  description: string
+  status: string
+  created_at: string
+  updated_at: string
+  acknowledged_at: string | null
+  resolved_at: string | null
+  closed_at: string | null
+  owner: string | null
+  trigger_alert_id: string | null
+  affected_decision_ids: string[]
+  guardian_findings: any[]
+  timeline: Array<{ timestamp: string; actor: string; action: string; note: string; metadata: any }>
+  tags: string[]
+  metadata: any
+}
+
+export interface Decision {
+  id: string
+  scenario_id: string
+  policy: Record<string, number>
+  proposed_by: string
+  proposed_at: string
+  status: string
+  guardian_verdict: any
+  approved_by: string | null
+  approved_at: string | null
+  rejected_by: string | null
+  rejected_at: string | null
+  overridden_by: string | null
+  overridden_at: string | null
+  executed_at: string | null
+  expired_at: string | null
+  execution_result: any
+  linked_incident_id: string | null
+  review_requested_by: string | null
+  review_requested_at: string | null
+  timeline: Array<{ timestamp: string; actor: string; action: string; note: string; guardian_verdict: any; metadata: any }>
+  metadata: any
+}
+
 function apiErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as { error?: string; detail?: string } | undefined
@@ -237,6 +282,43 @@ class ApiClient {
 
   async getEntitlement(): Promise<Record<string, unknown>> {
     const response = await this.client.get<Record<string, unknown>>('/billing/entitlement')
+    return response.data
+  }
+
+  async getExplainabilityAudit(): Promise<{ records: any[] }> {
+    const response = await this.client.get<{ records: any[] }>('/explainability/audit')
+    return response.data
+  }
+
+  async getIncidents(filters: { status?: string; severity?: string; type?: string } = {}): Promise<Incident[]> {
+    const params = new URLSearchParams()
+    if (filters.status) params.set('status', filters.status)
+    if (filters.severity) params.set('severity', filters.severity)
+    if (filters.type) params.set('type', filters.type)
+    const response = await this.client.get<Incident[]>(`/operations/incidents?${params.toString()}`)
+    return response.data
+  }
+
+  async createIncident(incident: { type: string; severity: string; title: string; description: string; tags: string[]; trigger_alert_id?: string }): Promise<Incident> {
+    const response = await this.client.post<Incident>('/operations/incidents', incident)
+    return response.data
+  }
+
+  async incidentAction(incidentId: string, action: string, note: string): Promise<Incident> {
+    const response = await this.client.post<Incident>(`/operations/incidents/${incidentId}/action`, { action, note })
+    return response.data
+  }
+
+  async getDecisions(filters: { status?: string; scenario_id?: string } = {}): Promise<Decision[]> {
+    const params = new URLSearchParams()
+    if (filters.status) params.set('status', filters.status)
+    if (filters.scenario_id) params.set('scenario_id', filters.scenario_id)
+    const response = await this.client.get<Decision[]>(`/operations/decisions?${params.toString()}`)
+    return response.data
+  }
+
+  async decisionAction(decisionId: string, action: string, note: string): Promise<Decision> {
+    const response = await this.client.post<Decision>(`/operations/decisions/${decisionId}/action`, { action, note })
     return response.data
   }
 
