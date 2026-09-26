@@ -308,7 +308,7 @@ web/                       # dashboard: index.html + app.js + styles.css
 backend/supabase/migrations/  # 001→007, additive + idempotent + RLS
 tests/                     # 278 passed, 1 skipped incl. test_internal_audit_regression.py
 docs/                      # architecture, PRD, api, patient-twin, evidence-sheet,
-                           # security, deployment, billing, roadmap, ... (17 files)
+                           # security, deployment, billing, roadmap, ... (31 files)
 monitoring/                # Prometheus rules + config (single metric contract)
 deployment/                # docker, kubernetes (staging/production), CI template
 scripts/                   # validate_migrations, secret_scan, check_versions,
