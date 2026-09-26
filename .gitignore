@@ -6,3 +6,5 @@ __pycache__/
 venv/
 .env
 .pytest_cache/
+frontend/node_modules/
+frontend/dist/
