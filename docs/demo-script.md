@@ -9,7 +9,7 @@ same commands, same numbers, every run.
 python -m venv .venv
 # Windows: .venv\Scripts\activate — macOS/Linux: source .venv/bin/activate
 pip install -e ".[dev]" -c constraints.txt
-pytest -q   # 276 passed, 1 skipped on the release commit
+pytest -q   # 278 passed, 1 skipped on the release commit
 ```
 
 ## 1. Terminal twin story (1 min)
@@ -65,7 +65,7 @@ Point at: `imputed_fields`, `guardian`, `calibration_repair.params`,
 Everything below works with zero network beyond localhost, and the
 terminal path needs no server at all:
 
-1. Server won't start → `python -m rift.cli twin-demo` (full twin story in terminal) + `pytest -q` (276 passed, 1 skipped) + `docs/evidence-sheet.md` (frozen numbers).
+1. Server won't start → `python -m rift.cli twin-demo` (full twin story in terminal) + `pytest -q` (278 passed, 1 skipped) + `docs/evidence-sheet.md` (frozen numbers).
 2. Dashboard won't load → same as above, plus `curl` the two JSON endpoints if the server runs but the browser fails.
 3. Judge wants proof without running anything → `docs/evidence-sheet.md` (one page) + CI badge history on GitHub (test + validate + security green on HEAD).
 4. Record a screen capture of sections 1–2 beforehand; the numbers are deterministic (seeded), so the recording always matches live output.
