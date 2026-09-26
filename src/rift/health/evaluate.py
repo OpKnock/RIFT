@@ -336,41 +336,159 @@ def _brier_of(per_day: list[dict], key: str = "predicted_risk") -> float | None:
     return sum((d[key] - (1.0 if d["realized_event"] else 0.0)) ** 2 for d in per_day) / len(per_day)
 
 
+def fit_isotonic_regression(calibration_days: list[dict]) -> dict:
+    """Fit isotonic regression (PAVA) for calibration.
+
+    Non-parametric, preserves order. Returns piecewise constant mapping
+    with the fitted values at each unique raw probability. Deterministic
+    tie-breaking: average the labels for equal raw probabilities.
+    """
+    from collections import defaultdict
+    # Group by raw probability, average the realized events
+    groups = defaultdict(list)
+    for d in calibration_days:
+        p = d["predicted_risk"]
+        y = 1.0 if d["realized_event"] else 0.0
+        groups[p].append(y)
+    unique_p = sorted(groups.keys())
+    avg_y = [sum(groups[p]) / len(groups[p]) for p in unique_p]
+
+    # Pool Adjacent Violators Algorithm (PAVA)
+    n = len(avg_y)
+    blocks = [{"sum": avg_y[i], "count": 1, "avg": avg_y[i]} for i in range(n)]
+    # Merge violating adjacent blocks
+    changed = True
+    while changed:
+        changed = False
+        i = 0
+        while i < len(blocks) - 1:
+            if blocks[i]["avg"] > blocks[i + 1]["avg"]:
+                # Pool blocks i and i+1
+                merged = {
+                    "sum": blocks[i]["sum"] * blocks[i]["count"] + blocks[i + 1]["sum"] * blocks[i + 1]["count"],
+                    "count": blocks[i]["count"] + blocks[i + 1]["count"],
+                }
+                merged["avg"] = merged["sum"] / merged["count"]
+                blocks[i:i + 2] = [merged]
+                changed = True
+                break
+            i += 1
+    # Expand back to values for each unique_p
+    fitted = []
+    for block in blocks:
+        fitted.extend([block["avg"]] * block["count"])
+    return {"raw_probs": unique_p, "fitted": fitted, "method": "isotonic"}
+
+
+def apply_isotonic(p_raw: float, params: dict) -> float:
+    """Apply fitted isotonic regression to one raw probability."""
+    raw_probs = params["raw_probs"]
+    fitted = params["fitted"]
+    if p_raw <= raw_probs[0]:
+        return fitted[0]
+    if p_raw >= raw_probs[-1]:
+        return fitted[-1]
+    # Linear interpolation between fitted values
+    for i in range(len(raw_probs) - 1):
+        if raw_probs[i] <= p_raw <= raw_probs[i + 1]:
+            t = (p_raw - raw_probs[i]) / (raw_probs[i + 1] - raw_probs[i])
+            return fitted[i] * (1 - t) + fitted[i + 1] * t
+    return fitted[-1]
+
+
+def fit_beta_calibration(calibration_days: list[dict]) -> dict:
+    """Fit beta calibration: logit(p_cal) = a + b*logit(p_raw) + c*log(1-p_raw).
+
+    Deterministic coarse grid search over (a, b, c) minimizing log-loss.
+    For p_raw in (0,1), logit(p) = log(p/(1-p)).
+    """
+    best = None
+    best_loss = float("inf")
+    # Coarse grid
+    for a in [i * 0.5 for i in range(-4, 5)]:   # -2.0 to 2.0
+        for b in [i * 0.5 for i in range(-4, 5)]:
+            for c in [i * 0.5 for i in range(-4, 5)]:
+                loss = 0.0
+                for d in calibration_days:
+                    p = d["predicted_risk"]
+                    y = 1.0 if d["realized_event"] else 0.0
+                    # Beta calibration: logit(p_cal) = a + b*logit(p) + c*log(1-p)
+                    logit_p = math.log(max(1e-6, min(1 - 1e-6, p)) / (1 - max(1e-6, min(1 - 1e-6, p))))
+                    log_1p = math.log(max(1e-6, 1 - p))
+                    logit_cal = a + b * logit_p + c * log_1p
+                    p_cal = 1.0 / (1.0 + math.exp(-logit_cal))
+                    p_cal = max(1e-6, min(1 - 1e-6, p_cal))
+                    loss += -(y * math.log(p_cal) + (1 - y) * math.log(1 - p_cal))
+                mean_loss = loss / len(calibration_days)
+                if mean_loss < best_loss:
+                    best_loss = mean_loss
+                    best = (a, b, c)
+    if best is None:
+        raise ValueError("beta calibration grid produced no candidate")
+    return {"a": best[0], "b": best[1], "c": best[2], "fit_logloss": best_loss, "method": "beta"}
+
+
+def apply_beta(p_raw: float, params: dict) -> float:
+    """Apply fitted beta calibration to one raw probability."""
+    p = max(1e-6, min(1 - 1e-6, p_raw))
+    logit_p = math.log(p / (1 - p))
+    log_1p = math.log(max(1e-6, 1 - p))
+    logit_cal = params["a"] + params["b"] * logit_p + params["c"] * log_1p
+    return 1.0 / (1.0 + math.exp(-logit_cal))
+
+
 def calibration_report(
     calibration_days: list[dict],
     test_days: list[dict],
     bins: int = 5,
+    methods: tuple[str, ...] = ("platt", "isotonic", "beta"),
 ) -> dict:
-    """Repair check: fit Platt scaling on calibration days, score untouched test days.
+    """Repair check: fit multiple calibration methods on calibration days, score untouched test days.
 
     Returns raw vs calibrated Brier/ECE/agreement on the TEST window only,
     plus the fitted parameters and both windows' sizes. The operating
     threshold and all model weights stay fixed — only the reported
     probability mapping is adjusted, and only from calibration data.
     """
-    params = fit_platt_scaling(calibration_days)
-    calibrated_test = [
-        {**d, "predicted_risk": apply_platt(d["predicted_risk"], params)} for d in test_days
-    ]
-    raw_report = {"per_day": test_days}
-    cal_report = {"per_day": calibrated_test}
-    raw_rel = reliability(raw_report, bins)
-    cal_rel = reliability(cal_report, bins)
-    return {
-        "params": params,
-        "calibration_days": len(calibration_days),
-        "test_days": len(test_days),
-        "raw": {
-            "brier": _brier_of(test_days),
-            "ece": raw_rel["ece"],
-            "reliability": raw_rel,
-        },
-        "calibrated": {
-            "brier": _brier_of(calibrated_test),
-            "ece": cal_rel["ece"],
-            "reliability": cal_rel,
-        },
-    }
+    results = {"methods": {}}
+    for method in methods:
+        if method == "platt":
+            params = fit_platt_scaling(calibration_days)
+            calibrated_test = [
+                {**d, "predicted_risk": apply_platt(d["predicted_risk"], params)} for d in test_days
+            ]
+        elif method == "isotonic":
+            params = fit_isotonic_regression(calibration_days)
+            calibrated_test = [
+                {**d, "predicted_risk": apply_isotonic(d["predicted_risk"], params)} for d in test_days
+            ]
+        elif method == "beta":
+            params = fit_beta_calibration(calibration_days)
+            calibrated_test = [
+                {**d, "predicted_risk": apply_beta(d["predicted_risk"], params)} for d in test_days
+            ]
+        else:
+            raise ValueError(f"unknown calibration method {method!r}")
+        raw_report = {"per_day": test_days}
+        cal_report = {"per_day": calibrated_test}
+        raw_rel = reliability(raw_report, bins)
+        cal_rel = reliability(cal_report, bins)
+        results["methods"][method] = {
+            "params": params,
+            "raw": {
+                "brier": _brier_of(test_days),
+                "ece": raw_rel["ece"],
+                "reliability": raw_rel,
+            },
+            "calibrated": {
+                "brier": _brier_of(calibrated_test),
+                "ece": cal_rel["ece"],
+                "reliability": cal_rel,
+            },
+        }
+    results["calibration_days"] = len(calibration_days)
+    results["test_days"] = len(test_days)
+    return results
 
 
 # External validation series: independent seed AND independent spell
