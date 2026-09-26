@@ -9,7 +9,7 @@ Mission: help clinicians make safer, better-informed decisions under uncertainty
 
 | # | Phase | Status | Done | Missing |
 |---|---|---|---|---|
-| 0 | Audit the repo | DONE | `docs/clinical-audit-phase0.md`, 281 tests, SAST clean | — |
+| 0 | Audit the repo | DONE | `docs/clinical-audit-phase0.md`, 276 passed, 1 skipped, SAST clean | — |
 | 1 | Narrow use case | DONE | 24h cardiac-strain risk, hospitalized adults, decision-support-only; prediction≠recommendation≠action | Formal intended-use statement for regulators (see 17) |
 | 2 | Real clinical data | PARTIAL | FHIR R4 subset, validation, units, provenance, fail-closed ingestion | HL7; live source; notes/devices at scale |
 | 3 | Dataset program | PARTIAL | Splits, subgroups, adequacy gates, leakage tests | Governed TRAIN→PROSPECTIVE cohorts (hospital/IRB/DUA) |

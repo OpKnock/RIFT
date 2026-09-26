@@ -344,6 +344,8 @@ def fit_isotonic_regression(calibration_days: list[dict]) -> dict:
     Non-parametric, preserves order. Returns piecewise constant mapping
     with the fitted values at each unique raw probability. Deterministic
     tie-breaking: average the labels for equal raw probabilities.
+    PAVA weights each unique probability by its observation count.
+    Returns compact form: one fitted value per unique probability.
     """
     if not calibration_days:
         raise ValueError("calibration_days must not be empty")
@@ -356,10 +358,11 @@ def fit_isotonic_regression(calibration_days: list[dict]) -> dict:
         groups[p].append(y)
     unique_p = sorted(groups.keys())
     avg_y = [sum(groups[p]) / len(groups[p]) for p in unique_p]
+    counts = [len(groups[p]) for p in unique_p]  # observation count per unique probability
 
-    # Pool Adjacent Violators Algorithm (PAVA)
+    # Pool Adjacent Violators Algorithm (PAVA) — weighted by observation count
     n = len(avg_y)
-    blocks = [{"sum": avg_y[i], "count": 1, "avg": avg_y[i]} for i in range(n)]
+    blocks = [{"sum": avg_y[i] * counts[i], "count": counts[i], "avg": avg_y[i], "indices": [i]} for i in range(n)]
     # Merge violating adjacent blocks
     changed = True
     while changed:
@@ -367,36 +370,41 @@ def fit_isotonic_regression(calibration_days: list[dict]) -> dict:
         i = 0
         while i < len(blocks) - 1:
             if blocks[i]["avg"] > blocks[i + 1]["avg"]:
-                # Pool blocks i and i+1
+                # Pool blocks i and i+1 (weighted by count)
                 merged = {
-                    "sum": blocks[i]["sum"] * blocks[i]["count"] + blocks[i + 1]["sum"] * blocks[i + 1]["count"],
+                    "sum": blocks[i]["sum"] + blocks[i + 1]["sum"],
                     "count": blocks[i]["count"] + blocks[i + 1]["count"],
+                    "indices": blocks[i]["indices"] + blocks[i + 1]["indices"],
                 }
                 merged["avg"] = merged["sum"] / merged["count"]
                 blocks[i:i + 2] = [merged]
                 changed = True
                 break
             i += 1
-    # Expand back to values for each unique_p
-    fitted = []
+    # Expand back to one fitted value per unique probability
+    fitted = [0.0] * len(unique_p)
     for block in blocks:
-        fitted.extend([block["avg"]] * block["count"])
-    return {"raw_probs": unique_p, "fitted": fitted, "method": "isotonic"}
+        for idx in block["indices"]:
+            fitted[idx] = block["avg"]
+    return {"raw_probs": unique_p, "fitted": fitted, "counts": counts, "method": "isotonic"}
 
 
 def apply_isotonic(p_raw: float, params: dict) -> float:
-    """Apply fitted isotonic regression to one raw probability."""
+    """Apply fitted isotonic regression to one raw probability.
+
+    Isotonic regression produces a piecewise constant (step) function.
+    Returns the fitted value for the interval containing p_raw.
+    """
     raw_probs = params["raw_probs"]
     fitted = params["fitted"]
     if p_raw <= raw_probs[0]:
         return fitted[0]
     if p_raw >= raw_probs[-1]:
         return fitted[-1]
-    # Linear interpolation between fitted values
+    # Step function: find the interval and return the fitted value for that interval
     for i in range(len(raw_probs) - 1):
         if raw_probs[i] <= p_raw <= raw_probs[i + 1]:
-            t = (p_raw - raw_probs[i]) / (raw_probs[i + 1] - raw_probs[i])
-            return fitted[i] * (1 - t) + fitted[i + 1] * t
+            return fitted[i]
     return fitted[-1]
 
 

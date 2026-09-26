@@ -14,7 +14,7 @@
 ## Checked and passing (evidence in repo/tests)
 - Static analysis: `bandit -r src` reports **zero issues** (triaged 2026-09-23: one medium `urlopen` hardened with an endpoint allowlist; low `try/except/pass` sites converted to redacted `log_event` diagnostics except three justified `nosec` best-effort paths; `assert` replaced with an explicit raise). Enforced in CI (`security` job).
 - Supply chain: RIFT's runtime dependencies are `[]`; auditing the full declared closure (`pytest`, `supabase`, `qiskit`, `qiskit-ibm-runtime`) with pip-audit found **no known vulnerabilities**. (The host machine's global environment has unrelated CVEs in packages RIFT never imports — not a repo finding.)
-- Semgrep could not execute in this environment (missing `pysemgrep` engine binary); bandit + test gates provide the automated SAST coverage instead.
+- Static analysis: Semgrep (`semgrep --config auto --error src`) reports **zero findings** (CI `security` job). Bandit + Semgrep + test gates provide automated SAST coverage.
 - Webhook HMAC verification fail-closed; forged signatures get 401 (`tests/test_api_boundaries.py`, `tests/test_api_hardening.py`).
 - Webhook replay returns `duplicate: true` via in-memory + DB idempotency keys.
 - Upstream errors return generic 502 + request ID; no tracebacks (`test_upstream_errors_do_not_leak`).
@@ -29,7 +29,6 @@
 1. **Multi-tenancy without an IdP.** `user_id` is caller-asserted. Deploy behind Supabase Auth (verify JWTs server-side) before treating rows as private. RLS is a second layer, not the only layer — and service-role keys bypass RLS by design. Setting `RIFT_SUPABASE_JWT_SECRET` switches the server to verified-identity mode; until then, `RIFT_REQUIRE_USER_ID` + ownership checks are assertion-based only.
 2. **Service-role key handling.** The server supports service-role keys for writes; anyone holding the key bypasses RLS. Store it in a vault, rotate regularly, never log it (logs redact key-like fields).
 3. **Single-token auth is coarse.** `RIFT_API_TOKEN` is one shared service credential, not per-user auth. Use it for a single-tenant deployment or a fronting proxy, not as user login.
-4. **No rate limiting in-process.** Add edge rate limits (reverse proxy / gateway) for `/api/demo` and webhook endpoints; the simulator is CPU-bound per request.
-   Update: in-process limiting now ships (`RIFT_RATE_LIMIT_ENABLED=true`, stricter `.../execute` budget, `429 + Retry-After`) but remains defense-in-depth — keep edge rules as the primary control, and exclude `/api/billing/webhook` from aggressive edge limits so Lemon Squeezy retries are not throttled into failure.
+4. **In-process rate limiting present** (`RIFT_RATE_LIMIT_ENABLED=true`, separate `.../execute` budget, `429 + Retry-After`); remains defense-in-depth — keep edge rules as the primary control, and exclude `/api/billing/webhook` from aggressive edge limits so Lemon Squeezy retries are not throttled into failure.
 5. **TLS/CORS at the edge.** The stdlib server serves plain HTTP for local dev. Terminate TLS and set explicit CORS/rate-limit policy at the deployment edge (see `docs/deployment.md`).
 6. **Dependency surface.** Runtime stays stdlib-only, but `supabase`/`qiskit` extras pull third-party code when installed. Pin and audit those in production images.
