@@ -471,6 +471,52 @@ export function Simulation() {
                       </div>
                     ))}
                   </div>
+                  <p className="text-xs text-secondary-500 mt-2">
+                    Routing guidance (client heuristic, not server routing): {result.multivariable.policy_count} policies ≤ exact-enumeration budget —
+                    exact stays reference-grade here. QAOA paths are experimental; hardware needs operator credentials. No advantage claimed.
+                  </p>
+                </div>
+
+                <div>
+                  <h3 className="font-medium text-secondary-900 dark:text-white mb-2">Scale check — multivariable projection ({result.multivariable.policy_count} policies)</h3>
+                  <p className="text-xs text-secondary-500 mb-2">
+                    Exact optimum vs QAOA projection. Max gap {result.multivariable.projection_error.max_absolute_gap.toFixed(3)},
+                    mean gap {result.multivariable.projection_error.mean_absolute_gap.toFixed(3)} — gaps reported, never hidden.
+                  </p>
+                  <div className="table-container">
+                    <table className="table">
+                      <thead><tr><th>Assignment</th><th>Nominal</th><th>Robust</th><th>Feasible</th></tr></thead>
+                      <tbody>
+                        {result.multivariable.top_policies.map((p, i) => (
+                          <tr key={i}>
+                            <td className="font-mono text-xs">{JSON.stringify(p.assignment)}</td>
+                            <td className="font-mono">{p.nominal_cost.toFixed(2)}</td>
+                            <td className="font-mono">{p.robust_cost.toFixed(2)}</td>
+                            <td>{p.feasible ? 'yes' : 'no'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="font-medium text-secondary-900 dark:text-white mb-2">Benchmark battery</h3>
+                  <div className="table-container">
+                    <table className="table">
+                      <thead><tr><th>Method</th><th>Energy</th><th>Runtime</th><th>Note</th></tr></thead>
+                      <tbody>
+                        {result.benchmark.map((b) => (
+                          <tr key={b.method}>
+                            <td className="font-mono text-xs">{b.method}</td>
+                            <td className="font-mono">{b.energy.toFixed(3)}</td>
+                            <td className="font-mono">{b.runtime_ms.toFixed(1)} ms</td>
+                            <td className="text-xs">{b.note}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
 
                 <div className="text-xs text-secondary-500 space-y-1 pt-2 border-t border-secondary-100 dark:border-secondary-800">
