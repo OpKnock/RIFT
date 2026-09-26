@@ -85,6 +85,40 @@ export function Evidence() {
       </Card>
 
       <Card>
+        <div className="p-6 space-y-3">
+          <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Model lifecycle (from bundle)</h2>
+          {(() => {
+            const meta = (data as Record<string, unknown> | null)?.meta as Record<string, unknown> | undefined
+            const model = meta?.model as Record<string, unknown> | undefined
+            if (!data) return <p className="text-sm text-secondary-500">Loading…</p>
+            if (!model) return <p className="text-sm text-secondary-500">No model block in this bundle.</p>
+            const stages = ['research', 'candidate', 'validated', 'approved', 'deployed']
+            const current = String(model.status || 'research')
+            const currentIdx = Math.max(0, stages.indexOf(current))
+            return (
+              <div className="space-y-3 text-sm">
+                <div className="flex flex-wrap items-center gap-1">
+                  {stages.map((s, i) => (
+                    <span key={s} className="flex items-center gap-1">
+                      <Badge variant={i < currentIdx ? 'success' : i === currentIdx ? 'warning' : 'secondary'}>{s}</Badge>
+                      {i < stages.length - 1 && <span className="text-secondary-400">→</span>}
+                    </span>
+                  ))}
+                </div>
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div><dt className="text-secondary-500">Model</dt><dd className="font-mono">{String(model.model_id || '—')}</dd></div>
+                  <div><dt className="text-secondary-500">Deployment gate</dt><dd className="font-mono">{String(model.deployment_gate || '—')}</dd></div>
+                  <div><dt className="text-secondary-500">Weights digest</dt><dd className="font-mono text-xs break-all">{String(model.weights_digest || '—')}</dd></div>
+                  <div><dt className="text-secondary-500">Datasets</dt><dd className="font-mono text-xs">{Array.isArray(model.dataset_versions) ? model.dataset_versions.join(', ') : '—'}</dd></div>
+                </dl>
+                <p className="text-xs text-secondary-500">Promotion and rollback require evidence plus a human approver and happen operator-side — no promotion endpoint exists, so none is faked here. Drift detection runs in the evaluation pipeline; continuous real-world validation remains an external gate.</p>
+              </div>
+            )
+          })()}
+        </div>
+      </Card>
+
+      <Card>
         <div className="p-6">
           <h2 className="text-lg font-semibold text-secondary-900 dark:text-white mb-3">Frozen evidence bundle</h2>
           {loading && <p className="text-sm text-secondary-500">Loading evidence…</p>}

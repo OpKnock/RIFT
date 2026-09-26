@@ -225,6 +225,21 @@ class ApiClient {
     return response.data
   }
 
+  async getProspectiveStats(): Promise<Record<string, unknown>> {
+    const response = await this.client.get<Record<string, unknown>>('/twin/prospective')
+    return response.data
+  }
+
+  async getBillingStatus(): Promise<{ configured: boolean; provider: string }> {
+    const response = await this.client.get<{ configured: boolean; provider: string }>('/billing/status')
+    return response.data
+  }
+
+  async getEntitlement(): Promise<Record<string, unknown>> {
+    const response = await this.client.get<Record<string, unknown>>('/billing/entitlement')
+    return response.data
+  }
+
   getToken(): string | null {
     return localStorage.getItem('auth_token')
   }

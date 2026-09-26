@@ -12,6 +12,9 @@ export function Runs() {
   const [alerts, setAlerts] = useState<Array<{ rule: string; firing: boolean; reason: string }>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [billing, setBilling] = useState<{ configured: boolean; provider: string } | null>(null)
+  const [entitlement, setEntitlement] = useState<unknown>(null)
+  const [entitlementError, setEntitlementError] = useState<string | null>(null)
   const [notifState, setNotifState] = useState<string>(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission)
   const [events, setEvents] = useState<AppEvent[]>(() => readEvents())
   const seenFiring = useRef<Set<string>>(new Set())
@@ -43,9 +46,22 @@ export function Runs() {
         .finally(() => { if (!cancelled) setLoading(false) })
     }
     load()
+    api.getBillingStatus()
+      .then((b) => { if (!cancelled) setBilling(b) })
+      .catch(() => { if (!cancelled) setBilling(null) })
     const timer = window.setInterval(load, POLL_MS)
     return () => { cancelled = true; window.clearInterval(timer) }
   }, [])
+
+  const checkEntitlement = async () => {
+    setEntitlement(null)
+    setEntitlementError(null)
+    try {
+      setEntitlement(await api.getEntitlement())
+    } catch (e) {
+      setEntitlementError(apiErrorMessage(e, 'Entitlement check failed.'))
+    }
+  }
 
   const enableNotifications = async () => {
     if (typeof Notification === 'undefined') return
@@ -115,6 +131,34 @@ export function Runs() {
                     </div>
                   )
                 })()}
+              </div>
+              <div>
+                <h2 className="font-medium text-secondary-900 dark:text-white mb-2">Usage metering (live counters)</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm mb-3">
+                  {[
+                    ['Requests', (snapshot?.requests_total as number | undefined) ?? '—'],
+                    ['Failure rate', typeof snapshot?.failure_rate === 'number' ? (snapshot.failure_rate as number).toFixed(3) : '—'],
+                    ['Predictions', (snapshot?.prediction_count as number | undefined) ?? '—'],
+                    ['Uptime (s)', typeof snapshot?.uptime_s === 'number' ? Math.round(snapshot.uptime_s as number) : '—'],
+                  ].map(([label, value]) => (
+                    <div key={label} className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
+                      <p className="text-xs text-secondary-500">{label}</p>
+                      <p className="font-mono font-medium">{value}</p>
+                    </div>
+                  ))}
+                </div>
+                <h2 className="font-medium text-secondary-900 dark:text-white mb-2">Billing</h2>
+                <p className="text-sm text-secondary-500 mb-2">
+                  Provider <span className="font-mono">{billing?.provider || '…'}</span> · {billing ? (billing.configured ? 'configured' : 'not configured (disabled by default)') : 'loading…'}
+                </p>
+                <div className="flex gap-2 mb-2">
+                  <Button variant="outline" size="sm" onClick={checkEntitlement}>Check entitlement</Button>
+                </div>
+                {entitlementError && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{entitlementError}</p>}
+                {entitlement !== null && !entitlementError && (
+                  <pre className="text-xs overflow-x-auto bg-secondary-50 dark:bg-secondary-800 p-4 rounded-lg">{JSON.stringify(entitlement, null, 2)}</pre>
+                )}
+                <p className="text-xs text-secondary-500 mt-2">Subscriptions and checkout require operator credentials — the server answers 503 without them. No payment flow is faked here.</p>
               </div>
               <div>
                 <h2 className="font-medium text-secondary-900 dark:text-white mb-2">Raw snapshot</h2>
