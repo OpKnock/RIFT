@@ -2178,3 +2178,18 @@ def serve(host="0.0.0.0", port=8080):
     except Exception:  # nosec B110 -- without a timeout the socket just blocks longer; serve proceeds either way
         pass
     server.serve_forever()
+
+
+def _main() -> None:
+    import argparse
+    import os
+
+    parser = argparse.ArgumentParser(description="RIFT API server")
+    parser.add_argument("--host", default=os.getenv("RIFT_HOST", "0.0.0.0"))
+    parser.add_argument("--port", type=int, default=int(os.getenv("RIFT_PORT", "8080")))
+    args = parser.parse_args()
+    serve(host=args.host, port=args.port)
+
+
+if __name__ == "__main__":
+    _main()
