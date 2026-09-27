@@ -7,6 +7,7 @@ Security posture (see docs/security.md):
 - Every response carries request ID + baseline security headers.
 """
 import json
+import os
 import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -65,6 +66,38 @@ POLICY_VARIABLES = ("route_a", "route_c", "stairwell_b")
 
 # In-memory webhook dedup for offline mode (bounded; DB is authoritative).
 _SEEN_WEBHOOK_KEYS: list[str] = []
+
+
+def _cors_allowed_origins() -> list[str]:
+    """Explicit CORS allow-list (no wildcard). Defaults cover local dev.
+
+    Override with RIFT_CORS_ORIGINS as a comma-separated list, e.g.
+    "https://app.example.com". Fronted production deployments may
+    alternatively terminate CORS at the edge and leave this empty — an
+    empty list disables CORS headers entirely.
+    """
+    raw = os.getenv("RIFT_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+    return [o.strip() for o in raw.split(",") if o.strip()]
+
+
+def _cors_headers(origin: str | None) -> dict[str, str]:
+    """CORS headers for a request Origin, or {} when not allowed.
+
+    Echoes the Origin only when it is on the explicit allow-list, so
+    credentialed (Bearer) cross-origin calls from the dev UI work while
+    arbitrary origins stay blocked.
+    """
+    if not origin:
+        return {}
+    if origin not in _cors_allowed_origins():
+        return {}
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Request-ID",
+        "Access-Control-Max-Age": "86400",
+        "Vary": "Origin",
+    }
 
 
 def _seen_webhook_key(key: str | None) -> bool:
@@ -396,8 +429,11 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("X-Request-ID", request_id)
         for key, value in (extra_headers or {}).items():
             self.send_header(key, str(value))
-        # Same-origin lab: no cross-origin auto-allow. Fronted deployments
-        # should set explicit ACAO at the edge, not here.
+        # Explicit allow-list CORS (no wildcard): the dev UI runs
+        # cross-origin (Vite :5173 -> API :8080). Production may set
+        # RIFT_CORS_ORIGINS or terminate CORS at the edge instead.
+        for key, value in _cors_headers(self.headers.get("Origin")).items():
+            self.send_header(key, value)
         self.end_headers()
         try:
             self.wfile.write(raw)
@@ -521,6 +557,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         request_id = new_request_id()
         timer = Timer()
+        # _send attaches the CORS preflight headers from the Origin.
         self._send(204, b"", content_type="text/plain", request_id=request_id)
         self._finish(timer, request_id, "OPTIONS", self.path, 204)
 
