@@ -2,7 +2,7 @@
 
 ## Authentication modes (server decides identity, never the browser)
 - **JWT mode** (`RIFT_SUPABASE_JWT_SECRET` set): `Authorization: Bearer <Supabase JWT>` is HS256-verified (signature, exp/nbf with leeway, optional aud/iss); `alg=none` and foreign algorithms rejected; identity is the token `sub` and caller-supplied `user_id` is ignored entirely. This is the production mode.
-- **Service-token mode** (`RIFT_API_TOKEN` set): shared bearer credential for single-tenant/proxy deployments; per-row ownership still enforced.
+- **Service-token mode** (`RIFT_API_TOKEN` set): shared bearer credential for single-tenant/proxy deployments; per-row ownership still enforced. Browsers should exchange the token once via `POST /api/auth/session` for an HttpOnly session cookie (`rift_session`, `SameSite=Lax`, 30-minute sliding expiry, server-side store) instead of keeping the token in localStorage — see `src/rift/sessions.py`. Cookie and bearer satisfy the same gate; `GET /api/auth/session-info` reports which mechanism a request authenticated with.
 - **Open dev mode** (neither set): `user_id` is caller-asserted — local development only.
 
 ## Rate limiting

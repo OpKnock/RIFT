@@ -120,10 +120,10 @@ export function UserMenu({ user }: UserMenuProps) {
               'transition-colors'
             )}
             role="menuitem"
-            onClick={() => { api.clearToken(); setOpen(false); navigate('/dashboard', { replace: true }) }}
+            onClick={() => { void api.logout(); setOpen(false); navigate('/dashboard', { replace: true }) }}
           >
             <LogOut className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-            <span>Sign out (clears local token)</span>
+            <span>Sign out (destroys server session)</span>
           </button>
         </div>
       )}

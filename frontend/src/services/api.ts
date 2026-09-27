@@ -196,6 +196,9 @@ class ApiClient {
       baseURL: API_BASE_URL,
       timeout: 60000,
       headers: { 'Content-Type': 'application/json' },
+      // Send the HttpOnly session cookie when one exists (service-token
+      // mode). Harmless when no cookie is set.
+      withCredentials: true,
     })
 
     this.client.interceptors.request.use(
@@ -345,6 +348,46 @@ class ApiClient {
 
   clearToken(): void {
     localStorage.removeItem('auth_token')
+  }
+
+  /**
+   * Exchange a service token for an HttpOnly session cookie, then drop
+   * the local copy so XSS cannot exfiltrate it. Throws
+   * `SESSION_UNSUPPORTED` when the server predates /api/auth/session
+   * (caller should fall back to setToken in that case).
+   */
+  async establishSession(token: string, userId?: string): Promise<{ user_id: string | null }> {
+    try {
+      const response = await this.client.post<{ user_id: string | null }>('/auth/session', {
+        token,
+        ...(userId ? { user_id: userId } : {}),
+      })
+      this.clearToken()
+      return response.data
+    } catch (e) {
+      if (axios.isAxiosError(e) && e.response?.status === 404) {
+        throw new Error('SESSION_UNSUPPORTED')
+      }
+      throw e
+    }
+  }
+
+  async logout(): Promise<void> {
+    try {
+      await this.client.post('/auth/logout', {})
+    } catch {
+      /* best-effort: local state is cleared regardless */
+    }
+    this.clearToken()
+  }
+
+  async sessionInfo(): Promise<{ user_id: string | null; mechanism: string } | null> {
+    try {
+      const response = await this.client.get<{ user_id: string | null; mechanism: string }>('/auth/session-info')
+      return response.data
+    } catch {
+      return null
+    }
   }
 }
 

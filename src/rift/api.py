@@ -57,7 +57,7 @@ from .supabase_store import SupabaseStore
 from .uncertainty import normalized_risk_entropy
 from .verifier import verify_under_perturbations
 
-ROOT = Path(__file__).resolve().parents[2] / "web"
+FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend-dist"
 PERTURBATIONS = [
     {"smoke": 2.0},
     {"crowd": 80.0},
@@ -136,6 +136,66 @@ def _run_from_row(row: dict, spec: "ExperimentSpec") -> "ExperimentRun | None":
         )
     except Exception:
         return None
+
+
+def _resolve_experiment(store: "SupabaseStore", experiment_id: str,
+                        caller: str | None) -> tuple[dict | None, dict | None, str | None]:
+    """Single resolve path for experiment reads (persistence unification).
+
+    Supabase first when configured (ownership-enforced), then the local
+    archive mirror. Returns (payload_dict, spec_dict_or_None, error) where
+    error is None on success, "forbidden", or "missing". Payload shape
+    mirrors the Supabase row so callers treat both stores uniformly.
+
+    Never sends responses (unlike _load_row): callers own status codes,
+    so fallback never double-sends. A Supabase transport error surfaces
+    as "unavailable" (caller: 502) rather than silently falling back to
+    a potentially stale mirror as if authoritative.
+    """
+    from .experiments import experiment_archive
+    if store.configured:
+        try:
+            fetched = store.get_experiment(experiment_id)
+        except Exception as exc:
+            # PGRST116/"0 rows" is a clean miss (fall through to the
+            # mirror); anything else is a genuine outage.
+            if not _is_not_found_error(exc):
+                log_event("dependency_failure", dependency="supabase")
+                return None, None, "unavailable"
+            fetched = None
+        row = (fetched.data if fetched else None) or {}
+        if row:
+            if owner_mismatch(row.get("user_id"), caller):
+                return None, None, "forbidden"
+            spec = _spec_from_experiment_row(row)
+            return (dict(row), spec.to_dict() if spec is not None else None, None)
+    exp = experiment_archive.get_experiment(experiment_id)
+    if exp:
+        return (dict(exp), exp.get("spec") if isinstance(exp.get("spec"), dict) else None, None)
+    return None, None, "missing"
+
+
+def _resolve_run(store: "SupabaseStore", run_id: str,
+                 caller: str | None) -> tuple[dict | None, str | None]:
+    """Single resolve path for run reads. Returns (payload_dict, error)."""
+    from .experiments import experiment_archive
+    if store.configured:
+        try:
+            fetched = store.get_run(run_id)
+        except Exception as exc:
+            if not _is_not_found_error(exc):
+                log_event("dependency_failure", dependency="supabase")
+                return None, "unavailable"
+            fetched = None
+        row = (fetched.data if fetched else None) or {}
+        if row:
+            if owner_mismatch(row.get("user_id"), caller):
+                return None, "forbidden"
+            return dict(row), None
+    run = experiment_archive.find_run(run_id)
+    if run is not None:
+        return run.to_dict(), None
+    return None, "missing"
 
 
 def _mirror_experiment_to_archive(spec: "ExperimentSpec", row: dict, owner: str | None) -> None:
@@ -217,6 +277,7 @@ def _cors_headers(origin: str | None) -> dict[str, str]:
         "Access-Control-Allow-Origin": origin,
         "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
         "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Request-ID",
+        "Access-Control-Allow-Credentials": "true",
         "Access-Control-Max-Age": "86400",
         "Vary": "Origin",
     }
@@ -867,6 +928,25 @@ class Handler(BaseHTTPRequestHandler):
                 log_event("dependency_failure", request_id=request_id, dependency="supabase")
                 self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
                 self._finish(timer, request_id, "GET", path, 502, "persistence_error")
+            return
+        if path == "/api/auth/session-info":
+            # Which principal (if any) the current request authenticates as,
+            # and by which mechanism. Never echoes secrets.
+            caller, ok = self._identity(request_id, None, query)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
+            from .auth_jwt import jwt_mode_enabled
+            from .sessions import parse_session_cookie, sessions
+            mechanism = "caller-asserted (open dev)"
+            if jwt_mode_enabled():
+                mechanism = "verified-jwt"
+            elif self.headers.get("Authorization"):
+                mechanism = "bearer-token"
+            elif sessions.has(parse_session_cookie(self.headers.get("Cookie"))):
+                mechanism = "session-cookie"
+            self._send(200, json.dumps({"user_id": caller, "mechanism": mechanism}), request_id=request_id)
+            self._finish(timer, request_id, "GET", path, 200)
             return
         if path == "/api/demo":
             try:
@@ -1569,24 +1649,20 @@ class Handler(BaseHTTPRequestHandler):
                     self._finish(timer, request_id, "GET", path, 401, "auth")
                     return
                 store = SupabaseStore()
-                if not store.configured:
-                    self._send(503, json.dumps({
-                        "error": "persistence_not_configured",
-                        "detail": "Set RIFT_SUPABASE_URL and RIFT_SUPABASE_KEY on the server.",
-                    }), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 503, "persistence_not_configured")
-                    return
-                row, failed = self._load_row(
-                    lambda: store.get_experiment(experiment_id),
-                    timer, request_id, "GET", path,
-                )
-                if failed:
-                    return
-                if owner_mismatch(row.get("user_id"), caller):
+                payload, _, err = _resolve_experiment(store, experiment_id, caller)
+                if err == "forbidden":
                     self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 403, "auth")
                     return
-                self._send(200, json.dumps(row), request_id=request_id)
+                if err == "unavailable":
+                    self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 502, "persistence_error")
+                    return
+                if err == "missing" or payload is None:
+                    self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 404, "not_found")
+                    return
+                self._send(200, json.dumps(payload), request_id=request_id)
                 self._finish(timer, request_id, "GET", path, 200)
                 return
         if path.startswith("/api/runs/"):
@@ -1602,21 +1678,20 @@ class Handler(BaseHTTPRequestHandler):
                     self._finish(timer, request_id, "GET", path, 401, "auth")
                     return
                 store = SupabaseStore()
-                if not store.configured:
-                    self._send(503, json.dumps({"error": "persistence_not_configured"}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 503, "persistence_not_configured")
-                    return
-                row, failed = self._load_row(
-                    lambda: store.get_run(run_id),
-                    timer, request_id, "GET", path,
-                )
-                if failed:
-                    return
-                if owner_mismatch(row.get("user_id"), caller):
+                payload, err = _resolve_run(store, run_id, caller)
+                if err == "forbidden":
                     self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 403, "auth")
                     return
-                self._send(200, json.dumps(row), request_id=request_id)
+                if err == "unavailable":
+                    self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 502, "persistence_error")
+                    return
+                if err == "missing" or payload is None:
+                    self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 404, "not_found")
+                    return
+                self._send(200, json.dumps(payload), request_id=request_id)
                 self._finish(timer, request_id, "GET", path, 200)
                 return
 
@@ -1625,7 +1700,7 @@ class Handler(BaseHTTPRequestHandler):
             # frontend-dist/; local dev serves it from Vite on :5173).
             # SPA fallback: unknown sub-paths serve index.html so
             # BrowserRouter deep links don't 404 on refresh/direct nav.
-            dist = (ROOT.parent / "frontend-dist").resolve()
+            dist = FRONTEND_DIST.resolve()
             rel = path[len("/app"):].lstrip("/") or "index.html"
             target = (dist / rel).resolve()
             if dist not in target.parents and target != dist:
@@ -1667,52 +1742,6 @@ class Handler(BaseHTTPRequestHandler):
                 self.wfile.write(raw)
             except (BrokenPipeError, ConnectionResetError):
                 pass
-            self._finish(timer, request_id, "GET", path, 200)
-            return
-        files = {
-            "/": "index.html",
-            "/index.html": "index.html",
-            "/app.js": "app.js",
-            "/styles.css": "styles.css",
-        }
-        if path in files:
-            filename = files[path]
-            ext = Path(filename).suffix
-            content_types = {
-                ".html": "text/html; charset=utf-8",
-                ".js": "text/javascript; charset=utf-8",
-                ".css": "text/css; charset=utf-8",
-            }
-            target = (ROOT / filename).resolve()
-            if ROOT.resolve() not in target.parents and target != ROOT.resolve():
-                self._send(404, json.dumps({"error": "not found"}), request_id=request_id)
-                self._finish(timer, request_id, "GET", path, 404, "validation")
-                return
-            if not target.is_file():
-                self._send(404, json.dumps({"error": "asset not found"}), request_id=request_id)
-                self._finish(timer, request_id, "GET", path, 404, "not_found")
-                return
-            ctype = content_types[ext]
-            if ext == ".html":
-                # Tighten document framing for the served lab page.
-                raw = target.read_bytes()
-                self.send_response(200)
-                self.send_header("Content-Type", ctype)
-                self.send_header("Content-Length", str(len(raw)))
-                self.send_header("Cache-Control", "no-store")
-                self.send_header("X-Content-Type-Options", "nosniff")
-                self.send_header("X-Frame-Options", "DENY")
-                self.send_header("Referrer-Policy", "no-referrer")
-                self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'")
-                self.send_header("X-Request-ID", request_id)
-                self.end_headers()
-                try:
-                    self.wfile.write(raw)
-                except (BrokenPipeError, ConnectionResetError):
-                    pass
-                self._finish(timer, request_id, "GET", path, 200)
-                return
-            self._send(200, target.read_bytes(), ctype, request_id=request_id)
             self._finish(timer, request_id, "GET", path, 200)
             return
         self._send(404, json.dumps({"error": "not found"}), request_id=request_id)
@@ -2285,6 +2314,57 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 500, "internal")
                 return
+
+        if path == "/api/auth/session":
+            # Exchange a service token for an HttpOnly session cookie so
+            # browsers stop keeping the token in localStorage (XSS blast
+            # radius). Service-token mode only; JWT mode keeps using
+            # Authorization headers managed client-side.
+            body, raw = self._read_json()
+            if body == "overflow":
+                self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 413, "validation")
+                return
+            if not isinstance(body, dict):
+                self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
+            from .auth import extract_bearer
+            from .sessions import (
+                cookie_secure, sessions,
+                session_cookie_header, verify_service_token,
+            )
+            raw_token = body.get("token")
+            token = raw_token if isinstance(raw_token, str) else extract_bearer(self.headers)
+            if not verify_service_token(token):
+                self._send(401, json.dumps({"error": "unauthorized"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 401, "auth")
+                return
+            user_id = body.get("user_id")
+            user_id = user_id.strip() if isinstance(user_id, str) and user_id.strip() else None
+            if user_id is not None and len(user_id) > 128:
+                self._send(400, json.dumps({"error": "user_id too long"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
+            try:
+                session_id, expires_at = sessions.create(user_id)
+                self._send(200, json.dumps({"user_id": user_id, "expires_at": expires_at}),
+                           request_id=request_id,
+                           extra_headers={"Set-Cookie": session_cookie_header(session_id, expires_at, cookie_secure())})
+                self._finish(timer, request_id, "POST", path, 200)
+            except Exception:
+                log_event("internal_error", request_id=request_id, route="auth-session")
+                self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 500, "internal")
+            return
+
+        if path == "/api/auth/logout":
+            from .sessions import clear_session_cookie_header, cookie_secure, parse_session_cookie, sessions
+            sessions.destroy(parse_session_cookie(self.headers.get("Cookie")))
+            self._send(200, json.dumps({"logged_out": True}), request_id=request_id,
+                       extra_headers={"Set-Cookie": clear_session_cookie_header(cookie_secure())})
+            self._finish(timer, request_id, "POST", path, 200)
+            return
 
         if path == "/api/billing/webhook":
             body, raw = self._read_json()
