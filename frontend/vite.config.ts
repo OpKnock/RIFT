@@ -21,8 +21,10 @@ export default defineConfig({
     port: 5173,
     host: '0.0.0.0',
     proxy: {
+      // VITE_API_TARGET=http://rift-api:8080 inside Docker compose;
+      // defaults to localhost for direct host `npm run dev`.
       '/api': {
-        target: 'http://rift-api:8080',
+        target: process.env.VITE_API_TARGET || 'http://localhost:8080',
         changeOrigin: true,
       },
     },

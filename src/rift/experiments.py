@@ -43,7 +43,7 @@ from .limits import (
     check_scenario_state,
 )
 
-SUPPORTED_SCENARIOS = ("smart-building-emergency",)
+SUPPORTED_SCENARIOS = ("smart-building-emergency", "traffic-optimization")
 SUPPORTED_OPTIMIZERS = ("exact", "qaoa-expectation", "qaoa-cvar")
 SUPPORTED_BACKENDS = ("statevector-simulator", "none")
 VALID_STATUSES = ("created", "configured", "running", "succeeded", "failed", "cancelled")
@@ -408,17 +408,47 @@ class ExperimentArchive:
             }
 
     def import_experiment(self, package: dict, new_name: str | None = None) -> str:
-        """Import experiment package, optionally renaming."""
+        """Import experiment package, optionally renaming.
+
+        Run payloads are re-validated and re-constructed (never mutated):
+        ExperimentRun is frozen, and its spec arrives as a raw dict that
+        must pass validate_spec_payload before it becomes an ExperimentSpec.
+        Invalid run entries raise ValueError (fail-closed import).
+        """
         with self._lock:
-            exp = package["experiment"]
+            if not isinstance(package, dict) or not isinstance(package.get("experiment"), dict):
+                raise ValueError("package must contain an 'experiment' object")
+            exp = dict(package["experiment"])
             if new_name:
                 exp["name"] = new_name
             exp["id"] = f"exp-{uuid.uuid4().hex[:12]}"
             exp["status"] = "created"
+            exp.pop("versions", None)  # versions reference old ids; start clean
             self._experiments[exp["id"]] = exp
-            for run_data in package.get("runs", []):
-                run = ExperimentRun(**run_data)
-                run.experiment_id = exp["id"]
+            for i, run_data in enumerate(package.get("runs", [])):
+                if not isinstance(run_data, dict):
+                    raise ValueError(f"run entry {i} must be an object")
+                spec_data = run_data.get("spec")
+                if not isinstance(spec_data, dict):
+                    raise ValueError(f"run entry {i} lacks a spec object")
+                spec = validate_spec_payload(spec_data)
+                run = ExperimentRun(
+                    id=f"run-{uuid.uuid4().hex[:12]}",
+                    experiment_id=exp["id"],
+                    experiment_version=int(run_data.get("experiment_version", 1)),
+                    spec=spec,
+                    optimizer=str(run_data.get("optimizer", spec.optimizer)),
+                    metrics=dict(run_data.get("metrics") or {}),
+                    result=dict(run_data["result"]) if isinstance(run_data.get("result"), dict) else None,
+                    seed=run_data.get("seed"),
+                    engine_version=str(run_data.get("engine_version", ENGINE_VERSION)),
+                    started_at=str(run_data.get("started_at", datetime.now(timezone.utc).isoformat())),
+                    completed_at=run_data.get("completed_at"),
+                    status=str(run_data.get("status", "succeeded")),
+                    error=run_data.get("error"),
+                    fingerprint=run_data.get("fingerprint"),
+                    git_commit=run_data.get("git_commit"),
+                )
                 self._runs.setdefault(exp["id"], []).append(run)
             return exp["id"]
 
@@ -775,6 +805,21 @@ def verify_reproducibility(
 # Canonical instances
 experiment_archive = ExperimentArchive()
 comparison_engine = ComparisonEngine()
+
+
+def _local_schedule_runner(spec: ExperimentSpec) -> dict:
+    """Runner for the local in-process scheduler: execute via run_spec.
+
+    Imported lazily to avoid a hard core->runner import cycle at module
+    load; failures propagate to the job record (status failed + error).
+    """
+    from .runner import run_spec
+    return run_spec(spec)
+
+
+# Local research-environment scheduler (in-process; jobs do not survive
+# restarts — see docs for the durability boundary).
+local_scheduler = ExperimentScheduler(runner_fn=_local_schedule_runner)
 
 # --- Default Templates ---
 

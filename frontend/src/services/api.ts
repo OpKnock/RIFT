@@ -261,7 +261,10 @@ class ApiClient {
   }
 
   async submitReview(review: { action: string; evidence_id: string; reviewer_id: string; rationale?: string; supersedes?: string | null }): Promise<Record<string, unknown>> {
-    const response = await this.client.post<Record<string, unknown>>('/twin/reviews', review)
+    // user_id carries the reviewer principal for service-token mode so the
+    // server can bind the review to an authenticated identity (and reject
+    // mismatched reviewer_id). Never send a reviewer_id without it.
+    const response = await this.client.post<Record<string, unknown>>('/twin/reviews', { ...review, user_id: review.reviewer_id })
     return response.data
   }
 

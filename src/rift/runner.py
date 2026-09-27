@@ -38,9 +38,13 @@ def build_scenario(spec: ExperimentSpec):
     restricted to known numeric fields so a stored row can never inject
     arbitrary state. Raises ValueError on unknown scenario/field.
     """
-    if spec.scenario_name != "smart-building-emergency":
+    if spec.scenario_name == "smart-building-emergency":
+        scenario = emergency_building()
+    elif spec.scenario_name == "traffic-optimization":
+        from .domains.traffic.domain import create_traffic_scenario
+        scenario = create_traffic_scenario({"initial_state": dict(spec.initial_state)})
+    else:
         raise ValueError(f"unsupported scenario_name: {spec.scenario_name!r}")
-    scenario = emergency_building()
     known = set(scenario.initial_state)
     for key, value in spec.initial_state.items():
         if key not in known:

@@ -61,8 +61,16 @@ class ReviewLedger:
                     self._head_hash = rid
 
     def record(self, *, action: str, evidence_id: str, reviewer_id: str,
-               rationale: str = "", supersedes: str | None = None) -> dict:
-        """Append one review. Idempotent on identical inputs; raises ValueError otherwise."""
+               rationale: str = "", supersedes: str | None = None,
+               identity_verified: bool = True) -> dict:
+        """Append one review. Idempotent on identical inputs; raises ValueError otherwise.
+
+        identity_verified records whether reviewer_id came from a verified
+        principal (JWT sub / service-token session) as opposed to a
+        caller-asserted value in open dev mode. It travels in the entry
+        but is excluded from the dedup hash (same review content dedups
+        regardless of how identity was established).
+        """
         action = str(action or "").upper()
         if action not in ACTIONS:
             raise ValueError(f"unknown review action {action!r}; expected one of {list(ACTIONS)}")
@@ -85,6 +93,7 @@ class ReviewLedger:
                 "action": action,
                 "evidence_id": evidence_id,
                 "reviewer_id": reviewer_id,
+                "identity_verified": bool(identity_verified),
                 "rationale": rationale,
                 "supersedes": supersedes,
                 "prev_hash": self._head_hash,
