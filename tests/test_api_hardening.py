@@ -145,8 +145,10 @@ def test_service_token_gate(monkeypatch):
             server.url("/api/experiments/00000000-0000-4000-8000-000000000000"),
             headers={"Authorization": "Bearer tok-123"},
         )
-        # Authed: now reaches persistence layer (503 offline).
-        assert status == 503
+        # Authed: unified resolve path checks Supabase, then the local
+        # archive mirror; a random id exists in neither, so 404 (not 503:
+        # reads no longer require persistence to be configured).
+        assert status == 404
 
 
 def test_webhook_replay_duplicate_flag(monkeypatch):
