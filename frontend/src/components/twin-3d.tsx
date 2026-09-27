@@ -180,8 +180,7 @@ function PerturbationArrows({ nodes, placed }: { nodes: PlacedNode[]; placed: Pl
       {arrows.map((arrow, i) => (
         <Line
           key={i}
-          start={arrow.from}
-          end={arrow.to}
+          points={[arrow.from, arrow.to]}
           color={arrow.color}
           dashed
           dashSize={0.2}
