@@ -12,6 +12,24 @@ from rift.auth import service_token_configured
 import time
 
 
+def get_root(h, request_id, timer, path, query):
+    """Route if path == "/": unified frontend entry (redirects to /app/)."""
+    # The React bundle lives under /app (vite base + router basename);
+    # the API root redirects there so ingress `/` and `/app` resolve to
+    # one canonical UI instead of a 404 at the production root.
+    h.send_response(302)
+    h.send_header("Location", "/app/")
+    h.send_header("Content-Length", "0")
+    h.send_header("Cache-Control", "no-store")
+    if request_id:
+        h.send_header("X-Request-ID", request_id)
+    for key, value in _cors_headers(h.headers.get("Origin")).items():
+        h.send_header(key, value)
+    h.end_headers()
+    h._finish(timer, request_id, "GET", path, 302)
+    return True
+
+
 def get_api_ops_monitor(h, request_id, timer, path, query):
     """Route if path == "/api/ops/monitor": (moved verbatim from api.py do_GET)."""
     # Operational telemetry is gated like persistence endpoints: open

@@ -44,6 +44,22 @@ export function Settings() {
         setMeta(m)
       })
       .catch((e) => { if (!cancelled) setStatusError(apiErrorMessage(e, 'Engine unreachable.')) })
+    // Restore session state across reloads: the preferred auth is an
+    // HttpOnly cookie (no localStorage token), so ask the server who we
+    // are instead of trusting the local token slot alone.
+    api.sessionInfo()
+      .then((info) => {
+        if (cancelled) return
+        if (info && info.user_id) {
+          setHasToken(true)
+          setAuthMode(info.mechanism === 'session-cookie' ? 'session cookie (HttpOnly)' : 'local token')
+        } else if (api.getToken() !== null) {
+          setHasToken(true)
+        } else {
+          setHasToken(false)
+        }
+      })
+      .catch(() => { if (!cancelled && api.getToken() !== null) setHasToken(true) })
     return () => { cancelled = true }
   }, [])
 

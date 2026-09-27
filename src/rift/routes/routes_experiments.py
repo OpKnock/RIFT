@@ -1,7 +1,7 @@
 """Route handlers (split verbatim from api.py; see package README)."""
 from __future__ import annotations
 
-from .support import _is_valid_uuid, _mirror_experiment_to_archive, _mirror_run_to_archive, _resolve_experiment, _resolve_run, _run_from_row, _spec_from_experiment_row
+from .support import _fetch_supabase_row, _is_not_found_error, _is_valid_uuid, _mirror_experiment_to_archive, _mirror_run_to_archive, _resolve_experiment, _resolve_run, _run_from_row, _spec_from_experiment_row, _spec_from_payload
 from rift import __version__ as ENGINE_VERSION
 from rift.supabase_store import SupabaseStore
 from datetime import datetime, timezone
@@ -29,45 +29,78 @@ def get_api_experiments_runs(h, request_id, timer, path, query):
             h._finish(timer, request_id, "GET", path, 401, "auth")
             return True
         store = SupabaseStore()
-        if not store.configured:
-            h._send(503, json.dumps({
-                "error": "persistence_not_configured",
-                "detail": "Set RIFT_SUPABASE_URL and RIFT_SUPABASE_KEY on the server.",
-            }), request_id=request_id)
-            h._finish(timer, request_id, "GET", path, 503, "persistence_not_configured")
-            return True
-        experiment, failed = h._load_row(
-            lambda: store.get_experiment(experiment_id),
-            timer, request_id, "GET", path,
-        )
-        if failed:
-            return True
-        if owner_mismatch(experiment.get("user_id"), caller):
+        payload, _spec_dict, err = _resolve_experiment(store, experiment_id, caller)
+        if err == "forbidden":
             h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
             h._finish(timer, request_id, "GET", path, 403, "auth")
             return True
-        try:
-            result = store.list_runs(experiment_id)
-            h._send(200, json.dumps(result.data), request_id=request_id)
-            h._finish(timer, request_id, "GET", path, 200)
-        except Exception:
-            log_event("dependency_failure", request_id=request_id, dependency="supabase")
+        if err == "unavailable":
             h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
             h._finish(timer, request_id, "GET", path, 502, "persistence_error")
+            return True
+        if err == "missing" or payload is None:
+            h._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 404, "not_found")
+            return True
+        try:
+            from rift.experiments import experiment_archive
+            if store.configured:
+                # Durable list from the authoritative store, tenant
+                # filtered per row; adapted to the canonical run shape
+                # so both backends serve one contract.
+                try:
+                    rows = (store.list_runs(experiment_id).data or [])
+                except Exception:
+                    log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                    h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                    h._finish(timer, request_id, "GET", path, 502, "persistence_error")
+                    return True
+                spec_obj = _spec_from_payload(payload)
+                runs = []
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    if owner_mismatch(row.get("user_id"), caller):
+                        continue
+                    run = _run_from_row(row, spec_obj) if spec_obj is not None else None
+                    runs.append(run.to_dict() if run is not None else dict(row))
+            else:
+                runs = [r.to_dict() for r in experiment_archive.get_runs(experiment_id)
+                        if not owner_mismatch(getattr(r, "user_id", None), caller)]
+            h._send(200, json.dumps(runs), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 200)
+        except Exception:
+            h._send(500, json.dumps({"error": "runs_error", "request_id": request_id}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 500, "internal")
         return True
 # --- Phase 10: Experiment Platform ---
     return False
 
 
+def _template_visible(t, caller: str | None) -> bool:
+    """Template visibility: public, system/legacy, or owned by the caller.
+
+    Unauthenticated (dev open mode) callers see everything, matching the
+    workspace-visible default for ownerless objects elsewhere.
+    """
+    if t.is_public:
+        return True
+    if caller is None:
+        return True
+    created_by = t.created_by or ""
+    return created_by in ("", "system", "anonymous") or created_by == caller
+
+
 def get_api_experiments_templates(h, request_id, timer, path, query):
     """Route if path == "/api/experiments/templates": (moved verbatim from api.py do_GET)."""
-    _, ok = h._identity(request_id)
+    caller, ok = h._identity(request_id, None, query)
     if not ok:
         h._finish(timer, request_id, "GET", path, 401, "auth")
         return True
     try:
         from rift.experiments import experiment_archive
-        templates = [t.to_dict() for t in experiment_archive.list_templates(public_only=False)]
+        templates = [t.to_dict() for t in experiment_archive.list_templates(public_only=False)
+                     if _template_visible(t, caller)]
         h._send(200, json.dumps({"templates": templates}), request_id=request_id)
         h._finish(timer, request_id, "GET", path, 200)
     except Exception:
@@ -83,13 +116,17 @@ def get_api_experiments_templates_2(h, request_id, timer, path, query):
     parts = path.strip("/").split("/")
     if len(parts) == 4:
         template_id = parts[3]
-        _, ok = h._identity(request_id)
+        caller, ok = h._identity(request_id, None, query)
         if not ok:
             h._finish(timer, request_id, "GET", path, 401, "auth")
             return True
         try:
             from rift.experiments import experiment_archive
             template = experiment_archive.get_template(template_id)
+            if template and not _template_visible(template, caller):
+                h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                h._finish(timer, request_id, "GET", path, 403, "auth")
+                return True
             if template:
                 h._send(200, json.dumps(template.to_dict()), request_id=request_id)
                 h._finish(timer, request_id, "GET", path, 200)
@@ -109,47 +146,43 @@ def get_api_experiments_versions(h, request_id, timer, path, query):
     parts = path.strip("/").split("/")
     if len(parts) == 4:
         experiment_id = parts[2]
-        _, ok = h._identity(request_id)
+        caller, ok = h._identity(request_id, None, query)
         if not ok:
             h._finish(timer, request_id, "GET", path, 401, "auth")
             return True
+        store = SupabaseStore()
+        payload, _, err = _resolve_experiment(store, experiment_id, caller)
+        if err == "forbidden":
+            h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 403, "auth")
+            return True
+        if err == "unavailable":
+            h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 502, "persistence_error")
+            return True
+        if err == "missing" or payload is None:
+            h._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 404, "not_found")
+            return True
         try:
-            from rift.experiments import experiment_archive
-            exp = experiment_archive.get_experiment(experiment_id)
-            if not exp:
-                h._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
-                h._finish(timer, request_id, "GET", path, 404, "not_found")
-                return True
-            # Return version history from experiment record
-            # (standalone version records only; the experiment
-            # itself is never a member of its own version list).
-            versions = [v for v in exp.get("versions", []) if isinstance(v, dict)]
+            # Durable versions live on the Supabase row (migration 008);
+            # the archive mirror only feeds pre-migration rows that lack
+            # the column. (Standalone version records only; the experiment
+            # itself is never a member of its own version list.)
+            versions = payload.get("versions")
+            if not isinstance(versions, list):
+                from rift.experiments import experiment_archive
+                exp = experiment_archive.get_experiment(experiment_id)
+                if exp and owner_mismatch(exp.get("user_id"), caller):
+                    h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                    h._finish(timer, request_id, "GET", path, 403, "auth")
+                    return True
+                versions = (exp or {}).get("versions", [])
+            versions = [v for v in versions if isinstance(v, dict)]
             h._send(200, json.dumps({"experiment_id": experiment_id, "versions": versions}), request_id=request_id)
             h._finish(timer, request_id, "GET", path, 200)
         except Exception:
             h._send(500, json.dumps({"error": "versions_error", "request_id": request_id}), request_id=request_id)
-            h._finish(timer, request_id, "GET", path, 500, "internal")
-        return True
-
-    return False
-
-
-def get_api_experiments_runs_2(h, request_id, timer, path, query):
-    """Route if path.startswith("/api/experiments/") and path.endswith("/runs"): (moved verbatim from api.py do_GET)."""
-    parts = path.strip("/").split("/")
-    if len(parts) == 4:
-        experiment_id = parts[2]
-        _, ok = h._identity(request_id)
-        if not ok:
-            h._finish(timer, request_id, "GET", path, 401, "auth")
-            return True
-        try:
-            from rift.experiments import experiment_archive
-            runs = [r.to_dict() for r in experiment_archive.get_runs(experiment_id)]
-            h._send(200, json.dumps({"experiment_id": experiment_id, "runs": runs}), request_id=request_id)
-            h._finish(timer, request_id, "GET", path, 200)
-        except Exception:
-            h._send(500, json.dumps({"error": "runs_error", "request_id": request_id}), request_id=request_id)
             h._finish(timer, request_id, "GET", path, 500, "internal")
         return True
 
@@ -162,23 +195,38 @@ def get_api_experiments_runs_3(h, request_id, timer, path, query):
     if len(parts) == 5:
         experiment_id = parts[2]
         run_id = parts[4]
-        _, ok = h._identity(request_id)
+        caller, ok = h._identity(request_id, None, query)
         if not ok:
             h._finish(timer, request_id, "GET", path, 401, "auth")
             return True
-        try:
-            from rift.experiments import experiment_archive
-            runs = experiment_archive.get_runs(experiment_id)
-            run = next((r for r in runs if r.id == run_id), None)
-            if run:
-                h._send(200, json.dumps(run.to_dict()), request_id=request_id)
-                h._finish(timer, request_id, "GET", path, 200)
-            else:
-                h._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
-                h._finish(timer, request_id, "GET", path, 404, "not_found")
-        except Exception:
-            h._send(500, json.dumps({"error": "runs_error", "request_id": request_id}), request_id=request_id)
-            h._finish(timer, request_id, "GET", path, 500, "internal")
+        store = SupabaseStore()
+        payload, err = _resolve_run(store, run_id, caller)
+        if err == "forbidden":
+            h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 403, "auth")
+            return True
+        if err == "unavailable":
+            h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 502, "persistence_error")
+            return True
+        if err == "missing" or payload is None:
+            h._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 404, "not_found")
+            return True
+        if payload.get("experiment_id") != experiment_id:
+            h._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 404, "not_found")
+            return True
+        # Canonical run shape (nested spec): adapt Supabase rows so the
+        # contract matches the archive path regardless of backend.
+        if not isinstance(payload.get("spec"), dict):
+            exp_payload, _, exp_err = _resolve_experiment(store, experiment_id, caller)
+            spec_obj = _spec_from_payload(exp_payload) if exp_err is None and exp_payload else None
+            run = _run_from_row(payload, spec_obj) if spec_obj is not None else None
+            if run is not None:
+                payload = run.to_dict()
+        h._send(200, json.dumps(payload), request_id=request_id)
+        h._finish(timer, request_id, "GET", path, 200)
         return True
 
     return False
@@ -189,9 +237,23 @@ def get_api_experiments_snapshots(h, request_id, timer, path, query):
     parts = path.strip("/").split("/")
     if len(parts) == 4:
         experiment_id = parts[2]
-        _, ok = h._identity(request_id)
+        caller, ok = h._identity(request_id, None, query)
         if not ok:
             h._finish(timer, request_id, "GET", path, 401, "auth")
+            return True
+        store = SupabaseStore()
+        _, _, err = _resolve_experiment(store, experiment_id, caller)
+        if err == "forbidden":
+            h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 403, "auth")
+            return True
+        if err == "unavailable":
+            h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 502, "persistence_error")
+            return True
+        if err == "missing":
+            h._send(404, json.dumps({"error": "no_snapshot"}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 404, "not_found")
             return True
         try:
             from rift.experiments import experiment_archive
@@ -234,9 +296,23 @@ def get_api_experiments_evidence(h, request_id, timer, path, query):
     parts = path.strip("/").split("/")
     if len(parts) == 4:
         experiment_id = parts[2]
-        _, ok = h._identity(request_id)
+        caller, ok = h._identity(request_id, None, query)
         if not ok:
             h._finish(timer, request_id, "GET", path, 401, "auth")
+            return True
+        store = SupabaseStore()
+        _, _, err = _resolve_experiment(store, experiment_id, caller)
+        if err == "forbidden":
+            h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 403, "auth")
+            return True
+        if err == "unavailable":
+            h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 502, "persistence_error")
+            return True
+        if err == "missing":
+            h._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+            h._finish(timer, request_id, "GET", path, 404, "not_found")
             return True
         try:
             from rift.experiments import experiment_archive
@@ -263,6 +339,11 @@ def get_api_experiments_export(h, request_id, timer, path, query):
         try:
             from rift.experiments import experiment_archive
             package = experiment_archive.export_experiment(experiment_id)
+            if package is not None and owner_mismatch(
+                    (package.get("experiment") or {}).get("user_id"), caller):
+                h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                h._finish(timer, request_id, "GET", path, 403, "auth")
+                return True
             if package is None:
                 # Fall back to Supabase-backed experiments (with
                 # ownership enforcement) when the local archive
@@ -327,6 +408,10 @@ def get_api_experiments_replay(h, request_id, timer, path, query):
             spec_data = None
             exp = experiment_archive.get_experiment(experiment_id)
             if exp:
+                if owner_mismatch(exp.get("user_id"), caller):
+                    h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                    h._finish(timer, request_id, "GET", path, 403, "auth")
+                    return True
                 spec_data = exp.get("spec")
             if spec_data is None:
                 # Fall back to Supabase-backed experiments (owned).
@@ -788,11 +873,6 @@ def post_api_experiments_versions(h, request_id, timer, path, query):
             return True
         try:
             from rift.experiments import experiment_archive
-            exp = experiment_archive.get_experiment(experiment_id)
-            if not exp:
-                h._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
-                h._finish(timer, request_id, "POST", path, 404, "not_found")
-                return True
             # Validate the version spec through the canonical validator
             # (module-global; must not be re-imported locally here or
             # it shadows the global for every other do_POST path).
@@ -801,6 +881,83 @@ def post_api_experiments_versions(h, request_id, timer, path, query):
             except ValueError as exc:
                 h._send(400, json.dumps({"error": "invalid_spec", "detail": str(exc)[:300]}), request_id=request_id)
                 h._finish(timer, request_id, "POST", path, 400, "validation")
+                return True
+            store = SupabaseStore()
+            if store.configured:
+                row, err = _fetch_supabase_row(store, "experiment", experiment_id)
+                if err == "unavailable":
+                    log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                    h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                    h._finish(timer, request_id, "POST", path, 502, "persistence_error")
+                    return True
+                if row:
+                    if owner_mismatch(row.get("user_id"), caller):
+                        h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                        h._finish(timer, request_id, "POST", path, 403, "auth")
+                        return True
+                    # Versions are standalone records; never seed the list
+                    # with the experiment itself (that creates a circular
+                    # reference that breaks JSON serialization).
+                    existing = row.get("versions")
+                    if not isinstance(existing, list):
+                        # Pre-migration rows lack the versions column:
+                        # seed from the archive mirror instead (gated).
+                        exp = experiment_archive.get_experiment(experiment_id)
+                        if exp and owner_mismatch(exp.get("user_id"), caller):
+                            h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                            h._finish(timer, request_id, "POST", path, 403, "auth")
+                            return True
+                        existing = (exp or {}).get("versions", [])
+                    existing = [v for v in existing if isinstance(v, dict)]
+                    version = body.get("version", len(existing) + 1)
+                    new_version = {
+                        "version": version,
+                        "spec": spec.to_dict(),
+                        "fingerprint": spec.fingerprint(),
+                        "created_at": datetime.now(timezone.utc).isoformat(),
+                        "created_by": caller or "anonymous",
+                        "description": body.get("description", ""),
+                    }
+                    updated = existing + [new_version]
+                    try:
+                        store.update_experiment(experiment_id, {"versions": updated, "status": "configured"})
+                    except Exception as exc:
+                        msg = str(exc).lower()
+                        if "42703" in msg or ("versions" in msg and ("does not exist" in msg or "column" in msg)):
+                            # Database predates migration 008: archive-only
+                            # write, flagged honestly as non-durable.
+                            log_event("versions_not_durable", request_id=request_id, experiment_id=experiment_id)
+                            exp = experiment_archive.get_experiment(experiment_id) or {"id": experiment_id}
+                            exp["versions"] = updated
+                            exp["status"] = "configured"
+                            experiment_archive.store_experiment(exp)
+                            h._send(201, json.dumps({"experiment_id": experiment_id, "version": new_version, "durable": False}), request_id=request_id)
+                            h._finish(timer, request_id, "POST", path, 201)
+                            return True
+                        log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                        h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                        h._finish(timer, request_id, "POST", path, 502, "persistence_error")
+                        return True
+                    try:
+                        exp = experiment_archive.get_experiment(experiment_id)
+                        if exp:
+                            exp["versions"] = updated
+                            exp["status"] = "configured"
+                            experiment_archive.store_experiment(exp)
+                    except Exception:
+                        log_event("mirror_failure", request_id=request_id, experiment_id=experiment_id)
+                    h._send(201, json.dumps({"experiment_id": experiment_id, "version": new_version, "durable": True}), request_id=request_id)
+                    h._finish(timer, request_id, "POST", path, 201)
+                    return True
+                # Supabase-miss: fall through to the archive path below.
+            exp = experiment_archive.get_experiment(experiment_id)
+            if not exp:
+                h._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+                h._finish(timer, request_id, "POST", path, 404, "not_found")
+                return True
+            if owner_mismatch(exp.get("user_id"), caller):
+                h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                h._finish(timer, request_id, "POST", path, 403, "auth")
                 return True
             # Versions are standalone records; never seed the list
             # with the experiment itself (that creates a circular
@@ -818,7 +975,7 @@ def post_api_experiments_versions(h, request_id, timer, path, query):
             exp["versions"] = existing + [new_version]
             exp["status"] = "configured"
             experiment_archive.store_experiment(exp)
-            h._send(201, json.dumps({"experiment_id": experiment_id, "version": new_version}), request_id=request_id)
+            h._send(201, json.dumps({"experiment_id": experiment_id, "version": new_version, "durable": False}), request_id=request_id)
             h._finish(timer, request_id, "POST", path, 201)
         except Exception:
             log_event("internal_error", request_id=request_id, route="versions-create")
@@ -857,49 +1014,68 @@ def post_api_experiments_compare(h, request_id, timer, path, query):
 
         def _resolve(run_id: str):
             # Supabase first when configured (ownership-enforced),
-            # then the local archive mirror (dual-written on create).
+            # then the local archive mirror (dual-written on create,
+            # ownership-enforced too). Uses the no-send fetch: _load_row
+            # responds itself, so it must not be used on paths that fall
+            # through to the archive (double-send + silent stale reads).
+            # A genuine Supabase outage surfaces as "unavailable" (the
+            # caller 502s) instead of quietly serving the mirror.
             if store.configured:
-                try:
-                    row, failed = h._load_row(
-                        lambda: store.get_run(run_id),
-                        timer, request_id, "POST", path,
-                    )
-                    if not failed and row:
-                        if owner_mismatch(row.get("user_id"), caller):
+                row, err = _fetch_supabase_row(store, "run", run_id)
+                if err == "unavailable":
+                    return "unavailable", None
+                if row:
+                    if owner_mismatch(row.get("user_id"), caller):
+                        return "forbidden", None
+                    exp_row, exp_err = _fetch_supabase_row(
+                        store, "experiment", row.get("experiment_id", ""))
+                    if exp_err == "unavailable":
+                        return "unavailable", None
+                    if exp_row:
+                        if owner_mismatch(exp_row.get("user_id"), caller):
                             return "forbidden", None
-                        exp_row, exp_failed = h._load_row(
-                            lambda: store.get_experiment(row.get("experiment_id", "")),
-                            timer, request_id, "POST", path,
-                        )
-                        if not exp_failed and exp_row:
-                            if owner_mismatch(exp_row.get("user_id"), caller):
-                                return "forbidden", None
-                            spec = _spec_from_experiment_row(exp_row)
-                            if spec is not None:
-                                run = _run_from_row(row, spec)
-                                if run is not None:
-                                    return None, run
-                except Exception:
-                    pass
+                        spec = _spec_from_experiment_row(exp_row)
+                        if spec is not None:
+                            run = _run_from_row(row, spec)
+                            if run is not None:
+                                return None, run
+                    # Supabase has the run but the chain does not adapt
+                    # (or the experiment is missing there): fall through
+                    # to the archive mirror below.
             run = experiment_archive.find_run(run_id)
-            return (None, run) if run is not None else ("missing", None)
+            if run is not None:
+                if owner_mismatch(getattr(run, "user_id", None), caller):
+                    return "forbidden", None
+                return None, run
+            return "missing", None
 
         forbidden = False
+        unavailable = False
         candidate_runs = []
         err, baseline_run = _resolve(str(baseline_id))
         if err == "forbidden":
             forbidden = True
+        elif err == "unavailable":
+            unavailable = True
         else:
             for cid in candidate_ids:
                 err, run = _resolve(str(cid))
                 if err == "forbidden":
                     forbidden = True
                     break
+                if err == "unavailable":
+                    unavailable = True
+                    break
                 if run is not None:
                     candidate_runs.append(run)
         if forbidden:
             h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
             h._finish(timer, request_id, "POST", path, 403, "auth")
+            return True
+        if unavailable:
+            log_event("dependency_failure", request_id=request_id, dependency="supabase")
+            h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+            h._finish(timer, request_id, "POST", path, 502, "persistence_error")
             return True
         if not baseline_run:
             h._send(404, json.dumps({"error": "baseline_not_found"}), request_id=request_id)
@@ -942,7 +1118,7 @@ def post_api_experiments_import(h, request_id, timer, path, query):
         h._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
         h._finish(timer, request_id, "POST", path, 400, "validation")
         return True
-    _, ok = h._identity(request_id, body if isinstance(body, dict) else None, None)
+    caller, ok = h._identity(request_id, body if isinstance(body, dict) else None, None)
     if not ok:
         h._finish(timer, request_id, "POST", path, 401, "auth")
         return True
@@ -954,8 +1130,74 @@ def post_api_experiments_import(h, request_id, timer, path, query):
             h._send(400, json.dumps({"error": "package required"}), request_id=request_id)
             h._finish(timer, request_id, "POST", path, 400, "validation")
             return True
-        new_id = experiment_archive.import_experiment(package, new_name)
-        h._send(201, json.dumps({"experiment_id": new_id}), request_id=request_id)
+        store = SupabaseStore()
+        if store.configured:
+            # Persist authoritatively so imports survive restart; the
+            # archive only mirrors back (uniform uuid ids, no split brain).
+            # A package's original owner claim is never trusted: the
+            # importer becomes the owner of everything imported.
+            try:
+                spec = _spec_from_import_package(package)
+            except ValueError as exc:
+                h._send(400, json.dumps({"error": "invalid_package", "detail": str(exc)[:300]}), request_id=request_id)
+                h._finish(timer, request_id, "POST", path, 400, "validation")
+                return True
+            try:
+                result = store.create_experiment({
+                    "name": new_name or spec.name,
+                    "description": spec.description,
+                    "scenario": {"name": spec.scenario_name, "initial_state": spec.initial_state},
+                    "perturbations": list(spec.perturbations),
+                    "policy_variables": list(spec.policy_variables),
+                    "optimizer_config": {"optimizer": spec.optimizer, "backend": spec.backend, "seed": spec.seed},
+                    "backend": spec.backend,
+                    "seed": spec.seed,
+                    "engine_version": spec.engine_version,
+                    "fingerprint": spec.fingerprint(),
+                    "status": "created",
+                    **({"user_id": caller} if caller else {}),
+                })
+            except Exception:
+                log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                h._finish(timer, request_id, "POST", path, 502, "persistence_error")
+                return True
+            sup_row = result.data or {}
+            sup_id = sup_row.get("id")
+            _mirror_experiment_to_archive(spec, sup_row, caller)
+            runs_imported = 0
+            for rd in package.get("runs", []) if isinstance(package, dict) else []:
+                if not isinstance(rd, dict):
+                    continue
+                run_payload = {
+                    "experiment_id": sup_id,
+                    "optimizer": str(rd.get("optimizer", spec.optimizer)),
+                    "result": rd.get("result") if isinstance(rd.get("result"), dict) else None,
+                    "metrics": dict(rd.get("metrics") or {}),
+                    "seed": rd.get("seed"),
+                    "backend": str(rd.get("backend", "statevector-simulator")),
+                    "engine_version": str(rd.get("engine_version", ENGINE_VERSION)),
+                    **({"user_id": caller} if caller else {}),
+                }
+                try:
+                    run_result = store.create_run(run_payload)
+                except Exception:
+                    log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                    h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                    h._finish(timer, request_id, "POST", path, 502, "persistence_error")
+                    return True
+                _mirror_run_to_archive(sup_id, spec, run_payload, run_result.data or {})
+                runs_imported += 1
+            h._send(201, json.dumps({"experiment_id": sup_id, "durable": True, "runs_imported": runs_imported}), request_id=request_id)
+            h._finish(timer, request_id, "POST", path, 201)
+            return True
+        try:
+            new_id = experiment_archive.import_experiment(package, new_name, owner=caller)
+        except ValueError as exc:
+            h._send(400, json.dumps({"error": "invalid_package", "detail": str(exc)[:300]}), request_id=request_id)
+            h._finish(timer, request_id, "POST", path, 400, "validation")
+            return True
+        h._send(201, json.dumps({"experiment_id": new_id, "durable": False}), request_id=request_id)
         h._finish(timer, request_id, "POST", path, 201)
     except Exception:
         log_event("internal_error", request_id=request_id, route="experiments-import")
@@ -964,6 +1206,36 @@ def post_api_experiments_import(h, request_id, timer, path, query):
     return True
 
     return False
+
+
+def _spec_from_import_package(package: dict):
+    """Extract + validate one ExperimentSpec from an import package.
+
+    Prefers the experiment entry's spec, then the first run spec, then
+    the Supabase-row column shape. Raises ValueError when nothing
+    validates (caller: 400, fail closed).
+    """
+    exp_data = package.get("experiment") if isinstance(package, dict) else None
+    if isinstance(exp_data, dict) and isinstance(exp_data.get("spec"), dict):
+        # An explicitly present spec must validate (fail closed); the
+        # row-shape adapter below is only for spec-less row exports and
+        # must never mask a bad nested spec with defaults.
+        try:
+            return validate_spec_payload(exp_data["spec"])
+        except ValueError as exc:
+            raise ValueError(f"invalid experiment spec: {exc}")
+    for rd in (package.get("runs") or []) if isinstance(package, dict) else []:
+        if isinstance(rd, dict) and isinstance(rd.get("spec"), dict):
+            try:
+                return validate_spec_payload(rd["spec"])
+            except ValueError as exc:
+                raise ValueError(f"invalid run spec: {exc}")
+            break
+    if isinstance(exp_data, dict):
+        spec = _spec_from_experiment_row(exp_data)
+        if spec is not None:
+            return spec
+    raise ValueError("package contains no valid experiment spec")
 
 
 def post_api_experiments_scheduler_jobs(h, request_id, timer, path, query):

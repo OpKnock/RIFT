@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { Search, Github, ExternalLink, Zap, Settings, HelpCircle, Monitor, GitBranch, Play as PlayIcon, Database as DatabaseIcon, FlaskConical as FlaskConicalIcon, Scale as ScaleIcon } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { useCommandPalette } from '@/hooks/use-command-palette'
+import { goApp } from '@/utils/base-path'
 
 interface Command {
   id: string
@@ -17,19 +18,19 @@ interface Command {
 
 const commands: Command[] = [
   // Navigation
-  { id: 'dashboard', label: 'Go to Dashboard', description: 'Open dashboard overview', icon: <Monitor className="w-4 h-4" />, action: () => window.location.href = '/dashboard', category: 'Navigation', shortcut: 'g d' },
-  { id: 'scenarios', label: 'View Scenarios', description: 'Manage scenarios', icon: <GitBranch className="w-4 h-4" />, action: () => window.location.href = '/scenarios', category: 'Navigation', shortcut: 'g s' },
-  { id: 'simulation', label: 'Run Simulation', description: 'Run a simulation', icon: <PlayIcon className="w-4 h-4" />, action: () => window.location.href = '/simulation', category: 'Navigation', shortcut: 'g r' },
-  { id: 'runs', label: 'View Runs', description: 'View run history', icon: <DatabaseIcon className="w-4 h-4" />, action: () => window.location.href = '/runs', category: 'Navigation', shortcut: 'g r' },
-  { id: 'experiments', label: 'Experiments', description: 'Manage experiments', icon: <FlaskConicalIcon className="w-4 h-4" />, action: () => window.location.href = '/experiments', category: 'Navigation', shortcut: 'g e' },
-  { id: 'evidence', label: 'View Evidence', description: 'View evidence', icon: <ScaleIcon className="w-4 h-4" />, action: () => window.location.href = '/evidence', category: 'Navigation', shortcut: 'g e' },
-  { id: 'settings', label: 'Settings', description: 'Open settings', icon: <Settings className="w-4 h-4" />, action: () => window.location.href = '/settings', category: 'Navigation', shortcut: 'g s' },
-  { id: 'docs', label: 'Documentation', description: 'Open documentation', icon: <HelpCircle className="w-4 h-4" />, action: () => window.location.href = '/docs', category: 'Navigation', shortcut: 'g h' },
+  { id: 'dashboard', label: 'Go to Dashboard', description: 'Open dashboard overview', icon: <Monitor className="w-4 h-4" />, action: () => goApp('/dashboard'), category: 'Navigation', shortcut: 'g d' },
+  { id: 'scenarios', label: 'View Scenarios', description: 'Manage scenarios', icon: <GitBranch className="w-4 h-4" />, action: () => goApp('/scenarios'), category: 'Navigation', shortcut: 'g s' },
+  { id: 'simulation', label: 'Run Simulation', description: 'Run a simulation', icon: <PlayIcon className="w-4 h-4" />, action: () => goApp('/simulation'), category: 'Navigation', shortcut: 'g r' },
+  { id: 'runs', label: 'View Runs', description: 'View run history', icon: <DatabaseIcon className="w-4 h-4" />, action: () => goApp('/runs'), category: 'Navigation', shortcut: 'g r' },
+  { id: 'experiments', label: 'Experiments', description: 'Manage experiments', icon: <FlaskConicalIcon className="w-4 h-4" />, action: () => goApp('/experiments'), category: 'Navigation', shortcut: 'g e' },
+  { id: 'evidence', label: 'View Evidence', description: 'View evidence', icon: <ScaleIcon className="w-4 h-4" />, action: () => goApp('/evidence'), category: 'Navigation', shortcut: 'g e' },
+  { id: 'settings', label: 'Settings', description: 'Open settings', icon: <Settings className="w-4 h-4" />, action: () => goApp('/settings'), category: 'Navigation', shortcut: 'g s' },
+  { id: 'docs', label: 'Documentation', description: 'Open documentation', icon: <HelpCircle className="w-4 h-4" />, action: () => goApp('/docs'), category: 'Navigation', shortcut: 'g h' },
 
   // Actions
-  { id: 'new-scenario', label: 'New Scenario', description: 'Create a new scenario', icon: <Zap className="w-4 h-4" />, action: () => window.location.href = '/scenarios/new', category: 'Actions', shortcut: 'n s' },
-  { id: 'new-experiment', label: 'New Experiment', description: 'Create a new experiment', icon: <Zap className="w-4 h-4" />, action: () => window.location.href = '/experiments/new', category: 'Actions', shortcut: 'n e' },
-  { id: 'run-simulation', label: 'Run Simulation', description: 'Execute a simulation', icon: <PlayIcon className="w-4 h-4" />, action: () => window.location.href = '/simulation', category: 'Actions', shortcut: 'r s' },
+  { id: 'new-scenario', label: 'New Scenario', description: 'Create a new scenario', icon: <Zap className="w-4 h-4" />, action: () => goApp('/scenarios/new'), category: 'Actions', shortcut: 'n s' },
+  { id: 'new-experiment', label: 'New Experiment', description: 'Create a new experiment', icon: <Zap className="w-4 h-4" />, action: () => goApp('/experiments/new'), category: 'Actions', shortcut: 'n e' },
+  { id: 'run-simulation', label: 'Run Simulation', description: 'Execute a simulation', icon: <PlayIcon className="w-4 h-4" />, action: () => goApp('/simulation'), category: 'Actions', shortcut: 'r s' },
 
   // External
   { id: 'github', label: 'GitHub Repository', description: 'Open GitHub repo', icon: <Github className="w-4 h-4" />, action: () => window.open('https://github.com/OpKnock/RIFT', '_blank', 'noopener,noreferrer'), category: 'External', shortcut: 'g g' },

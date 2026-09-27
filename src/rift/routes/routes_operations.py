@@ -143,7 +143,7 @@ def post_api_operations_incidents(h, request_id, timer, path, query):
         h._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
         h._finish(timer, request_id, "POST", path, 400, "validation")
         return True
-    _, ok = h._identity(request_id, body if isinstance(body, dict) else None, None)
+    caller, ok = h._identity(request_id, body if isinstance(body, dict) else None, None)
     if not ok:
         h._finish(timer, request_id, "POST", path, 401, "auth")
         return True
@@ -158,6 +158,9 @@ def post_api_operations_incidents(h, request_id, timer, path, query):
             description=body.get("description", ""),
             trigger_alert_id=body.get("trigger_alert_id"),
             tags=body.get("tags", []),
+            # Creator owns the incident so ?mine=true is truthful from
+            # birth (previously owner stayed None until first ack).
+            owner=caller,
         )
         _publish_event("incidents.lifecycle", {"event": "created", "incident": incident.to_dict()})
         h._send(201, json.dumps(incident.to_dict()), request_id=request_id)
@@ -200,6 +203,11 @@ def post_api_operations_incidents_action(h, request_id, timer, path, query):
             if not incident:
                 h._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
                 h._finish(timer, request_id, "POST", path, 404, "not_found")
+                return True
+            from rift.auth import owner_mismatch
+            if owner_mismatch(incident.owner, caller):
+                h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                h._finish(timer, request_id, "POST", path, 403, "auth")
                 return True
             action = body.get("action", "")
             note = body.get("note", "")
@@ -259,6 +267,14 @@ def post_api_operations_decisions_action(h, request_id, timer, path, query):
             if not decision:
                 h._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
                 h._finish(timer, request_id, "POST", path, 404, "not_found")
+                return True
+            from rift.auth import owner_mismatch
+            # Owner-equivalent is proposed_by (decisions have no separate
+            # owner field). Ownerless/system decisions stay actionable by
+            # any authenticated caller; owned ones are proposer-only.
+            if owner_mismatch(decision.proposed_by, caller):
+                h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                h._finish(timer, request_id, "POST", path, 403, "auth")
                 return True
             action = body.get("action", "")
             note = body.get("note", "")

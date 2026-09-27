@@ -3,11 +3,13 @@
 `src/rift/api.py` (`Handler`, stdlib `BaseHTTPRequestHandler`) owns the HTTP
 boundary: parsing, rate limiting, auth, dispatch, and the 404 tail. The 55
 `if path == ...` route blocks used to live inline in `do_GET`/`do_POST`,
-making `api.py` ~2900 lines. They now live here, one module per area:
+making `api.py` ~2900 lines. They now live here, one module per area
+(54 handlers after the dead duplicate `/runs` route was removed and the
+`/` → `/app/` redirect was added):
 
 | module               | routes                                                        |
 |----------------------|---------------------------------------------------------------|
-| `routes_core`        | `/api/health`, `/api/meta`, `/api/demo`, `/api/events/stream`, `/metrics`, `/api/persistence/status`, `/app/*` |
+| `routes_core`        | `/` (302 → `/app/`), `/api/health`, `/api/meta`, `/api/demo`, `/api/events/stream`, `/metrics`, `/api/persistence/status`, `/app/*` |
 | `routes_auth`        | `/api/auth/session`, `/api/auth/logout`, `/api/auth/session-info` |
 | `routes_billing`     | `/api/billing/status`, `/api/billing/entitlement`, `/api/billing/checkout`, `/api/billing/webhook` |
 | `routes_experiments` | `/api/experiments…`, `/api/runs…` (22 routes: CRUD, runs, execute, versions, compare, import, scheduler, …) |

@@ -123,7 +123,49 @@ def _run_from_row(row: dict, spec: "ExperimentSpec") -> "ExperimentRun | None":
             started_at=str(row.get("created_at") or datetime.now(timezone.utc).isoformat()),
             completed_at=row.get("completed_at"),
             status=str(row.get("status", "succeeded")),
+            user_id=row.get("user_id"),
         )
+    except Exception:
+        return None
+
+
+def _fetch_supabase_row(store: "SupabaseStore", kind: str,
+                          obj_id: str) -> tuple[dict, str | None]:
+    """Fetch one Supabase row without sending any response.
+
+    Returns (row_dict, error). A clean miss yields ({}, None); a genuine
+    transport/API failure yields ({}, "unavailable"). Unlike _load_row
+    this never sends, so callers with archive fallbacks cannot
+    double-respond on outage paths.
+    """
+    if not store.configured:
+        return {}, None
+    get = store.get_experiment if kind == "experiment" else store.get_run
+    try:
+        fetched = get(obj_id)
+    except Exception as exc:
+        if not _is_not_found_error(exc):
+            log_event("dependency_failure", dependency="supabase")
+            return {}, "unavailable"
+        return {}, None
+    return (fetched.data if fetched else None) or {}, None
+
+
+def _spec_from_payload(payload: dict) -> "ExperimentSpec | None":
+    """Best-effort ExperimentSpec from a resolved experiment payload.
+
+    Handles both shapes: archive mirrors (nested spec dict) and Supabase
+    rows (scenario/optimizer_config columns). Returns None when neither
+    parses, letting callers fall back to raw row dicts.
+    """
+    if isinstance(payload.get("spec"), dict):
+        try:
+            from rift.experiments import ExperimentSpec
+            return ExperimentSpec(**payload["spec"])
+        except Exception:
+            pass
+    try:
+        return _spec_from_experiment_row(payload)
     except Exception:
         return None
 
@@ -133,8 +175,10 @@ def _resolve_experiment(store: "SupabaseStore", experiment_id: str,
     """Single resolve path for experiment reads (persistence unification).
 
     Supabase first when configured (ownership-enforced), then the local
-    archive mirror. Returns (payload_dict, spec_dict_or_None, error) where
-    error is None on success, "forbidden", or "missing". Payload shape
+    archive mirror (ownership-enforced too: mirror records carry user_id).
+    Returns (payload_dict, spec_dict_or_None, error) where error is None
+    on success, "forbidden", "missing", or "unavailable" (Supabase outage:
+    callers must 502, never silently serve the mirror). Payload shape
     mirrors the Supabase row so callers treat both stores uniformly.
 
     Never sends responses (unlike _load_row): callers own status codes,
@@ -143,24 +187,21 @@ def _resolve_experiment(store: "SupabaseStore", experiment_id: str,
     a potentially stale mirror as if authoritative.
     """
     from rift.experiments import experiment_archive
-    if store.configured:
-        try:
-            fetched = store.get_experiment(experiment_id)
-        except Exception as exc:
-            # PGRST116/"0 rows" is a clean miss (fall through to the
-            # mirror); anything else is a genuine outage.
-            if not _is_not_found_error(exc):
-                log_event("dependency_failure", dependency="supabase")
-                return None, None, "unavailable"
-            fetched = None
-        row = (fetched.data if fetched else None) or {}
-        if row:
-            if owner_mismatch(row.get("user_id"), caller):
-                return None, None, "forbidden"
-            spec = _spec_from_experiment_row(row)
-            return (dict(row), spec.to_dict() if spec is not None else None, None)
+    row, err = _fetch_supabase_row(store, "experiment", experiment_id)
+    if err:
+        return None, None, err
+    if row:
+        if owner_mismatch(row.get("user_id"), caller):
+            return None, None, "forbidden"
+        spec = _spec_from_experiment_row(row)
+        return (dict(row), spec.to_dict() if spec is not None else None, None)
     exp = experiment_archive.get_experiment(experiment_id)
     if exp:
+        # The archive mirror is not authoritative, but it is also not
+        # public: enforce the same tenant boundary (stale or deleted
+        # Supabase rows must not leak across owners via the mirror).
+        if owner_mismatch(exp.get("user_id"), caller):
+            return None, None, "forbidden"
         return (dict(exp), exp.get("spec") if isinstance(exp.get("spec"), dict) else None, None)
     return None, None, "missing"
 
@@ -169,21 +210,17 @@ def _resolve_run(store: "SupabaseStore", run_id: str,
                  caller: str | None) -> tuple[dict | None, str | None]:
     """Single resolve path for run reads. Returns (payload_dict, error)."""
     from rift.experiments import experiment_archive
-    if store.configured:
-        try:
-            fetched = store.get_run(run_id)
-        except Exception as exc:
-            if not _is_not_found_error(exc):
-                log_event("dependency_failure", dependency="supabase")
-                return None, "unavailable"
-            fetched = None
-        row = (fetched.data if fetched else None) or {}
-        if row:
-            if owner_mismatch(row.get("user_id"), caller):
-                return None, "forbidden"
-            return dict(row), None
+    row, err = _fetch_supabase_row(store, "run", run_id)
+    if err:
+        return None, err
+    if row:
+        if owner_mismatch(row.get("user_id"), caller):
+            return None, "forbidden"
+        return dict(row), None
     run = experiment_archive.find_run(run_id)
     if run is not None:
+        if owner_mismatch(getattr(run, "user_id", None), caller):
+            return None, "forbidden"
         return run.to_dict(), None
     return None, "missing"
 
@@ -205,6 +242,9 @@ def _mirror_experiment_to_archive(spec: "ExperimentSpec", row: dict, owner: str 
             "fingerprint": spec.fingerprint(),
             "status": row.get("status", "created"),
             "versions": [],
+            # user_id (not just created_by) so archive reads can enforce
+            # the same tenant boundary as Supabase rows.
+            "user_id": row.get("user_id") or owner,
             "created_by": owner or "anonymous",
             "mirrored_from": "supabase",
             "mirrored_at": datetime.now(timezone.utc).isoformat(),
@@ -234,6 +274,7 @@ def _mirror_run_to_archive(experiment_id: str, spec: "ExperimentSpec",
             started_at=str(row.get("created_at") or datetime.now(timezone.utc).isoformat()),
             completed_at=row.get("completed_at"),
             status=str(row.get("status", "succeeded")),
+            user_id=row.get("user_id") or run_payload.get("user_id"),
         )
         experiment_archive.store_run(run)
     except Exception:  # nosec B110 -- mirror is best-effort

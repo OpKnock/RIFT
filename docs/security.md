@@ -67,6 +67,26 @@ visibility as a multi-tenant boundary.
 - `GET /api/events/stream`: long-lived SSE; occupies one server thread per
   client until disconnect (local/dev fan-out scale, not internet scale).
 
+## Tenant boundary model (authoritative)
+
+Ownership is a `user_id` string compared with `owner_mismatch()` (fail
+closed: rows carrying an owner are invisible to other callers; ownerless
+legacy rows stay readable). The boundary holds across **both** stores:
+
+- Supabase rows carry `user_id` (experiments, runs); every read checks it.
+- The in-process archive mirror carries `user_id` too (experiments,
+  `ExperimentRun.user_id`, template `created_by` + `is_public`), and every
+  archive read enforces the same check — stale/deleted Supabase rows are
+  never served cross-tenant via the mirror.
+- Supabase outage surfaces as `unavailable` → `502`; handlers never fall
+  back to the mirror on outage (compare included).
+- Incidents bind `owner` at create; incident/decision mutations require
+  owner/proposer match (ownerless legacy objects stay actionable).
+- Versions write through to Supabase (`versions` column, migration `008`);
+  imports persist authoritatively with ownership re-assigned to the
+  importer (package owner claims are never trusted). Both report
+  `"durable": true/false` so clients can see what survives restart.
+
 ## Residual risks (do not ignore in production)
 1. **Multi-tenancy without an IdP.** `user_id` is caller-asserted. Deploy behind Supabase Auth (verify JWTs server-side) before treating rows as private. RLS is a second layer, not the only layer — and service-role keys bypass RLS by design. Setting `RIFT_SUPABASE_JWT_SECRET` switches the server to verified-identity mode; until then, `RIFT_REQUIRE_USER_ID` + ownership checks are assertion-based only.
 2. **Service-role key handling.** The server supports service-role keys for writes; anyone holding the key bypasses RLS. Store it in a vault, rotate regularly, never log it (logs redact key-like fields).

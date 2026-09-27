@@ -1,6 +1,7 @@
 import { Home, ArrowLeft, FileQuestion } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Link } from 'react-router-dom'
+import { goApp } from '@/utils/base-path'
 
 export function NotFound() {
   return (
@@ -18,7 +19,7 @@ export function NotFound() {
         </div>
 
         <div className="space-y-4">
-          <Button onClick={() => window.location.href = '/dashboard'} className="w-full sm:w-auto">
+          <Button onClick={() => goApp('/dashboard')} className="w-full sm:w-auto">
             <Home className="w-4 h-4 mr-2" />
             Go to Dashboard
           </Button>
