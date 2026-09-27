@@ -11,6 +11,19 @@ Covers:
 """
 from __future__ import annotations
 
+from rift import api as _api_module
+from rift.routes import routes_billing, routes_experiments
+
+
+def _patch_store(monkeypatch, cls):
+    """Patch SupabaseStore in every module that binds it.
+
+    Route handlers moved to rift.routes (split from rift.api) bind their
+    own references: patch every home so fakes take effect everywhere.
+    """
+    for mod in (_api_module, routes_experiments, routes_billing):
+        monkeypatch.setattr(mod, "SupabaseStore", cls)
+
 
 def test_two_patients_same_day_remain_separate():
     from rift.health.sources import _canonical_to_wearable
@@ -508,7 +521,7 @@ def test_webhook_failure_retry_is_not_swallowed_as_duplicate(monkeypatch):
         def upsert_subscription(self, payload):
             return None
 
-    monkeypatch.setattr(api_module, "SupabaseStore", FlakyStore)
+    _patch_store(monkeypatch, FlakyStore)
 
     payload = {"meta": {"event_name": "order_created"}, "data": {"id": "o-retry"}}
     raw = json.dumps(payload).encode()
@@ -587,7 +600,7 @@ def test_webhook_retry_resumes_failed_subscription_update(monkeypatch):
                 raise RuntimeError("supabase down mid-webhook")
             return None
 
-    monkeypatch.setattr(api_module, "SupabaseStore", PartialFailureStore)
+    _patch_store(monkeypatch, PartialFailureStore)
 
     payload = {"meta": {"event_name": "subscription_created"},
                "data": {"id": "sub-9", "attributes": {"status": "active"}}}
@@ -671,7 +684,7 @@ def test_webhook_unique_violation_resumes_subscription_update(monkeypatch):
             state["upserts"] += 1
             return None
 
-    monkeypatch.setattr(api_module, "SupabaseStore", RaceStore)
+    _patch_store(monkeypatch, RaceStore)
 
     payload = {"meta": {"event_name": "subscription_created"},
                "data": {"id": "sub-race", "attributes": {"status": "active"}}}

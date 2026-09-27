@@ -12,6 +12,7 @@ from http.server import ThreadingHTTPServer
 
 from rift import api as api_module
 from rift.api import Handler
+from rift.routes import routes_billing, routes_experiments
 from rift.runner import run_spec
 from rift.experiments import validate_spec_payload
 
@@ -146,7 +147,10 @@ def _use_fake(monkeypatch):
     FakeStore.runs = []
     FakeStore.run_rows = {}
     FakeStore.get_error = None
-    monkeypatch.setattr(api_module, "SupabaseStore", FakeStore)
+    # SupabaseStore is bound in each route module (split from api.py):
+    # patch every home so handlers see the fake.
+    for mod in (api_module, routes_experiments, routes_billing):
+        monkeypatch.setattr(mod, "SupabaseStore", FakeStore)
 
 
 def test_execute_success_persists_deterministic_run(monkeypatch):
