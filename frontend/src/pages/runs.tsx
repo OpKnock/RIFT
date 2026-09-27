@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { api, apiErrorMessage } from '@/services/api'
 import { readEvents, type AppEvent } from '@/utils/event-log'
 import { SOURCE_DEFS, MQTT_NOTE, type SourceProbe } from '@/utils/sources'
+import { goApp } from '@/utils/base-path'
 
 const POLL_MS = 5000
 
@@ -262,7 +263,7 @@ export function Runs() {
                               } catch {
                                 /* storage unavailable */
                               }
-                              window.location.href = '/simulation'
+                              goApp('/simulation')
                             }}
                           >
                             Load in Simulation

@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api, apiErrorMessage } from '@/services/api'
+import { useEventStream } from '@/hooks/use-event-stream'
 
 const POLL_MS = 10000
 
@@ -86,6 +87,22 @@ export function Incidents() {
     }
   }, [])
 
+  // Live refresh via SSE when the stream is up; the interval below
+  // stays as the fallback (EventSource cannot send bearer headers, and
+  // the stream may drop). Debounced so event bursts don't hammer the API.
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scheduleRefresh = useCallback(() => {
+    if (refreshTimer.current) return
+    refreshTimer.current = setTimeout(() => {
+      refreshTimer.current = null
+      void Promise.all([fetchIncidents(), fetchDecisions()])
+    }, 750)
+  }, [fetchIncidents, fetchDecisions])
+  const live = useEventStream({
+    topics: ['incidents.lifecycle', 'decisions.lifecycle'],
+    onEvent: scheduleRefresh,
+  })
+
   useEffect(() => {
     let cancelled = false
     const load = async () => {
@@ -97,6 +114,10 @@ export function Incidents() {
     const timer = setInterval(load, POLL_MS)
     return () => { cancelled = true; clearInterval(timer) }
   }, [fetchIncidents, fetchDecisions])
+
+  useEffect(() => () => {
+    if (refreshTimer.current) clearTimeout(refreshTimer.current)
+  }, [])
 
   const createIncident = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -154,7 +175,12 @@ export function Incidents() {
       <div>
         <h1 className="text-3xl font-bold text-secondary-900 dark:text-white">Live Operations</h1>
         <p className="text-secondary-600 dark:text-secondary-400 mt-1">
-          Incident lifecycle and decision approval workflow. Polls every 10s.
+          Incident lifecycle and decision approval workflow.{' '}
+          {live ? (
+            <Badge variant="secondary">Live updates</Badge>
+          ) : (
+            <span>Polls every 10s.</span>
+          )}
         </p>
       </div>
 

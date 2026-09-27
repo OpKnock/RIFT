@@ -94,3 +94,24 @@ def test_app_missing_bundle_is_honest_404(monkeypatch, tmp_path):
         status, raw, _ = _get_raw(server.url("/app/"))
         assert status == 404
         assert json.loads(raw.decode())["error"] == "frontend not built"
+
+
+def test_root_redirects_to_app():
+    # Unified frontend entry: ingress `/` lands on the API, which 302s to
+    # the canonical /app/ bundle (BrowserRouter basename) instead of 404.
+    import urllib.request
+    with _Server() as server:
+        request = urllib.request.Request(server.url("/"), method="GET")
+
+        class _NoRedirect(urllib.request.HTTPRedirectHandler):
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                return None
+
+        opener = urllib.request.build_opener(_NoRedirect)
+        try:
+            with opener.open(request, timeout=15) as response:
+                assert response.status == 302, response.status
+                assert response.headers["Location"] == "/app/"
+        except urllib.error.HTTPError as exc:
+            assert exc.code == 302, exc.code
+            assert exc.headers["Location"] == "/app/"

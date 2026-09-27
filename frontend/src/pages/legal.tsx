@@ -1,6 +1,7 @@
 import { Shield, FileText, Cookie, Scale } from 'lucide-react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { goApp } from '@/utils/base-path'
 
 export function Legal() {
   return (
@@ -22,7 +23,7 @@ export function Legal() {
             <p className="text-secondary-600 dark:text-secondary-400 mb-4 text-sm">
               Data collection, rights, retention, international transfers. Covers DPA terms, subprocessors, and retention schedules.
             </p>
-            <Button variant="outline" size="sm" onClick={() => window.location.href = '/legal/privacy'}>
+            <Button variant="outline" size="sm" onClick={() => goApp('/legal/privacy')}>
               Read Policy
             </Button>
           </div>
@@ -37,7 +38,7 @@ export function Legal() {
             <p className="text-secondary-600 dark:text-secondary-400 mb-4 text-sm">
               Research-prototype terms, disclaimers, liability limits, governing law.
             </p>
-            <Button variant="outline" size="sm" onClick={() => window.location.href = '/legal/terms'}>
+            <Button variant="outline" size="sm" onClick={() => goApp('/legal/terms')}>
               Read Terms
             </Button>
           </div>
@@ -52,7 +53,7 @@ export function Legal() {
             <p className="text-secondary-600 dark:text-secondary-400 mb-4 text-sm">
               Essential-only cookies. No tracking, advertising, or third-party analytics.
             </p>
-            <Button variant="outline" size="sm" onClick={() => window.location.href = '/legal/cookies'}>
+            <Button variant="outline" size="sm" onClick={() => goApp('/legal/cookies')}>
               Read Policy
             </Button>
           </div>
@@ -68,7 +69,7 @@ export function Legal() {
               Code: <span className="font-mono">AGPL-3.0-or-later</span>. Data: no raw real-patient data committed — synthetic plus open-access public datasets only.
               Research prototype: no commercial deployment, no clinical validation, regulatory path external.
             </p>
-            <Button variant="outline" size="sm" onClick={() => window.location.href = '/docs'}>
+            <Button variant="outline" size="sm" onClick={() => goApp('/docs')}>
               Read Docs Index
             </Button>
           </div>

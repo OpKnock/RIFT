@@ -176,6 +176,7 @@ class IncidentStore:
         trigger_alert_id: str | None = None,
         tags: list[str] | None = None,
         metadata: dict | None = None,
+        owner: str | None = None,
     ) -> Incident:
         with self._lock:
             incident_id = f"inc-{uuid.uuid4().hex[:12]}"
@@ -188,6 +189,7 @@ class IncidentStore:
                 trigger_alert_id=trigger_alert_id,
                 tags=tags or [],
                 metadata=metadata or {},
+                owner=owner,
             )
             self._incidents[incident_id] = incident
             if trigger_alert_id:

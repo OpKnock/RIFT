@@ -239,6 +239,9 @@ class Handler(BaseHTTPRequestHandler):
         if not self._rate_limit(timer, request_id, "GET", path):
             return
 
+        if path == "/":
+            if routes_core.get_root(self, request_id, timer, path, query):
+                return
         if path == "/api/ops/monitor":
             if routes_core.get_api_ops_monitor(self, request_id, timer, path, query):
                 return
@@ -313,9 +316,6 @@ class Handler(BaseHTTPRequestHandler):
                 return
         if path.startswith("/api/experiments/") and path.endswith("/versions"):
             if routes_experiments.get_api_experiments_versions(self, request_id, timer, path, query):
-                return
-        if path.startswith("/api/experiments/") and path.endswith("/runs"):
-            if routes_experiments.get_api_experiments_runs_2(self, request_id, timer, path, query):
                 return
         if path.startswith("/api/experiments/") and "/runs/" in path:
             if routes_experiments.get_api_experiments_runs_3(self, request_id, timer, path, query):

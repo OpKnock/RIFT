@@ -127,8 +127,8 @@ cd frontend && npx tsc --noEmit
 ./local.sh start
 
 # Services:
-# - API: http://localhost:8080
-# - Frontend: http://localhost:5173
+# - API: http://localhost:8080 (production UI bundled at /app, / redirects there)
+# - Frontend: http://localhost:5173/app/ (dev server; bundle lives under /app)
 # - Prometheus: http://localhost:9090
 # - Grafana: http://localhost:3000 (admin/admin)
 ```

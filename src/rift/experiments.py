@@ -160,6 +160,9 @@ class ExperimentRun:
     # Phase 10: reproducibility
     fingerprint: str | None = None
     git_commit: str | None = None
+    # Tenant ownership (None = legacy ownerless record; readable by anyone
+    # authenticated, matching owner_mismatch fail-open for ownerless rows).
+    user_id: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -178,6 +181,7 @@ class ExperimentRun:
             "error": self.error,
             "fingerprint": self.fingerprint,
             "git_commit": self.git_commit,
+            "user_id": self.user_id,
         }
 
 
@@ -426,13 +430,19 @@ class ExperimentArchive:
                 "engine_version": ENGINE_VERSION,
             }
 
-    def import_experiment(self, package: dict, new_name: str | None = None) -> str:
+    def import_experiment(self, package: dict, new_name: str | None = None,
+                            owner: str | None = None) -> str:
         """Import experiment package, optionally renaming.
 
         Run payloads are re-validated and re-constructed (never mutated):
         ExperimentRun is frozen, and its spec arrives as a raw dict that
         must pass validate_spec_payload before it becomes an ExperimentSpec.
         Invalid run entries raise ValueError (fail-closed import).
+
+        The importing caller becomes the owner (user_id on the experiment
+        record and every imported run) so tenant checks keep working on
+        imported data. A caller from an exported package's original
+        user_id is never trusted: ownership is always re-assigned.
         """
         with self._lock:
             if not isinstance(package, dict) or not isinstance(package.get("experiment"), dict):
@@ -443,6 +453,9 @@ class ExperimentArchive:
             exp["id"] = f"exp-{uuid.uuid4().hex[:12]}"
             exp["status"] = "created"
             exp.pop("versions", None)  # versions reference old ids; start clean
+            exp.pop("user_id", None)  # never trust the package's owner claim
+            if owner:
+                exp["user_id"] = owner
             self._experiments[exp["id"]] = exp
             for i, run_data in enumerate(package.get("runs", [])):
                 if not isinstance(run_data, dict):
@@ -467,6 +480,7 @@ class ExperimentArchive:
                     error=run_data.get("error"),
                     fingerprint=run_data.get("fingerprint"),
                     git_commit=run_data.get("git_commit"),
+                    user_id=owner,
                 )
                 self._runs.setdefault(exp["id"], []).append(run)
             return exp["id"]

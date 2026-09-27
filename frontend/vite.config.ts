@@ -4,6 +4,9 @@ import path from 'path'
 
 export default defineConfig({
   plugins: [react()],
+  // Production serves the bundle under /app (see rift.routes.routes_core).
+  // Dev server therefore lives at http://localhost:5173/app/ as well.
+  base: '/app/',
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),

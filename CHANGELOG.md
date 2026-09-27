@@ -8,6 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Production React routing unified under `/app` (vite base + router basename, base-aware navigation, manifest scope; API `/` 302-redirects to `/app/`)
+- Tenant isolation closed on archive-backed reads: mirrors carry `user_id`, `_resolve_experiment`/`_resolve_run` enforce on the archive path, versions/runs/snapshots/evidence/replay/export/templates all gate ownership (403)
+- Archive fallback no longer crosses the persistence boundary on outage: compare and resolvers surface `unavailable` → 502 instead of silently serving stale mirrors (also fixes a double-send)
+- Incident ownership assigned at create (fixes `?mine=true` for fresh incidents); incident/decision mutations enforce owner/proposer (403)
+- Versions are durable: new `versions` column (migration 008) with Supabase write-through, `durable` flag on write, pre-migration DBs stay working with honest `durable: false`
+- Import persists authoritatively to Supabase when configured (with ownership re-assignment, `durable` flag, `runs_imported` count); invalid packages are 400, not 500
+- Runs list reads the authoritative store with per-row tenant filtering (and archive fallback unconfigured); dead duplicate `/runs` handler removed
+- Frontend consumes realtime SSE on the operations page (live badge, polling fallback); session state restores across reloads via `/auth/session-info`
+- Removed unused `socket.io-client` dependency (backend exposes SSE, not Socket.IO)
 - Experiment import no longer crashes on frozen `ExperimentRun` (runs get fresh ids, specs re-validated)
 - Experiment version creation no longer self-references (standalone version records; specs validated)
 - Reviewer identity bound to authenticated principal (`identity_mismatch` → 400; unattributed reviews rejected when auth is on; `identity_verified` flag in ledger)

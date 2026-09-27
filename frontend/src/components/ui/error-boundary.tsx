@@ -3,6 +3,7 @@
 import { Component, ErrorInfo, ReactNode } from 'react'
 import { AlertTriangle, RefreshCw, Home, Bug } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { goApp } from '@/utils/base-path'
 
 interface Props {
   children: ReactNode
@@ -31,7 +32,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   handleGoHome = () => {
-    window.location.href = '/dashboard'
+    goApp('/dashboard')
   }
 
   render() {

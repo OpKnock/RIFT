@@ -11,6 +11,13 @@ pip install -e ".[dev]" -c constraints.txt
 rift serve                       # http://127.0.0.1:8080
 ```
 
+## Production UI entry (`/app`)
+
+The React bundle is served by the API under `/app` (vite base + router
+basename); `/` 302-redirects to `/app/`, so ingress `/` and `/app` resolve
+to one canonical UI. Deep links (`/app/runs/…`) serve `index.html` via SPA
+fallback. Dev server: `http://localhost:5173/app/`.
+
 ## Health & discovery (always open)
 
 ```bash
@@ -174,7 +181,12 @@ the real-time transport (see `src/rift/realtime.py`).
 
 All gated when auth is set; experiment/run creation additionally needs
 the database (503 otherwise). Supabase writes are mirrored into the
-local archive, so compare/export/replay see a unified view.
+local archive, so compare/export/replay see a unified view. Ownership is
+enforced on both stores (403 on mismatch); a Supabase outage is 502, never
+a silent mirror read. Versions/import responses carry `"durable": true`
+when the write reached Supabase (migration `008` adds the `versions`
+column); archive-only writes report `"durable": false`. Templates are
+visible when public, system/legacy, or owned by the caller.
 
 ```bash
 # Templates (spec validated; created_by = authenticated caller)
