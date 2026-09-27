@@ -20,7 +20,6 @@ import functools
 import hashlib
 import json
 import os
-import pickle
 import threading
 import time
 import uuid
@@ -239,12 +238,57 @@ class Checkpoint:
 
     def __post_init__(self):
         if not self.fingerprint:
-            canonical = json.dumps({
-                "simulation_id": self.simulation_id,
-                "step": self.step,
-                "state": self.state,
-            }, sort_keys=True, separators=(",", ":"), default=str)
-            self.fingerprint = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+            self.fingerprint = self.compute_fingerprint(
+                self.simulation_id, self.step, self.state)
+
+    @staticmethod
+    def compute_fingerprint(simulation_id: str, step: int, state: dict) -> str:
+        canonical = json.dumps({
+            "simulation_id": simulation_id,
+            "step": step,
+            "state": state,
+        }, sort_keys=True, separators=(",", ":"), default=str)
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+    def to_dict(self) -> dict:
+        return {
+            "checkpoint_id": self.checkpoint_id,
+            "simulation_id": self.simulation_id,
+            "step": self.step,
+            "state": self.state,
+            "metadata": self.metadata,
+            "created_at": self.created_at,
+            "fingerprint": self.fingerprint,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Checkpoint":
+        """Rebuild from a JSON-decoded dict, verifying fingerprint integrity.
+
+        Raises ValueError on schema or fingerprint mismatch: checkpoint
+        files are untrusted input (shared dirs, restored backups) and must
+        never be deserialized with pickle.
+        """
+        if not isinstance(data, dict):
+            raise ValueError("checkpoint must be an object")
+        for key in ("checkpoint_id", "simulation_id", "step", "state"):
+            if key not in data:
+                raise ValueError(f"checkpoint missing required field: {key}")
+        if not isinstance(data["state"], dict):
+            raise ValueError("checkpoint state must be an object")
+        expected = cls.compute_fingerprint(
+            str(data["simulation_id"]), int(data["step"]), data["state"])
+        if data.get("fingerprint") != expected:
+            raise ValueError("checkpoint fingerprint mismatch: file tampered or corrupt")
+        return cls(
+            checkpoint_id=str(data["checkpoint_id"]),
+            simulation_id=str(data["simulation_id"]),
+            step=int(data["step"]),
+            state=dict(data["state"]),
+            metadata=dict(data.get("metadata") or {}),
+            created_at=str(data.get("created_at", "")),
+            fingerprint=str(data["fingerprint"]),
+        )
 
 
 class CheckpointManager:
@@ -256,18 +300,18 @@ class CheckpointManager:
         self._lock = threading.Lock()
 
     def save(self, checkpoint: Checkpoint) -> Path:
-        """Save checkpoint to disk."""
-        filename = f"{checkpoint.simulation_id}_step_{checkpoint.step:06d}_{checkpoint.checkpoint_id[:8]}.pkl"
+        """Save checkpoint to disk as JSON (never pickle: untrusted input)."""
+        filename = f"{checkpoint.simulation_id}_step_{checkpoint.step:06d}_{checkpoint.checkpoint_id[:8]}.json"
         filepath = self._checkpoint_dir / filename
         with self._lock:
-            with open(filepath, "wb") as f:
-                pickle.dump(checkpoint, f)
+            with open(filepath, "w", encoding="utf-8") as f:
+                json.dump(checkpoint.to_dict(), f, sort_keys=True, separators=(",", ":"))
         return filepath
 
     def load(self, simulation_id: str, step: int | None = None) -> Checkpoint | None:
-        """Load latest checkpoint for simulation."""
+        """Load latest checkpoint for simulation (fingerprint-verified)."""
         with self._lock:
-            files = list(self._checkpoint_dir.glob(f"{simulation_id}_step_*.pkl"))
+            files = list(self._checkpoint_dir.glob(f"{simulation_id}_step_*.json"))
             if not files:
                 return None
             if step is not None:
@@ -275,20 +319,19 @@ class CheckpointManager:
             if not files:
                 return None
             latest = max(files, key=lambda f: f.stat().st_mtime)
-            with open(latest, "rb") as f:
-                return pickle.load(f)
+            with open(latest, encoding="utf-8") as f:
+                return Checkpoint.from_dict(json.load(f))
 
     def list_checkpoints(self, simulation_id: str) -> list[Checkpoint]:
-        """List all checkpoints for a simulation."""
+        """List all checkpoints for a simulation (skips corrupt files)."""
         with self._lock:
-            files = list(self._checkpoint_dir.glob(f"{simulation_id}_step_*.pkl"))
+            files = list(self._checkpoint_dir.glob(f"{simulation_id}_step_*.json"))
             checkpoints = []
             for f in files:
                 try:
-                    with open(f, "rb") as fp:
-                        cp = pickle.load(fp)
-                        checkpoints.append(cp)
-                except Exception:
+                    with open(f, encoding="utf-8") as fp:
+                        checkpoints.append(Checkpoint.from_dict(json.load(fp)))
+                except (ValueError, OSError):
                     pass
             return sorted(checkpoints, key=lambda c: c.step)
 

@@ -55,14 +55,18 @@ def _b64url_decode(segment: str) -> bytes:
         raise AuthError("malformed token encoding") from exc
 
 
-def verify_bearer_token(authorization: str | None, *, now: float | None = None) -> str:
+def verify_bearer_token(authorization: str | None, *, now: float | None = None,
+                          secret: str | None = None) -> str:
     """Verify ``Authorization: Bearer <jwt>``; return the ``sub`` claim.
 
     Raises AuthError on any failure (missing header, bad shape, non-HS256
     ``alg`` — including ``none`` — bad signature, missing/expired/invalid
     claims). Callers map AuthError to HTTP 401 without echoing details.
+
+    ``secret`` overrides ``RIFT_SUPABASE_JWT_SECRET`` for programmatic
+    verifiers (e.g. production.JWTAuthProvider); None means "use env".
     """
-    secret = _secret()
+    secret = secret if secret is not None else _secret()
     if not secret:
         raise AuthError("jwt verification not configured")
     if not authorization or not isinstance(authorization, str):

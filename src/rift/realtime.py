@@ -37,6 +37,7 @@ class EventBus:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._subscribers: dict[str, set[asyncio.Queue]] = defaultdict(set)
+        self._sync_subscribers: dict[str, set["queue.Queue[dict]"]] = defaultdict(set)
         self._loop: asyncio.AbstractEventLoop | None = None
 
     def set_loop(self, loop: asyncio.AbstractEventLoop) -> None:
@@ -55,18 +56,36 @@ class EventBus:
         with self._lock:
             self._subscribers[topic].discard(queue)
 
+    def subscribe_sync(self, topic: str, maxsize: int = 100) -> "queue.Queue[dict]":
+        """Thread-safe subscription for synchronous consumers (e.g. SSE handler threads)."""
+        import queue as _queue
+        q: "queue.Queue[dict]" = _queue.Queue(maxsize=maxsize)
+        with self._lock:
+            self._sync_subscribers[topic].add(q)
+        return q
+
+    def unsubscribe_sync(self, topic: str, queue: "queue.Queue[dict]") -> None:
+        with self._lock:
+            self._sync_subscribers[topic].discard(queue)
+
     def publish(self, topic: str, event: dict) -> int:
         """Publish event to all subscribers of topic. Returns count of deliveries."""
-        if self._loop is None:
-            return 0
         with self._lock:
-            queues = list(self._subscribers.get(topic, set()))
+            async_queues = list(self._subscribers.get(topic, set()))
+            sync_queues = list(self._sync_subscribers.get(topic, set()))
         delivered = 0
-        for q in queues:
+        if self._loop is not None:
+            for q in async_queues:
+                try:
+                    self._loop.call_soon_threadsafe(q.put_nowait, event)
+                    delivered += 1
+                except asyncio.QueueFull:
+                    pass
+        for q in sync_queues:
             try:
-                self._loop.call_soon_threadsafe(q.put_nowait, event)
+                q.put_nowait(event)
                 delivered += 1
-            except asyncio.QueueFull:
+            except Exception:
                 pass
         return delivered
 

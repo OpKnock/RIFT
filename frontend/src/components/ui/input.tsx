@@ -33,7 +33,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               'input',
               iconLeft && 'pl-10',
               iconRight && 'pr-10',
-              error && 'input-error'
+              error && 'input-error',
+              className
             )}
             aria-invalid={error ? 'true' : 'false'}
             aria-describedby={error ? `${inputId}-error` : helperText ? `${inputId}-helper` : undefined}
@@ -82,7 +83,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         <textarea
           ref={ref}
           id={textareaId}
-          className={cn('input min-h-[100px] resize-y', error && 'input-error')}
+          className={cn('input min-h-[100px] resize-y', error && 'input-error', className)}
           aria-invalid={error ? 'true' : 'false'}
           aria-describedby={error ? `${textareaId}-error` : helperText ? `${textareaId}-helper` : undefined}
           {...props}
@@ -127,7 +128,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           <select
             ref={ref}
             id={selectId}
-            className={cn('input appearance-none pr-10', error && 'input-error')}
+            className={cn('input appearance-none pr-10', error && 'input-error', className)}
             aria-invalid={error ? 'true' : 'false'}
             aria-describedby={error ? `${selectId}-error` : helperText ? `${selectId}-helper` : undefined}
             {...props}
@@ -185,7 +186,8 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
             'h-4 w-4 rounded border-secondary-300 text-primary-600',
             'focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
             'disabled:opacity-50 disabled:cursor-not-allowed',
-            'dark:border-secondary-600 dark:focus:ring-offset-secondary-900'
+            'dark:border-secondary-600 dark:focus:ring-offset-secondary-900',
+            className
           )}
           {...props}
         />
@@ -269,7 +271,8 @@ export const Switch = forwardRef<HTMLButtonElement, SwitchProps>(
             'disabled:opacity-50 disabled:cursor-not-allowed',
             props.checked
               ? 'bg-primary-600'
-              : 'bg-secondary-300 dark:bg-secondary-600'
+              : 'bg-secondary-300 dark:bg-secondary-600',
+            className
           )}
           onClick={() => props.onChange?.({ target: { checked: !props.checked } } as any)}
           {...props}

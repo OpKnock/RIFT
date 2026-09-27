@@ -32,8 +32,8 @@ const commands: Command[] = [
   { id: 'run-simulation', label: 'Run Simulation', description: 'Execute a simulation', icon: <PlayIcon className="w-4 h-4" />, action: () => window.location.href = '/simulation', category: 'Actions', shortcut: 'r s' },
 
   // External
-  { id: 'github', label: 'GitHub Repository', description: 'Open GitHub repo', icon: <Github className="w-4 h-4" />, action: () => window.open('https://github.com/OpKnock/RIFT', '_blank'), category: 'External', shortcut: 'g g' },
-  { id: 'docs-external', label: 'Documentation', description: 'Open docs', icon: <ExternalLink className="w-4 h-4" />, action: () => window.open('https://github.com/OpKnock/RIFT', '_blank'), category: 'External', shortcut: 'd d' },
+  { id: 'github', label: 'GitHub Repository', description: 'Open GitHub repo', icon: <Github className="w-4 h-4" />, action: () => window.open('https://github.com/OpKnock/RIFT', '_blank', 'noopener,noreferrer'), category: 'External', shortcut: 'g g' },
+  { id: 'docs-external', label: 'Documentation', description: 'Open docs', icon: <ExternalLink className="w-4 h-4" />, action: () => window.open('https://github.com/OpKnock/RIFT', '_blank', 'noopener,noreferrer'), category: 'External', shortcut: 'd d' },
 ]
 
 export function CommandPalette() {
@@ -62,7 +62,7 @@ export function CommandPalette() {
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [])
+  }, [closeCommandPalette])
 
   const filteredCommands = useMemo(() => {
     if (!query) return commands

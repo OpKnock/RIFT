@@ -8,6 +8,7 @@ Security posture (see docs/security.md):
 """
 import json
 import os
+import time
 import uuid
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -67,6 +68,126 @@ POLICY_VARIABLES = ("route_a", "route_c", "stairwell_b")
 
 # In-memory webhook dedup for offline mode (bounded; DB is authoritative).
 _SEEN_WEBHOOK_KEYS: list[str] = []
+
+
+class _ClientGone(Exception):
+    """Control-flow: SSE client disconnected mid-stream (not an error)."""
+
+
+def _publish_event(topic: str, payload: dict) -> None:
+    """Best-effort publish to the in-process event bus (SSE fan-out).
+
+    Never raises: telemetry must not break request handling. Failures
+    are invisible by design — the bus is in-memory and lossy.
+    """
+    try:
+        from .realtime import event_bus
+        event_bus.publish_sync(topic, payload)
+    except Exception:  # nosec B110 -- see docstring
+        pass
+
+
+def _spec_from_experiment_row(row: dict) -> "ExperimentSpec | None":
+    """Rebuild a validated spec from a Supabase experiment row (or None).
+
+    Lets Supabase-persisted experiments participate in archive-backed
+    flows (compare/export/replay) without duplicating engine logic.
+    Returns None when the row cannot be validated (fail-soft: callers
+    treat the experiment as unresolvable, never as valid-by-default).
+    """
+    try:
+        from .experiments import validate_spec_payload
+        scenario = row.get("scenario") or {}
+        cfg = row.get("optimizer_config") or {}
+        return validate_spec_payload({
+            "name": row.get("name", ""),
+            "scenario_name": scenario.get("name", "smart-building-emergency"),
+            "initial_state": scenario.get("initial_state", {}),
+            "perturbations": row.get("perturbations", []),
+            "policy_variables": row.get("policy_variables", []),
+            "optimizer": cfg.get("optimizer", "exact"),
+            "backend": row.get("backend", "statevector-simulator"),
+            "seed": row.get("seed"),
+            "description": row.get("description", ""),
+        })
+    except Exception:
+        return None
+
+
+def _run_from_row(row: dict, spec: "ExperimentSpec") -> "ExperimentRun | None":
+    """Adapt a Supabase run row to an ExperimentRun (or None)."""
+    try:
+        from .experiments import ExperimentRun
+        metrics = row.get("metrics")
+        result = row.get("result")
+        return ExperimentRun(
+            id=str(row.get("id", "")),
+            experiment_id=str(row.get("experiment_id", "")),
+            experiment_version=int(row.get("experiment_version", 1)),
+            spec=spec,
+            optimizer=str(row.get("optimizer", spec.optimizer)),
+            metrics=dict(metrics) if isinstance(metrics, dict) else {},
+            result=dict(result) if isinstance(result, dict) else None,
+            seed=row.get("seed"),
+            engine_version=str(row.get("engine_version", ENGINE_VERSION)),
+            started_at=str(row.get("created_at") or datetime.now(timezone.utc).isoformat()),
+            completed_at=row.get("completed_at"),
+            status=str(row.get("status", "succeeded")),
+        )
+    except Exception:
+        return None
+
+
+def _mirror_experiment_to_archive(spec: "ExperimentSpec", row: dict, owner: str | None) -> None:
+    """Mirror a Supabase-persisted experiment into the local archive.
+
+    Makes Supabase rows visible to archive-backed flows (compare/export/
+    replay/templates) without a second query path in every handler.
+    Best-effort: mirror failures never break the authoritative write.
+    """
+    try:
+        from .experiments import experiment_archive
+        record = {
+            "id": row.get("id"),
+            "name": spec.name,
+            "scenario_name": spec.scenario_name,
+            "spec": spec.to_dict(),
+            "fingerprint": spec.fingerprint(),
+            "status": row.get("status", "created"),
+            "versions": [],
+            "created_by": owner or "anonymous",
+            "mirrored_from": "supabase",
+            "mirrored_at": datetime.now(timezone.utc).isoformat(),
+        }
+        experiment_archive.store_experiment(record)
+    except Exception:  # nosec B110 -- mirror is best-effort
+        pass
+
+
+def _mirror_run_to_archive(experiment_id: str, spec: "ExperimentSpec",
+                           run_payload: dict, result_row: dict | None) -> None:
+    """Mirror a Supabase-persisted run into the local archive (best-effort)."""
+    try:
+        from .experiments import experiment_archive, ExperimentRun
+        import uuid as _uuid
+        row = result_row or {}
+        run = ExperimentRun(
+            id=str(row.get("id") or f"run-{_uuid.uuid4().hex[:12]}"),
+            experiment_id=experiment_id,
+            experiment_version=int(row.get("experiment_version", 1)),
+            spec=spec,
+            optimizer=str(run_payload.get("optimizer", spec.optimizer)),
+            metrics=dict(run_payload.get("metrics") or {}),
+            result=dict(run_payload["result"]) if isinstance(run_payload.get("result"), dict) else None,
+            seed=run_payload.get("seed"),
+            engine_version=str(row.get("engine_version", ENGINE_VERSION)),
+            started_at=str(row.get("created_at") or datetime.now(timezone.utc).isoformat()),
+            completed_at=row.get("completed_at"),
+            status=str(row.get("status", "succeeded")),
+        )
+        experiment_archive.store_run(run)
+    except Exception:  # nosec B110 -- mirror is best-effort
+        pass
 
 
 def _cors_allowed_origins() -> list[str]:
@@ -591,6 +712,70 @@ class Handler(BaseHTTPRequestHandler):
                            request_id=request_id)
                 self._finish(timer, request_id, "GET", path, 500, "internal")
             return
+        if path == "/api/events/stream":
+            # Server-Sent Events over plain HTTP (no WebSocket upgrade on
+            # the stdlib server). Auth-gated like the monitor endpoint.
+            # Query: ?topics=a,b (defaults to the frontend topic set).
+            # Each connection occupies one server thread until the client
+            # disconnects; sized for local/dev fan-out, not internet scale.
+            _, ok = self._identity(request_id)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
+            from .realtime import FRONTEND_TOPICS, event_bus
+            raw_topics = (query.get("topics") or [""])[0]
+            topics = [t.strip() for t in raw_topics.split(",") if t.strip()] or FRONTEND_TOPICS
+            topics = [t for t in topics if t in FRONTEND_TOPICS]
+            if not topics:
+                self._send(400, json.dumps({"error": "no valid topics"}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 400, "validation")
+                return
+            queues = [(t, event_bus.subscribe_sync(t)) for t in topics]
+            try:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Connection", "keep-alive")
+                self.send_header("X-Accel-Buffering", "no")
+                if request_id:
+                    self.send_header("X-Request-ID", request_id)
+                for key, value in _cors_headers(self.headers.get("Origin")).items():
+                    self.send_header(key, value)
+                self.end_headers()
+                hello = json.dumps({"topics": topics, "timestamp": datetime.now(timezone.utc).isoformat()})
+                self.wfile.write(f"event: connected\ndata: {hello}\n\n".encode())
+                self.wfile.flush()
+                last_beat = time.monotonic()
+                while True:
+                    got_one = False
+                    for topic, q in queues:
+                        try:
+                            event = q.get(timeout=1.0)
+                        except Exception:
+                            continue
+                        got_one = True
+                        payload = json.dumps({"topic": topic, "data": event})
+                        try:
+                            self.wfile.write(f"event: message\ndata: {payload}\n\n".encode())
+                            self.wfile.flush()
+                        except (BrokenPipeError, ConnectionResetError):
+                            raise _ClientGone()
+                    if not got_one and time.monotonic() - last_beat > 15.0:
+                        try:
+                            self.wfile.write(b": heartbeat\n\n")
+                            self.wfile.flush()
+                        except (BrokenPipeError, ConnectionResetError):
+                            raise _ClientGone()
+                        last_beat = time.monotonic()
+            except _ClientGone:
+                pass
+            except Exception:
+                log_event("internal_error", request_id=request_id, route="events-stream")
+            finally:
+                for topic, q in queues:
+                    event_bus.unsubscribe_sync(topic, q)
+                self._finish(timer, request_id, "GET", path, 200)
+            return
         if path == "/metrics":
             # Prometheus exposition for the deployment scrape config.
             # The metric vocabulary is defined once in
@@ -876,6 +1061,31 @@ class Handler(BaseHTTPRequestHandler):
                 self._finish(timer, request_id, "GET", path, 200)
             except Exception:
                 self._send(500, json.dumps({"error": "evidence_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
+            return
+
+        if path == "/api/intelligence/status":
+            _, ok = self._identity(request_id)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
+            try:
+                from .advanced_intelligence import llm_provider
+                provider = type(llm_provider).__name__
+                self._send(200, json.dumps({
+                    "provider": provider,
+                    "mock": provider == "MockLLMProvider",
+                    "openai_compatible_configured": bool(os.getenv("OPENAI_API_KEY", "").strip()),
+                    "note": ("Mock provider: NL endpoints return deterministic "
+                             "placeholder outputs. Set OPENAI_API_KEY (and "
+                             "optionally OPENAI_BASE_URL) to enable a real "
+                             "OpenAI-compatible provider.")
+                    if provider == "MockLLMProvider" else
+                    "Real LLM provider active; all explanations remain grounded in deterministic artifacts.",
+                }), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
+            except Exception:
+                self._send(500, json.dumps({"error": "intelligence_error", "request_id": request_id}), request_id=request_id)
                 self._finish(timer, request_id, "GET", path, 500, "internal")
             return
 
@@ -1175,7 +1385,7 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 try:
                     from .experiments import experiment_archive
-                    bundles = [b.to_dict() for b in experiment_archive._evidence_bundles.values() if b.experiment_id == experiment_id]
+                    bundles = [b.to_dict() for b in experiment_archive.evidence_for_experiment(experiment_id)]
                     self._send(200, json.dumps({"experiment_id": experiment_id, "bundles": bundles}), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 200)
                 except Exception:
@@ -1187,13 +1397,48 @@ class Handler(BaseHTTPRequestHandler):
             parts = path.strip("/").split("/")
             if len(parts) == 4:
                 experiment_id = parts[2]
-                _, ok = self._identity(request_id)
+                caller, ok = self._identity(request_id, None, query)
                 if not ok:
                     self._finish(timer, request_id, "GET", path, 401, "auth")
                     return
                 try:
                     from .experiments import experiment_archive
                     package = experiment_archive.export_experiment(experiment_id)
+                    if package is None:
+                        # Fall back to Supabase-backed experiments (with
+                        # ownership enforcement) when the local archive
+                        # has no record (e.g. after a restart).
+                        store = SupabaseStore()
+                        if store.configured:
+                            exp_row, failed = self._load_row(
+                                lambda: store.get_experiment(experiment_id),
+                                timer, request_id, "GET", path,
+                            )
+                            if not failed and exp_row:
+                                if owner_mismatch(exp_row.get("user_id"), caller):
+                                    self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                                    self._finish(timer, request_id, "GET", path, 403, "auth")
+                                    return
+                                spec = _spec_from_experiment_row(exp_row)
+                                if spec is not None:
+                                    runs_out = []
+                                    try:
+                                        rows = (store.list_runs(experiment_id).data or [])
+                                    except Exception:
+                                        rows = []
+                                    for row in rows:
+                                        if owner_mismatch(row.get("user_id"), caller):
+                                            continue
+                                        run = _run_from_row(row, spec)
+                                        if run is not None:
+                                            runs_out.append(run.to_dict())
+                                    package = {
+                                        "experiment": exp_row,
+                                        "spec": spec.to_dict(),
+                                        "runs": runs_out,
+                                        "exported_at": datetime.now(timezone.utc).isoformat(),
+                                        "engine_version": ENGINE_VERSION,
+                                    }
                     if package:
                         self._send(200, json.dumps(package), request_id=request_id)
                         self._finish(timer, request_id, "GET", path, 200)
@@ -1209,29 +1454,56 @@ class Handler(BaseHTTPRequestHandler):
             parts = path.strip("/").split("/")
             if len(parts) == 4:
                 experiment_id = parts[2]
-                _, ok = self._identity(request_id)
+                caller, ok = self._identity(request_id, None, query)
                 if not ok:
                     self._finish(timer, request_id, "GET", path, 401, "auth")
                     return
                 try:
-                    from .experiments import experiment_archive, verify_reproducibility
+                    from .experiments import experiment_archive, validate_spec_payload
+                    from .runner import run_spec
+                    spec_data = None
                     exp = experiment_archive.get_experiment(experiment_id)
-                    if not exp:
+                    if exp:
+                        spec_data = exp.get("spec")
+                    if spec_data is None:
+                        # Fall back to Supabase-backed experiments (owned).
+                        store = SupabaseStore()
+                        if store.configured:
+                            exp_row, failed = self._load_row(
+                                lambda: store.get_experiment(experiment_id),
+                                timer, request_id, "GET", path,
+                            )
+                            if not failed and exp_row:
+                                if owner_mismatch(exp_row.get("user_id"), caller):
+                                    self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                                    self._finish(timer, request_id, "GET", path, 403, "auth")
+                                    return
+                                spec = _spec_from_experiment_row(exp_row)
+                                if spec is not None:
+                                    spec_data = spec.to_dict()
+                    if not spec_data:
                         self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
                         self._finish(timer, request_id, "GET", path, 404, "not_found")
                         return
-                    spec = exp.get("spec")
-                    if not spec:
-                        self._send(400, json.dumps({"error": "no_spec"}), request_id=request_id)
+                    try:
+                        spec = validate_spec_payload(spec_data if isinstance(spec_data, dict) else {})
+                    except ValueError as exc:
+                        self._send(400, json.dumps({"error": "invalid_spec", "detail": str(exc)[:300]}), request_id=request_id)
                         self._finish(timer, request_id, "GET", path, 400, "validation")
                         return
-                    # In a real implementation, this would re-run the experiment
-                    # For now, return the spec for client-side replay
+                    # Deterministic server-side replay: re-execute the
+                    # stored spec through the canonical runner.
+                    try:
+                        result = run_spec(spec)
+                    except Exception as exc:
+                        self._send(502, json.dumps({"error": "replay_failed", "detail": str(exc)[:300]}), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 502, "replay_failed")
+                        return
                     self._send(200, json.dumps({
                         "experiment_id": experiment_id,
-                        "spec": spec,
-                        "fingerprint": exp.get("fingerprint"),
-                        "message": "Use this spec with POST /api/demo or POST /api/experiments/{id}/runs to replay"
+                        "spec": spec.to_dict(),
+                        "fingerprint": spec.fingerprint(),
+                        "result": result,
                     }), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 200)
                 except Exception:
@@ -1324,6 +1596,55 @@ class Handler(BaseHTTPRequestHandler):
                 self._finish(timer, request_id, "GET", path, 200)
                 return
 
+        if path == "/app" or path.startswith("/app/"):
+            # Canonical React product UI (production image builds it into
+            # frontend-dist/; local dev serves it from Vite on :5173).
+            # SPA fallback: unknown sub-paths serve index.html so
+            # BrowserRouter deep links don't 404 on refresh/direct nav.
+            dist = (ROOT.parent / "frontend-dist").resolve()
+            rel = path[len("/app"):].lstrip("/") or "index.html"
+            target = (dist / rel).resolve()
+            if dist not in target.parents and target != dist:
+                self._send(404, json.dumps({"error": "not found"}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 404, "validation")
+                return
+            if not target.is_file():
+                target = dist / "index.html"
+            if not target.is_file():
+                self._send(404, json.dumps({"error": "frontend not built"}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 404, "not_found")
+                return
+            ctype = {
+                ".html": "text/html; charset=utf-8",
+                ".js": "text/javascript; charset=utf-8",
+                ".css": "text/css; charset=utf-8",
+                ".json": "application/json",
+                ".svg": "image/svg+xml",
+                ".png": "image/png",
+                ".ico": "image/x-icon",
+                ".webmanifest": "application/manifest+json",
+            }.get(target.suffix, "application/octet-stream")
+            raw = target.read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(len(raw)))
+            self.send_header("Cache-Control", "no-store" if target.suffix == ".html" else "public, max-age=31536000, immutable")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Frame-Options", "DENY")
+            self.send_header("Referrer-Policy", "no-referrer")
+            if target.suffix == ".html":
+                self.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; connect-src 'self'")
+            if request_id:
+                self.send_header("X-Request-ID", request_id)
+            for key, value in _cors_headers(self.headers.get("Origin")).items():
+                self.send_header(key, value)
+            self.end_headers()
+            try:
+                self.wfile.write(raw)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            self._finish(timer, request_id, "GET", path, 200)
+            return
         files = {
             "/": "index.html",
             "/index.html": "index.html",
@@ -1429,6 +1750,7 @@ class Handler(BaseHTTPRequestHandler):
                     "status": "created",
                     **({"user_id": owner} if owner else {}),
                 })
+                _mirror_experiment_to_archive(spec, result.data or {}, owner)
                 self._send(201, json.dumps(result.data), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 201, extra_experiment="created")
             except Exception:
@@ -1560,6 +1882,9 @@ class Handler(BaseHTTPRequestHandler):
                     if caller:
                         payload["user_id"] = caller
                     result = store.create_run(payload)
+                    spec = _spec_from_experiment_row(experiment)
+                    if spec is not None:
+                        _mirror_run_to_archive(experiment_id, spec, run, result.data or {})
                     self._send(201, json.dumps(result.data), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 201)
                 except Exception:
@@ -1739,6 +2064,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/twin/prospective":
             # POST mirrors GET query-param handling inside POST body.
+            # State-mutating (lock/reconcile): gated like the GET.
             parsed_q2 = {}
             body2, _ = self._read_json()
             if body2 == "overflow":
@@ -1748,6 +2074,10 @@ class Handler(BaseHTTPRequestHandler):
             if body2 is None:
                 self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
+            _, ok = self._identity(request_id, body2 if isinstance(body2, dict) else None, None)
+            if not ok:
+                self._finish(timer, request_id, "POST", path, 401, "auth")
                 return
             try:
                 from .health import prospective as _pros2
@@ -1810,6 +2140,7 @@ class Handler(BaseHTTPRequestHandler):
                     trigger_alert_id=body.get("trigger_alert_id"),
                     tags=body.get("tags", []),
                 )
+                _publish_event("incidents.lifecycle", {"event": "created", "incident": incident.to_dict()})
                 self._send(201, json.dumps(incident.to_dict()), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 201)
             except ValueError as exc:
@@ -1864,6 +2195,7 @@ class Handler(BaseHTTPRequestHandler):
                         self._send(400, json.dumps({"error": "invalid_action"}), request_id=request_id)
                         self._finish(timer, request_id, "POST", path, 400, "validation")
                         return
+                    _publish_event("incidents.lifecycle", {"event": action, "incident": incident.to_dict()})
                     self._send(200, json.dumps(incident.to_dict()), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 200)
                 except ValueError as exc:
@@ -1918,6 +2250,7 @@ class Handler(BaseHTTPRequestHandler):
                         self._send(400, json.dumps({"error": "invalid_action"}), request_id=request_id)
                         self._finish(timer, request_id, "POST", path, 400, "validation")
                         return
+                    _publish_event("decisions.lifecycle", {"event": action, "decision": decision.to_dict()})
                     self._send(200, json.dumps(decision.to_dict()), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 200)
                 except ValueError as exc:
@@ -2144,12 +2477,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 400, "validation")
                 return
-            _, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+            caller, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
             if not ok:
                 self._finish(timer, request_id, "POST", path, 401, "auth")
                 return
             try:
-                from .experiments import experiment_archive, comparison_engine, ExperimentRun
+                from .experiments import experiment_archive, comparison_engine
                 comparison_type = body.get("type", "optimizer")
                 baseline_id = body.get("baseline_id")
                 candidate_ids = body.get("candidate_ids", [])
@@ -2157,16 +2490,54 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(400, json.dumps({"error": "baseline_id and candidate_ids required"}), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 400, "validation")
                     return
-                # Find runs across experiments
-                baseline_run = None
+                store = SupabaseStore()
+
+                def _resolve(run_id: str):
+                    # Supabase first when configured (ownership-enforced),
+                    # then the local archive mirror (dual-written on create).
+                    if store.configured:
+                        try:
+                            row, failed = self._load_row(
+                                lambda: store.get_run(run_id),
+                                timer, request_id, "POST", path,
+                            )
+                            if not failed and row:
+                                if owner_mismatch(row.get("user_id"), caller):
+                                    return "forbidden", None
+                                exp_row, exp_failed = self._load_row(
+                                    lambda: store.get_experiment(row.get("experiment_id", "")),
+                                    timer, request_id, "POST", path,
+                                )
+                                if not exp_failed and exp_row:
+                                    if owner_mismatch(exp_row.get("user_id"), caller):
+                                        return "forbidden", None
+                                    spec = _spec_from_experiment_row(exp_row)
+                                    if spec is not None:
+                                        run = _run_from_row(row, spec)
+                                        if run is not None:
+                                            return None, run
+                        except Exception:
+                            pass
+                    run = experiment_archive.find_run(run_id)
+                    return (None, run) if run is not None else ("missing", None)
+
+                forbidden = False
                 candidate_runs = []
-                for exp in experiment_archive._experiments.values():
-                    for run_data in exp.get("runs", []):
-                        run = ExperimentRun(**run_data) if isinstance(run_data, dict) else run_data
-                        if run.id == baseline_id:
-                            baseline_run = run
-                        elif run.id in candidate_ids:
+                err, baseline_run = _resolve(str(baseline_id))
+                if err == "forbidden":
+                    forbidden = True
+                else:
+                    for cid in candidate_ids:
+                        err, run = _resolve(str(cid))
+                        if err == "forbidden":
+                            forbidden = True
+                            break
+                        if run is not None:
                             candidate_runs.append(run)
+                if forbidden:
+                    self._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 403, "auth")
+                    return
                 if not baseline_run:
                     self._send(404, json.dumps({"error": "baseline_not_found"}), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 404, "not_found")
@@ -2221,6 +2592,85 @@ class Handler(BaseHTTPRequestHandler):
                 self._finish(timer, request_id, "POST", path, 201)
             except Exception:
                 log_event("internal_error", request_id=request_id, route="experiments-import")
+                self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 500, "internal")
+            return
+
+        if path == "/api/intelligence/scenario":
+            # Natural language -> validated ExperimentSpec. The LLM proposes;
+            # validate_spec_payload disposes: invalid specs 400, never execute.
+            body, raw = self._read_json()
+            if body == "overflow":
+                self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 413, "validation")
+                return
+            if body is None:
+                self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
+            _, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+            if not ok:
+                self._finish(timer, request_id, "POST", path, 401, "auth")
+                return
+            description = str((body if isinstance(body, dict) else {}).get("description", "") or "").strip()
+            if not description:
+                self._send(400, json.dumps({"error": "description is required"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
+            try:
+                from .advanced_intelligence import create_scenario_nl, llm_provider
+                result = create_scenario_nl(description)
+                result["provider"] = type(llm_provider).__name__
+                result["mock"] = type(llm_provider).__name__ == "MockLLMProvider"
+                status = 200 if result.get("valid") else 422
+                self._send(status, json.dumps(result), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, status)
+            except Exception:
+                log_event("internal_error", request_id=request_id, route="intelligence-scenario")
+                self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 500, "internal")
+            return
+
+        if path == "/api/intelligence/explain":
+            # Grounded explanation of a twin snapshot: the snapshot is
+            # computed deterministically first, the LLM only narrates it.
+            body, raw = self._read_json()
+            if body == "overflow":
+                self._send(413, json.dumps({"error": "payload_too_large"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 413, "validation")
+                return
+            if body is None:
+                self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 400, "validation")
+                return
+            _, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+            if not ok:
+                self._finish(timer, request_id, "POST", path, 401, "auth")
+                return
+            try:
+                day = (body if isinstance(body, dict) else {}).get("day", 13)
+                try:
+                    day = int(day)
+                except (TypeError, ValueError):
+                    raise ValueError(f"invalid day: {day!r}")
+                if not 0 <= day <= 13:
+                    raise ValueError(f"day {day} out of range [0, 13]")
+                from .health.demo_data import demo_stream
+                from .health.ehr import demo_ehr, normalize_ehr
+                from .health.twin import DigitalTwin
+                from .advanced_intelligence import explain_grounded, llm_provider
+                ehr, _ = normalize_ehr(demo_ehr())
+                snapshot = DigitalTwin(ehr, demo_stream()).update(day)
+                result = explain_grounded(snapshot, snapshot.get("guardian", {}))
+                result["provider"] = type(llm_provider).__name__
+                result["mock"] = type(llm_provider).__name__ == "MockLLMProvider"
+                self._send(200, json.dumps(result), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 200)
+            except (ValueError, KeyError, TypeError) as exc:
+                self._send(422, json.dumps({"error": "invalid intelligence request", "detail": str(exc)[:300]}), request_id=request_id)
+                self._finish(timer, request_id, "POST", path, 422, "validation")
+            except Exception:
+                log_event("internal_error", request_id=request_id, route="intelligence-explain")
                 self._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 500, "internal")
             return

@@ -1,0 +1,48 @@
+# RIFT Prometheus Configuration — LOCAL Docker Compose stack.
+#
+# The sibling prometheus.yml is the PRODUCTION Kubernetes configuration
+# (k8s service discovery, Alertmanager, bearer-token auth). None of those
+# exist in `docker compose` local dev, so this file scrapes the compose
+# service names directly over the compose network with no auth
+# (RIFT_API_TOKEN is unset... in local dev the /metrics endpoint is open;
+# if you set a token locally, add an Authorization header here).
+#
+# docker-compose.local.yml mounts THIS file, never prometheus.yml.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'rift-local'
+    environment: 'development'
+
+# No alertmanagers block: no Alertmanager service in local compose.
+# (Prometheus runs fine without one; alerts evaluate but have nowhere
+# to route. Wire one before relying on paging locally.)
+
+rule_files:
+  - "/etc/prometheus/rules/rift_health_alerts.yml"
+  - "/etc/prometheus/rules/rift_infrastructure_alerts.yml"
+  - "/etc/prometheus/rules/rift_business_alerts.yml"
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # RIFT API: bearer-gated only when the API runs with JWT/service-token
+  # auth. The local dev compose leaves auth unset, so this scrape needs
+  # no credentials. If you set RIFT_API_TOKEN locally, uncomment the
+  # authorization block below with the same token.
+  - job_name: 'rift-api'
+    static_configs:
+      - targets: ['rift-api:8080']
+        labels:
+          component: 'api'
+    metrics_path: '/metrics'
+    # authorization:
+    #   type: Bearer
+    #   credentials: 'dev-token'
+
+  # NOTE: no redis job — there is no Redis exporter in the local
+  # stack (redis:6379 speaks RESP, not Prometheus text format).

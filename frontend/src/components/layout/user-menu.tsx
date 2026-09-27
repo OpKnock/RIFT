@@ -1,8 +1,11 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { User, Settings, LogOut, Key, Shield, Globe } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { User, Settings, LogOut, Key, Shield } from 'lucide-react'
 import { cn } from '@/utils/cn'
+import { api } from '@/services/api'
+import { readDisplayName } from '@/pages/profile'
 
 interface UserMenuProps {
   user?: {
@@ -13,9 +16,19 @@ interface UserMenuProps {
   }
 }
 
-export function UserMenu({ user = { name: 'Research User', email: 'research@rift.dev', role: 'Researcher' } }: UserMenuProps) {
+const FALLBACK_USER = { name: 'Research User', email: 'research@rift.dev', role: 'Researcher' }
+
+export function UserMenu({ user }: UserMenuProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const navigate = useNavigate()
+  // Identity is the operator's local display profile when set; the
+  // hardcoded fallback is clearly labeled and never sent to the server
+  // as an authenticated principal.
+  const profileName = readDisplayName()
+  const effectiveUser = user || (profileName
+    ? { name: profileName, email: 'research@rift.dev', role: 'Researcher (local profile)' }
+    : FALLBACK_USER)
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -41,7 +54,7 @@ export function UserMenu({ user = { name: 'Research User', email: 'research@rift
           <User className="w-5 h-5 text-primary-600 dark:text-primary-400" aria-hidden="true" />
         </div>
         <span className="hidden sm:block text-sm font-medium text-secondary-700 dark:text-secondary-300">
-          {user.name}
+          {effectiveUser.name}
         </span>
       </button>
 
@@ -52,9 +65,9 @@ export function UserMenu({ user = { name: 'Research User', email: 'research@rift
           aria-orientation="vertical"
         >
           <div className="px-3 py-2 border-b border-secondary-100 dark:border-secondary-800">
-            <p className="text-sm font-medium text-secondary-900 dark:text-white">{user.name}</p>
-            <p className="text-xs text-secondary-500 dark:text-secondary-400 truncate">{user.email}</p>
-            <p className="text-xs text-primary-600 dark:text-primary-400 mt-0.5">{user.role}</p>
+            <p className="text-sm font-medium text-secondary-900 dark:text-white">{effectiveUser.name}</p>
+            <p className="text-xs text-secondary-500 dark:text-secondary-400 truncate">{effectiveUser.email}</p>
+            <p className="text-xs text-primary-600 dark:text-primary-400 mt-0.5">{effectiveUser.role}</p>
           </div>
 
           <div className="py-1" role="none">
@@ -65,6 +78,7 @@ export function UserMenu({ user = { name: 'Research User', email: 'research@rift
                 'transition-colors'
               )}
               role="menuitem"
+              onClick={() => { setOpen(false); navigate('/settings?tab=profile') }}
             >
               <Settings className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
               <span>Settings</span>
@@ -77,6 +91,7 @@ export function UserMenu({ user = { name: 'Research User', email: 'research@rift
                 'transition-colors'
               )}
               role="menuitem"
+              onClick={() => { setOpen(false); navigate('/settings?tab=api') }}
             >
               <Key className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
               <span>API Keys</span>
@@ -89,21 +104,10 @@ export function UserMenu({ user = { name: 'Research User', email: 'research@rift
                 'transition-colors'
               )}
               role="menuitem"
+              onClick={() => { setOpen(false); navigate('/settings?tab=security') }}
             >
               <Shield className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
               <span>Security</span>
-            </button>
-
-            <button
-              className={cn(
-                'flex items-center gap-3 w-full px-3 py-2 text-sm text-secondary-700 dark:text-secondary-300',
-                'hover:bg-secondary-100 dark:hover:bg-secondary-800',
-                'transition-colors'
-              )}
-              role="menuitem"
-            >
-              <Globe className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-              <span>Language</span>
             </button>
           </div>
 
@@ -116,10 +120,10 @@ export function UserMenu({ user = { name: 'Research User', email: 'research@rift
               'transition-colors'
             )}
             role="menuitem"
-            onClick={() => console.log('Sign out')}
+            onClick={() => { api.clearToken(); setOpen(false); navigate('/dashboard', { replace: true }) }}
           >
             <LogOut className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
-            <span>Sign out</span>
+            <span>Sign out (clears local token)</span>
           </button>
         </div>
       )}

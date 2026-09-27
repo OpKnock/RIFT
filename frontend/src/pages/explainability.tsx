@@ -45,6 +45,7 @@ export function Explainability() {
       }
     }
     load()
+    return () => { cancelled = true }
   }, [])
 
   if (loading) {

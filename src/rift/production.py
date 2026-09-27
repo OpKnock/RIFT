@@ -147,7 +147,14 @@ class AuthProvider(ABC):
 
 
 class JWTAuthProvider(AuthProvider):
-    """JWT-based authentication."""
+    """JWT-based authentication.
+
+    Delegates verification to the canonical stdlib verifier in
+    :mod:`rift.auth_jwt` (HS256, exp/nbf/aud/iss enforced) so this class
+    and the request path can never disagree on what a valid token is.
+    Token minting is local HS256 issuance for development/testing —
+    production identities come from Supabase Auth, never from here.
+    """
 
     def __init__(
         self,
@@ -157,26 +164,62 @@ class JWTAuthProvider(AuthProvider):
         audience: str | None = None,
         leeway: int = 60,
     ) -> None:
+        if algorithm != "HS256":
+            raise ValueError("only HS256 is supported (matches rift.auth_jwt)")
+        if not secret:
+            raise ValueError("secret is required")
         self.secret = secret
         self.algorithm = algorithm
         self.issuer = issuer
         self.audience = audience
         self.leeway = leeway
-        # In real implementation, use PyJWT
 
     def authenticate(self, credentials: dict) -> dict | None:
-        # Username/password auth - return user info
-        # Placeholder implementation
+        """Authenticate with an API key carried in credentials (no passwords)."""
+        key_secret = (credentials or {}).get("api_key") or (credentials or {}).get("key")
+        if key_secret:
+            return api_key_provider.validate_key(key_secret)
         return None
 
     def validate_token(self, token: str) -> dict | None:
-        # Validate JWT - placeholder
-        return None
+        """Validate a Bearer JWT; return claims dict or None.
+
+        Thread-safe: passes this provider's secret explicitly instead of
+        touching the environment.
+        """
+        from .auth_jwt import AuthError, verify_bearer_token
+
+        try:
+            sub = verify_bearer_token(f"Bearer {token}", secret=self.secret)
+        except AuthError:
+            return None
+        # Only sub is verified (aud/iss enforcement lives in auth_jwt
+        # via env); never echo unvalidated claims.
+        return {"sub": sub}
 
     def create_token(self, claims: dict, expires_in: int = 3600) -> str:
-        """Create JWT token."""
-        # Placeholder
-        return ""
+        """Mint a local HS256 JWT (development/testing issuance only)."""
+        import base64 as _b64
+        import hashlib as _hl
+        import hmac as _hmac
+        import json as _json
+        import time as _time
+
+        def _b64url(data: bytes) -> str:
+            return _b64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+        now = int(_time.time())
+        payload = dict(claims or {})
+        payload.setdefault("iat", now)
+        payload.setdefault("exp", now + int(expires_in))
+        if self.issuer:
+            payload.setdefault("iss", self.issuer)
+        if self.audience:
+            payload.setdefault("aud", self.audience)
+        header = _b64url(_json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode())
+        body = _b64url(_json.dumps(payload, separators=(",", ":"), sort_keys=True).encode())
+        sig = _hmac.new(self.secret.encode(), f"{header}.{body}".encode("ascii"), _hl.sha256).digest()
+        return f"{header}.{body}.{_b64url(sig)}"
 
 
 class APIKeyAuthProvider(AuthProvider):
