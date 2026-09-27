@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   rift-api:
     build:
@@ -23,15 +21,16 @@ services:
       - ./constraints.txt:/app/constraints.txt:ro
       - rift_data:/app/data
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     command: python -m rift.api
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/health || exit 1"]
+      interval: 15s
+      timeout: 15s
+      retries: 30
+      start_period: 90s
 
   rift-frontend:
     build:

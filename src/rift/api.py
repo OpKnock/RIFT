@@ -2170,7 +2170,7 @@ class Handler(BaseHTTPRequestHandler):
         return
 
 
-def serve(host="127.0.0.1", port=8080):
+def serve(host="0.0.0.0", port=8080):
     server = ThreadingHTTPServer((host, port), Handler)
     server.daemon_threads = True
     try:
