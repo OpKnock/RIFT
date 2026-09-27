@@ -13,8 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY constraints.txt .
 RUN pip install --no-cache-dir -r constraints.txt
 
-# Install package in dev mode
+# Install package in dev mode (need src/ for editable install)
 COPY pyproject.toml .
+COPY src/ ./src/
 RUN pip install -e .
 
 # Expose API port
