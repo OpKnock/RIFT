@@ -11,6 +11,7 @@ import urllib.error
 
 import rift.api as api_module
 from rift.api import Handler
+from rift.routes import routes_core
 from http.server import ThreadingHTTPServer
 import threading
 
@@ -54,7 +55,9 @@ def _make_dist(tmp_path):
 
 def test_app_serves_bundle_and_spa_fallback(monkeypatch, tmp_path):
     _make_dist(tmp_path)
-    monkeypatch.setattr(api_module, "FRONTEND_DIST", tmp_path / "frontend-dist")
+    # FRONTEND_DIST lives in rift.routes.support but routes_core binds its
+    # own reference: patch the reader so /app serves the tmp bundle.
+    monkeypatch.setattr(routes_core, "FRONTEND_DIST", tmp_path / "frontend-dist")
     with _Server() as server:
         status, body, headers = _get_raw(server.url("/app/"))
         assert status == 200 and b"app" in body
@@ -74,7 +77,9 @@ def test_app_serves_bundle_and_spa_fallback(monkeypatch, tmp_path):
 def test_app_rejects_traversal(monkeypatch, tmp_path):
     _make_dist(tmp_path)
     (tmp_path / "secret.txt").write_text("nope")
-    monkeypatch.setattr(api_module, "FRONTEND_DIST", tmp_path / "frontend-dist")
+    # FRONTEND_DIST lives in rift.routes.support but routes_core binds its
+    # own reference: patch the reader so /app serves the tmp bundle.
+    monkeypatch.setattr(routes_core, "FRONTEND_DIST", tmp_path / "frontend-dist")
     with _Server() as server:
         status, _, _ = _get_raw(server.url("/app/../secret.txt"))
         assert status == 404
@@ -82,7 +87,9 @@ def test_app_rejects_traversal(monkeypatch, tmp_path):
 
 def test_app_missing_bundle_is_honest_404(monkeypatch, tmp_path):
     (tmp_path / "web").mkdir()
-    monkeypatch.setattr(api_module, "FRONTEND_DIST", tmp_path / "frontend-dist")
+    # FRONTEND_DIST lives in rift.routes.support but routes_core binds its
+    # own reference: patch the reader so /app serves the tmp bundle.
+    monkeypatch.setattr(routes_core, "FRONTEND_DIST", tmp_path / "frontend-dist")
     with _Server() as server:
         status, raw, _ = _get_raw(server.url("/app/"))
         assert status == 404
