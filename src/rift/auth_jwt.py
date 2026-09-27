@@ -64,7 +64,7 @@ def verify_bearer_token(authorization: str | None, *, now: float | None = None,
     claims). Callers map AuthError to HTTP 401 without echoing details.
 
     ``secret`` overrides ``RIFT_SUPABASE_JWT_SECRET`` for programmatic
-    verifiers (e.g. production.JWTAuthProvider); None means "use env".
+    verifiers; None means "use env".
     """
     secret = secret if secret is not None else _secret()
     if not secret:

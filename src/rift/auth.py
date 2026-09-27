@@ -68,7 +68,9 @@ def resolve_caller(headers, body: dict | None = None, query: dict | None = None)
     - JWT mode (``RIFT_SUPABASE_JWT_SECRET`` set): identity is the verified
       token ``sub``; caller-supplied ``user_id`` is ignored entirely.
     - Service-token mode (``RIFT_API_TOKEN`` set): bearer gate enforced,
-      then ``user_id`` is read from body/query as before.
+      then ``user_id`` is read from body/query as before. A valid
+      ``rift_session`` cookie (see rift.sessions) satisfies the gate
+      instead, binding the identity stored at session creation.
     - Open dev mode: ``user_id`` is read from body/query (caller-asserted;
       only safe for local development — see docs/security.md).
     """
@@ -82,8 +84,21 @@ def resolve_caller(headers, body: dict | None = None, query: dict | None = None)
         except AuthError:
             return None, "unauthorized"
     if service_token_configured() is not None:
-        if not is_authorized(headers):
-            return None, "unauthorized"
+        if is_authorized(headers):
+            return extract_user_id(body, query), None
+        # Bearer missing/mismatched: fall through to the session cookie
+        # before rejecting, so cookie-authed browsers pass the same gate.
+        from .sessions import parse_session_cookie, sessions
+        get = getattr(headers, "get", None)
+        cookie = get("Cookie") if callable(get) else None
+        session_id = parse_session_cookie(cookie)
+        if session_id is not None and sessions.has(session_id):
+            # Same rights as a valid bearer: the bound principal (which
+            # may itself be None, exactly like bearer-without-user_id).
+            return sessions.validate(session_id), None
+        # A present-but-invalid session cookie is indistinguishable from
+        # absent (no oracle); reject exactly as a bad bearer would.
+        return None, "unauthorized"
     return extract_user_id(body, query), None
 
 

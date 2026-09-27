@@ -53,16 +53,35 @@ export function Settings() {
     window.setTimeout(() => setSavedTick(false), 2000)
   }
 
-  const saveToken = () => {
+  const [authMode, setAuthMode] = useState<string>('local token')
+  const [tokenError, setTokenError] = useState<string | null>(null)
+
+  const saveToken = async () => {
     if (!tokenInput.trim()) return
-    api.setToken(tokenInput.trim())
+    setTokenError(null)
+    const token = tokenInput.trim()
+    try {
+      // Prefer an HttpOnly session cookie so the secret leaves the
+      // browser immediately; fall back to localStorage on old servers.
+      await api.establishSession(token, displayName.trim() || undefined)
+      setAuthMode('session cookie (HttpOnly)')
+    } catch (e) {
+      if (e instanceof Error && e.message === 'SESSION_UNSUPPORTED') {
+        api.setToken(token)
+        setAuthMode('local token (legacy server)')
+      } else {
+        setTokenError(apiErrorMessage(e, 'Session rejected — check the token.'))
+        return
+      }
+    }
     setTokenInput('')
     setHasToken(true)
   }
 
-  const clearToken = () => {
-    api.clearToken()
+  const clearToken = async () => {
+    await api.logout()
     setHasToken(false)
+    setAuthMode('local token')
   }
 
   const togglePollAlerts = (on: boolean) => {
@@ -189,8 +208,10 @@ export function Settings() {
               <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Service-token (this browser)</h2>
               <p className="text-sm text-secondary-500">
                 When the operator sets <code className="font-mono">RIFT_API_TOKEN</code> on the server, paste the same token here to call gated endpoints
-                (<code className="font-mono">/metrics</code>, <code className="font-mono">/api/ops/monitor</code>). Stored only in this browser. Status: {hasToken ? <Badge variant="success">token set</Badge> : <Badge variant="secondary">no token</Badge>}
+                (<code className="font-mono">/metrics</code>, <code className="font-mono">/api/ops/monitor</code>). Preferred: an HttpOnly session cookie, so
+                the secret leaves the browser immediately. Status: {hasToken ? <Badge variant="success">{authMode}</Badge> : <Badge variant="secondary">no token</Badge>}
               </p>
+              {tokenError && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{tokenError}</p>}
               <div className="flex gap-3">
                 <Input type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} placeholder="Paste service token" aria-label="Service token" />
                 <Button onClick={saveToken} disabled={!tokenInput.trim()}>Save</Button>
