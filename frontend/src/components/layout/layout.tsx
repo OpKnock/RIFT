@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Outlet, NavLink, Link, useLocation } from 'react-router-dom'
 import { Menu, Sun, Moon, Monitor, GitBranch, Play, Database, FlaskConical, Settings, Scale, ChevronLeft, ChevronRight, Bell, Github, AlertTriangle, Search } from 'lucide-react'
-import { useTheme } from '@/components/providers/theme-provider'
+import { useTheme } from '@/components/providers/use-theme'
 import { cn } from '@/utils/cn'
 import { MobileMenu } from './mobile-menu'
 import { UserMenu } from './user-menu'
