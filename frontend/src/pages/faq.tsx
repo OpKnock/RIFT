@@ -9,11 +9,11 @@ const ITEMS: Array<{ q: string; a: string }> = [
     a: 'A research prototype for counterfactual decision intelligence: define a scenario, run candidate futures, stress them with declared perturbations, and verify with an independent Guardian gate. Engine v1.0.0.',
   },
   {
-    q: 'Is RIFT clinically validated?',
+    q: 'Is RIFT clinically validated? (No.)',
     a: 'No. All clinical data here is synthetic or from open-access public datasets. Decision support only — never autonomous care, never a medical device.',
   },
   {
-    q: 'Does RIFT prove quantum advantage?',
+    q: 'Does RIFT prove quantum advantage? (No.)',
     a: 'No. The default path is exact classical enumeration with a QAOA statevector simulator alongside. The stated policy is "no quantum advantage demonstrated".',
   },
   {

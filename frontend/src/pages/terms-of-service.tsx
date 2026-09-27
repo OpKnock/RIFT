@@ -158,8 +158,8 @@ export function TermsOfService() {
                       <li>NON-INFRINGEMENT</li>
                       <li>ACCURACY, RELIABILITY, OR CORRECTNESS OF RESULTS</li>
                       <li>UNINTERRUPTED OR ERROR-FREE OPERATION</li>
-                      <li>CLINICAL VALIDITY OR MEDICAL UTILITY</li>
-                      <li>QUANTUM ADVANTAGE OR SUPERIORITY OVER CLASSICAL METHODS</li>
+                      <li>NO WARRANTY OF CLINICAL VALIDITY OR MEDICAL UTILITY</li>
+                      <li>NO WARRANTY OF QUANTUM ADVANTAGE OR SUPERIORITY OVER CLASSICAL METHODS</li>
                     </ul>
                     <p className="text-error-700 dark:text-error-300 mt-3">
                       THE ENTIRE RISK AS TO QUALITY AND PERFORMANCE IS WITH YOU.
