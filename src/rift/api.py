@@ -9,6 +9,7 @@ Security posture (see docs/security.md):
 import json
 import os
 import uuid
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -726,6 +727,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._finish(timer, request_id, "GET", path, 500, "internal")
             return
         if path == "/api/twin/prospective":
+            _, ok = self._identity(request_id, None, query)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
             try:
                 from .health import prospective as _pros
                 self._send(200, json.dumps(_pros.manager.stats()), request_id=request_id)
@@ -736,6 +741,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._finish(timer, request_id, "GET", path, 500, "internal")
             return
         if path == "/api/twin/reviews":
+            _, ok = self._identity(request_id, None, query)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
             try:
                 from .health import reviews as _rev
                 self._send(200, json.dumps({
@@ -1067,7 +1076,9 @@ class Handler(BaseHTTPRequestHandler):
                         self._finish(timer, request_id, "GET", path, 404, "not_found")
                         return
                     # Return version history from experiment record
-                    versions = exp.get("versions", [exp])
+                    # (standalone version records only; the experiment
+                    # itself is never a member of its own version list).
+                    versions = [v for v in exp.get("versions", []) if isinstance(v, dict)]
                     self._send(200, json.dumps({"experiment_id": experiment_id, "versions": versions}), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 200)
                 except Exception:
@@ -1234,9 +1245,15 @@ class Handler(BaseHTTPRequestHandler):
                 self._finish(timer, request_id, "GET", path, 401, "auth")
                 return
             try:
-                from .experiments import experiment_archive
-                # Return scheduler job status (in-memory)
-                self._send(200, json.dumps({"jobs": [], "message": "Scheduler jobs are in-memory only"}), request_id=request_id)
+                from .experiments import local_scheduler
+                jobs = []
+                for job in local_scheduler.list_jobs():
+                    view = dict(job)
+                    spec = view.get("spec")
+                    if hasattr(spec, "to_dict"):
+                        view["spec"] = spec.to_dict()
+                    jobs.append(view)
+                self._send(200, json.dumps({"jobs": jobs, "note": "local in-process scheduler; jobs do not survive restarts"}), request_id=request_id)
                 self._finish(timer, request_id, "GET", path, 200)
             except Exception:
                 self._send(500, json.dumps({"error": "scheduler_error", "request_id": request_id}), request_id=request_id)
@@ -1437,12 +1454,35 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 from .health import reviews as _rev
                 from .health.monitoring import collector as _ops
+                # Reviewer identity comes from the authenticated principal.
+                # A caller-supplied reviewer_id that disagrees with it is
+                # rejected (fail-closed identity); in open dev mode with no
+                # authenticated principal the asserted id is accepted but
+                # explicitly marked unverified in the audit entry.
+                claimed = str(body.get("reviewer_id", "") or "").strip()
+                from .auth_jwt import jwt_mode_enabled as _jwt_mode
+                auth_on = service_token_configured() is not None or _jwt_mode()
+                if owner:
+                    if claimed and claimed != owner:
+                        self._send(400, json.dumps({"error": "identity_mismatch", "detail": "reviewer_id must match the authenticated principal"}), request_id=request_id)
+                        self._finish(timer, request_id, "POST", path, 400, "validation")
+                        return
+                    reviewer_id, verified = owner, True
+                elif auth_on:
+                    # Auth is configured but no principal resolved: a review
+                    # without an attributable reviewer is not auditable.
+                    self._send(400, json.dumps({"error": "missing_user_id", "detail": "submit user_id (service-token mode) or a Bearer token (JWT mode) so the review is attributable"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
+                else:
+                    reviewer_id, verified = claimed, False
                 entry = _rev.ledger.record(
                     action=body.get("action", ""),
                     evidence_id=body.get("evidence_id", ""),
-                    reviewer_id=body.get("reviewer_id", "") or (owner or ""),
+                    reviewer_id=reviewer_id,
                     rationale=body.get("rationale", ""),
                     supersedes=body.get("supersedes"),
+                    identity_verified=verified,
                 )
                 try:
                     _ops.record_review(entry["action"])
@@ -1794,7 +1834,7 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 400, "validation")
                     return
-                _, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+                caller, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
                 if not ok:
                     self._finish(timer, request_id, "POST", path, 401, "auth")
                     return
@@ -1809,7 +1849,7 @@ class Handler(BaseHTTPRequestHandler):
                         return
                     action = body.get("action", "")
                     note = body.get("note", "")
-                    actor = "api-user"  # would come from auth in production
+                    actor = caller or "anonymous"
                     if action == "acknowledge":
                         incident.acknowledge(actor, note)
                     elif action == "investigate":
@@ -1848,7 +1888,7 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 400, "validation")
                     return
-                _, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+                caller, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
                 if not ok:
                     self._finish(timer, request_id, "POST", path, 401, "auth")
                     return
@@ -1863,7 +1903,7 @@ class Handler(BaseHTTPRequestHandler):
                         return
                     action = body.get("action", "")
                     note = body.get("note", "")
-                    actor = "api-user"  # would come from auth in production
+                    actor = caller or "anonymous"
                     if action == "accept":
                         decision.accept(actor, note, body.get("guardian_verdict"))
                     elif action == "reject":
@@ -2001,21 +2041,32 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 400, "validation")
                 return
-            _, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+            caller, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
             if not ok:
                 self._finish(timer, request_id, "POST", path, 401, "auth")
                 return
             try:
                 from .experiments import experiment_archive, ExperimentTemplate
+                try:
+                    spec = validate_spec_payload(body.get("spec") or {})
+                except ValueError as exc:
+                    self._send(400, json.dumps({"error": "invalid_spec", "detail": str(exc)[:300]}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
+                name = str(body.get("name", "") or "").strip()
+                if not name:
+                    self._send(400, json.dumps({"error": "name is required"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
                 template = ExperimentTemplate(
                     id=f"tmpl-{uuid.uuid4().hex[:12]}",
-                    name=body.get("name", ""),
-                    description=body.get("description", ""),
-                    spec=body.get("spec"),
-                    version=body.get("version", "1.0.0"),
-                    created_by="api-user",
+                    name=name,
+                    description=str(body.get("description", "")),
+                    spec=spec,
+                    version=str(body.get("version", "1.0.0")),
+                    created_by=caller or "anonymous",
                     tags=tuple(body.get("tags", [])),
-                    is_public=body.get("is_public", False),
+                    is_public=bool(body.get("is_public", False)),
                 )
                 experiment_archive.store_template(template)
                 self._send(201, json.dumps(template.to_dict()), request_id=request_id)
@@ -2039,7 +2090,7 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(400, json.dumps({"error": "invalid_json"}), request_id=request_id)
                     self._finish(timer, request_id, "POST", path, 400, "validation")
                     return
-                _, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
+                caller, ok = self._identity(request_id, body if isinstance(body, dict) else None, None)
                 if not ok:
                     self._finish(timer, request_id, "POST", path, 401, "auth")
                     return
@@ -2050,18 +2101,29 @@ class Handler(BaseHTTPRequestHandler):
                         self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
                         self._finish(timer, request_id, "POST", path, 404, "not_found")
                         return
-                    # Create new version
-                    version = body.get("version", len(exp.get("versions", [])) + 1)
+                    # Validate the version spec through the canonical validator
+                    # (module-global; must not be re-imported locally here or
+                    # it shadows the global for every other do_POST path).
+                    try:
+                        spec = validate_spec_payload(body.get("spec") or {})
+                    except ValueError as exc:
+                        self._send(400, json.dumps({"error": "invalid_spec", "detail": str(exc)[:300]}), request_id=request_id)
+                        self._finish(timer, request_id, "POST", path, 400, "validation")
+                        return
+                    # Versions are standalone records; never seed the list
+                    # with the experiment itself (that creates a circular
+                    # reference that breaks JSON serialization).
+                    existing = [v for v in exp.get("versions", []) if isinstance(v, dict)]
+                    version = body.get("version", len(existing) + 1)
                     new_version = {
                         "version": version,
-                        "spec": body.get("spec"),
+                        "spec": spec.to_dict(),
+                        "fingerprint": spec.fingerprint(),
                         "created_at": datetime.now(timezone.utc).isoformat(),
-                        "created_by": "api-user",
+                        "created_by": caller or "anonymous",
                         "description": body.get("description", ""),
                     }
-                    versions = exp.get("versions", [exp])
-                    versions.append(new_version)
-                    exp["versions"] = versions
+                    exp["versions"] = existing + [new_version]
                     exp["status"] = "configured"
                     experiment_archive.store_experiment(exp)
                     self._send(201, json.dumps({"experiment_id": experiment_id, "version": new_version}), request_id=request_id)
@@ -2178,9 +2240,27 @@ class Handler(BaseHTTPRequestHandler):
                 self._finish(timer, request_id, "POST", path, 401, "auth")
                 return
             try:
-                from .experiments import ExperimentScheduler
-                # In-memory scheduler - just acknowledge
-                self._send(201, json.dumps({"job_id": f"job-{uuid.uuid4().hex[:12]}", "status": "scheduled"}), request_id=request_id)
+                from .experiments import local_scheduler
+                experiment_id = str(body.get("experiment_id", "") or "").strip()
+                if not experiment_id:
+                    self._send(400, json.dumps({"error": "experiment_id is required"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
+                try:
+                    spec = validate_spec_payload(body.get("spec") or {})
+                except ValueError as exc:
+                    self._send(400, json.dumps({"error": "invalid_spec", "detail": str(exc)[:300]}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
+                run_at = body.get("run_at")
+                repeat = body.get("repeat")
+                if repeat not in (None, "hourly", "daily"):
+                    self._send(400, json.dumps({"error": "repeat must be hourly, daily, or omitted"}), request_id=request_id)
+                    self._finish(timer, request_id, "POST", path, 400, "validation")
+                    return
+                job_id = local_scheduler.schedule(experiment_id, spec, run_at=run_at, repeat=repeat)
+                local_scheduler.start()
+                self._send(201, json.dumps({"job_id": job_id, "status": "scheduled", "run_at": run_at, "repeat": repeat}), request_id=request_id)
                 self._finish(timer, request_id, "POST", path, 201)
             except Exception:
                 log_event("internal_error", request_id=request_id, route="scheduler-create")

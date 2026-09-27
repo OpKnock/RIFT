@@ -34,6 +34,10 @@ SCENARIO_BOUNDS = {
     "corridor_capacity": (1.0, 10000.0),
     "blocked_b_penalty": (0.0, 1000.0),
     "smoke_growth": (-20.0, 20.0),
+    # traffic-optimization domain (see src/rift/domains/traffic/domain.py)
+    "flow_rate": (0.0, 5000.0),
+    "queue_length": (0.0, 200.0),
+    "avg_wait_time": (0.0, 300.0),
 }
 
 

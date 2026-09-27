@@ -54,26 +54,26 @@ RIFT_ENV=development
 RIFT_API_URL=http://localhost:8080
 RIFT_WS_URL=ws://localhost:8080
 
-# Database
-DATABASE_URL=sqlite:///./rift_local.db
-# For PostgreSQL: postgresql://rift:rift@db:5432/rift
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
+# Persistence (Supabase; unset = in-memory/durable-JSONL fallback)
+RIFT_SUPABASE_URL=${RIFT_SUPABASE_URL:-}
+RIFT_SUPABASE_KEY=${RIFT_SUPABASE_KEY:-}
+# JWT mode (verified Supabase JWT; unset = service-token/open-dev mode)
+RIFT_SUPABASE_JWT_SECRET=${RIFT_SUPABASE_JWT_SECRET:-}
+RIFT_SUPABASE_JWT_AUD=${RIFT_SUPABASE_JWT_AUD:-}
 
 # Quantum
 IBM_QPU_TOKEN=${IBM_QPU_TOKEN:-}
 QUANTUM_BACKEND=statevector-simulator
 
-# Security
+# Security (canonical names — must match what src/rift reads)
 RIFT_API_TOKEN=dev-token-change-in-production
-JWT_SECRET=dev-jwt-secret-change-in-production
-WEBHOOK_SECRET=dev-webhook-secret-change-in-production
+RIFT_WEBHOOK_SECRET=dev-webhook-secret-change-in-production
+RIFT_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 
-# Billing (optional)
-LEMON_SQUEEZY_API_KEY=${LEMON_SQUEEZY_API_KEY:-}
-LEMON_SQUEEZY_STORE_ID=${LEMON_SQUEEZY_STORE_ID:-}
-LEMON_SQUEEZY_WEBHOOK_SECRET=${LEMON_SQUEEZY_WEBHOOK_SECRET:-}
+# Billing (optional, Lemon Squeezy; RIFT_-prefixed canonical)
+RIFT_LEMON_SQUEEZY_API_KEY=${RIFT_LEMON_SQUEEZY_API_KEY:-}
+RIFT_LEMON_SQUEEZY_STORE_ID=${RIFT_LEMON_SQUEEZY_STORE_ID:-}
+RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET=${RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET:-}
 
 # Monitoring
 PROMETHEUS_PORT=9090
@@ -95,8 +95,6 @@ EOF
 # Generate docker-compose for local dev
 gen_compose() {
     cat > "${COMPOSE_FILE}" <<'EOF'
-version: '3.8'
-
 services:
   rift-api:
     build:
@@ -106,11 +104,8 @@ services:
       - "8080:8080"
     environment:
       - RIFT_ENV=development
-      - DATABASE_URL=sqlite:///./rift_local.db
-      - REDIS_URL=redis://redis:6379/0
       - RIFT_API_TOKEN=dev-token
-      - JWT_SECRET=dev-jwt-secret
-      - WEBHOOK_SECRET=dev-webhook-secret
+      - RIFT_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
       - LOG_LEVEL=DEBUG
       - LOG_FORMAT=json
     volumes:
@@ -120,15 +115,16 @@ services:
       - ./constraints.txt:/app/constraints.txt:ro
       - rift_data:/app/data
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     command: python -m rift.api
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/api/health || exit 1"]
+      interval: 15s
+      timeout: 15s
+      retries: 30
+      start_period: 90s
 
   rift-frontend:
     build:
@@ -139,11 +135,15 @@ services:
     environment:
       - VITE_API_URL=http://localhost:8080/api
       - VITE_WS_URL=ws://localhost:8080
+      - VITE_API_TARGET=http://rift-api:8080
     volumes:
       - ./frontend/src:/app/src:ro
       - ./frontend/public:/app/public:ro
+      - ./frontend/index.html:/app/index.html:ro
       - ./frontend/package.json:/app/package.json:ro
       - ./frontend/vite.config.ts:/app/vite.config.ts:ro
+      - ./frontend/tailwind.config.js:/app/tailwind.config.js:ro
+      - ./frontend/postcss.config.js:/app/postcss.config.js:ro
     command: npm run dev -- --host 0.0.0.0
     restart: unless-stopped
 
@@ -214,8 +214,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY constraints.txt .
 RUN pip install --no-cache-dir -r constraints.txt
 
-# Install package in dev mode
+# Install package in dev mode (src/ MUST be copied before pip install -e .,
+# otherwise the editable install fails: 'src does not exist or is not a directory')
 COPY pyproject.toml .
+COPY src/ ./src/
 RUN pip install -e .
 
 # Expose API port
