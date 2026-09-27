@@ -354,6 +354,19 @@ class ExperimentArchive:
         with self._lock:
             return list(self._runs.get(experiment_id, []))
 
+    def find_run(self, run_id: str) -> ExperimentRun | None:
+        """Find a run by id across all experiments (public accessor).
+
+        Replaces direct ``_runs``/``_experiments`` iteration so callers
+        never depend on archive internals.
+        """
+        with self._lock:
+            for runs in self._runs.values():
+                for run in runs:
+                    if run.id == run_id:
+                        return run
+        return None
+
     def store_template(self, template: ExperimentTemplate) -> None:
         with self._lock:
             self._templates[template.id] = template
@@ -392,6 +405,12 @@ class ExperimentArchive:
     def get_evidence_bundle(self, bundle_id: str) -> EvidenceBundle | None:
         with self._lock:
             return self._evidence_bundles.get(bundle_id)
+
+    def evidence_for_experiment(self, experiment_id: str) -> list[EvidenceBundle]:
+        """All evidence bundles for one experiment (public accessor)."""
+        with self._lock:
+            return [b for b in self._evidence_bundles.values()
+                    if b.experiment_id == experiment_id]
 
     def export_experiment(self, exp_id: str) -> dict | None:
         """Export full experiment package for portability."""

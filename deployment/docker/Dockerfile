@@ -1,6 +1,21 @@
 # RIFT Production Dockerfile
 # Phase 20: Deployment/Governance - Hardened container
 
+# Frontend build stage: compile the canonical React product UI
+# (frontend/) so the production image serves the same application
+# that local dev runs, not just the legacy static lab page (web/).
+FROM node:20-alpine AS frontend-builder
+WORKDIR /build
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/index.html ./
+COPY frontend/vite.config.ts frontend/tsconfig.json frontend/tsconfig.node.json ./
+COPY frontend/tailwind.config.js frontend/postcss.config.js ./
+COPY frontend/public ./public
+COPY frontend/src ./src
+# Same-origin production: relative /api needs no VITE_API_URL override.
+RUN npm run build
+
 # Build stage
 FROM python:3.11-slim AS builder
 
@@ -47,6 +62,9 @@ COPY --chown=rift:rift src/ ./src/
 COPY --chown=rift:rift backend/ ./backend/
 COPY --chown=rift:rift data/ ./data/
 COPY --chown=rift:rift web/ ./web/
+# Canonical React product UI (built above). The API serves it at /app/
+# with SPA fallback; legacy web/ stays at its existing paths.
+COPY --chown=rift:rift --from=frontend-builder /build/dist ./frontend-dist/
 
 # Switch to non-root user
 USER rift

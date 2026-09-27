@@ -52,3 +52,24 @@ jobs:
           done
           curl -f http://localhost:8080/api/health
           docker stop rift-ci
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint (ESLint, zero warnings)
+        run: npm run lint
+      - name: Unit tests (Vitest)
+        run: npx vitest run
+      - name: Typecheck + production build
+        run: npm run build

@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { PROFILE_KEY, readDisplayName, writeDisplayName } from './profile'
 import { User, Shield, Bell, Palette, Key, Globe, Database, Moon, Sun, Monitor, Save } from 'lucide-react'
 import { cn } from '@/utils/cn'
 import { Card } from '@/components/ui/card'
@@ -7,23 +9,16 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { useTheme } from '@/components/providers/theme-provider'
+import { useTheme } from '@/components/providers/use-theme'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { readUtm } from '@/hooks/use-utm'
 import { api, apiErrorMessage, type HealthStatus, type EngineMeta } from '@/services/api'
 
-const PROFILE_KEY = 'rift-profile-name'
-
 export function Settings() {
   const { resolvedTheme, setTheme } = useTheme()
-  const [activeTab, setActiveTab] = useState('profile')
-  const [displayName, setDisplayName] = useState(() => {
-    try {
-      return localStorage.getItem(PROFILE_KEY) || ''
-    } catch {
-      return ''
-    }
-  })
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'profile')
+  const [displayName, setDisplayName] = useState(() => readDisplayName())
   const [savedTick, setSavedTick] = useState(false)
   const [tokenInput, setTokenInput] = useState('')
   const [hasToken, setHasToken] = useState(() => api.getToken() !== null)
@@ -53,17 +48,9 @@ export function Settings() {
   }, [])
 
   const saveProfile = () => {
-    try {
-      if (displayName.trim()) {
-        localStorage.setItem(PROFILE_KEY, displayName.trim())
-      } else {
-        localStorage.removeItem(PROFILE_KEY)
-      }
-      setSavedTick(true)
-      window.setTimeout(() => setSavedTick(false), 2000)
-    } catch {
-      /* storage unavailable */
-    }
+    writeDisplayName(displayName)
+    setSavedTick(true)
+    window.setTimeout(() => setSavedTick(false), 2000)
   }
 
   const saveToken = () => {
@@ -104,7 +91,7 @@ export function Settings() {
         <p className="text-secondary-600 dark:text-secondary-400 mt-1">Local preferences plus live server security posture. Nothing here pretends to manage server-side accounts.</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setSearchParams(v === 'profile' ? {} : { tab: v }) }} className="w-full">
         <TabsList className="grid w-full grid-cols-4 md:grid-cols-7 gap-1 p-1 bg-secondary-100 dark:bg-secondary-800 rounded-lg">
           {tabs.map((tab) => (
             <TabsTrigger key={tab.id} value={tab.id} className="flex items-center gap-2 px-3 py-2">

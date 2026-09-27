@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -68,23 +68,23 @@ export function Incidents() {
   const [newIncident, setNewIncident] = useState({ title: '', description: '', type: 'manual' as IncidentType, severity: 'medium' as IncidentSeverity, tags: '' })
   const [creating, setCreating] = useState(false)
 
-  const fetchIncidents = async () => {
+  const fetchIncidents = useCallback(async () => {
     try {
       const data = await api.getIncidents(filters)
       setIncidents(data)
     } catch (e) {
       setError(apiErrorMessage(e, 'Failed to load incidents'))
     }
-  }
+  }, [filters])
 
-  const fetchDecisions = async () => {
+  const fetchDecisions = useCallback(async () => {
     try {
       const data = await api.getDecisions()
       setDecisions(data)
     } catch (e) {
       setError(apiErrorMessage(e, 'Failed to load decisions'))
     }
-  }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -96,7 +96,7 @@ export function Incidents() {
     load()
     const timer = setInterval(load, POLL_MS)
     return () => { cancelled = true; clearInterval(timer) }
-  }, [filters])
+  }, [fetchIncidents, fetchDecisions])
 
   const createIncident = async (e: React.FormEvent) => {
     e.preventDefault()

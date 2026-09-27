@@ -30,6 +30,7 @@ export const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
           'inline-flex items-center font-medium rounded-full',
           variants[variant],
           sizes[size],
+          className,
         )}
         {...props}
       >

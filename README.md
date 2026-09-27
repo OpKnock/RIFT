@@ -50,7 +50,7 @@ RIFT Core
 - **Digital Twin**: Patient state sync, risk prediction, trajectories, provenance
 - **Optimization**: Exact, QAOA, CVaR-QAOA with quantum simulator backends
 - **Guardian 2.0**: 16-rule staged verification (INPUT→STATE→MODEL→COUNTERFACTUAL→OPTIMIZATION→OUTPUT→DEPLOYMENT)
-- **Real-time**: WebSocket/SSE event bus, source registry with trust scoring, cross-source consistency, auto-reconciliation
+- **Real-time**: SSE event stream (`GET /api/events/stream`: incident/decision lifecycle), source registry with trust scoring, cross-source consistency, auto-reconciliation (no WebSocket upgrade on the stdlib server)
 - **Experiments**: Templates, versioning, deterministic replay, benchmarks, comparisons, export/import
 - **Model Lifecycle**: Versioning, shadow mode, champion/challenger, drift/calibration monitoring, lineage
 - **Performance**: Parallel execution, deterministic caching, job queues, checkpointing, resource scheduling

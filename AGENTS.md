@@ -7,7 +7,7 @@ RIFT is a counterfactual decision lab: world state → futures → CHAOS → rob
 - Product boundaries: `experiments.py` (specs/fingerprints), `limits.py` (bounds), `auth.py` (token gate + ownership), `auth_jwt.py` (verified JWT identity), `ratelimit.py` (in-process budgets), `settings.py` (server env), `supabase_store.py`/`persistence.py` (DB), `billing.py` (Lemon Squeezy), `observability.py` (request IDs/logs), `api.py` (HTTP), `cli.py`, `qpu.py` (gated Qiskit/IBM adapter: `solve_on_aer` + `solve_on_ibm`)
 - Healthcare demo: `health/` (PatientState/EHR/wearable sources/baseline/transition/risk/twin/FORESIGHT/robustness/Guardian/explain/evaluate/demo data); v1 platform: `observations`+`adapters`+`timeline` (canonical ingestion), `model_registry`+provenance (traceability), `decision` (policy comparison), `training` (experiment framework), `fhir_clinical`/`estimation`/`drift` (clinical ingestion, estimator comparison, shift detection); engine stays generic in `src/rift/`
 - Migrations (source of truth): `backend/supabase/migrations/` 001→007
-- Frontend: `web/` (lab + status/history/settings/save-execute panels)
+- Frontend: `frontend/` (React 18 + TS + Vite + Tailwind; canonical product UI: dashboard/simulation/runs/experiments/evidence/incidents/explainability). Legacy static lab page in `web/` (served by the API at `/`) is NOT the product UI — do not build new features there.
 - Tests: `tests/` (unit + API boundary + auth + billing lifecycle + hardening + execute-flow/runner/schema)
 - CI scripts: `scripts/` (migrations, secrets, versions)
 - Docs: `docs/` (setup, api, experiments, billing, security, deployment, review, release-checklist) + `README.md`, `CHANGELOG.md`

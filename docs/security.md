@@ -21,9 +21,44 @@
 - Oversized payloads get 413; malformed JSON gets 400; invalid UUIDs get 400.
 - Cross-user reads/writes denied via `owner_mismatch` (403) when stored `user_id` differs.
 - Optional `RIFT_API_TOKEN` bearer gate (401 when mismatched).
-- Security headers on all responses; CSP on the served page; no ACAO wildcard.
+- Security headers on all responses; CSP on the served page; CORS is an explicit origin allow-list (`RIFT_CORS_ORIGINS`, default `http://localhost:5173,http://127.0.0.1:5173`) — no wildcard; disallowed origins get no ACAO headers.
 - Secret scan in CI (`scripts/secret_scan.py`); migration safety gate (`scripts/validate_migrations.py`).
 - Frontend renders only via `escapeHtml`; no embedded keys in `web/`.
+
+## Endpoint authentication matrix (authoritative; verified against `src/rift/api.py`)
+
+`_identity()` passes silently in open dev mode and enforces 401 whenever
+JWT or service-token auth is configured. So "gated" below means *gated in
+production, open in local dev*.
+
+**Open in all modes** (no identity; public demo/telemetry surface):
+`GET /api/health`, `GET /api/meta`, `GET /api/persistence/status`,
+`GET /api/billing/status`, `GET /api/demo`, `GET /api/twin/demo`,
+`GET /api/twin/evidence`.
+
+**Gated** (`_identity`, 401 when auth is configured):
+`GET /api/ops/monitor`, `GET /api/events/stream`, `GET /metrics`,
+`GET /api/billing/entitlement`, `GET /api/twin/prospective`,
+`GET /api/twin/reviews`, `GET /api/operations/incidents`,
+`GET /api/operations/decisions`, `GET /api/explainability/audit`,
+`GET /api/explainability/evidence`, `GET /api/intelligence/status`,
+all `GET /api/experiments/*` sub-routes (templates, versions, runs,
+snapshots, benchmarks, evidence, export, replay, scheduler) and
+`GET /api/experiments/:id`, `GET /api/runs/:id`.
+
+**Gated + ownership-enforced** (403 on `owner_mismatch`):
+Supabase experiment/run reads and writes, `POST /api/experiments/compare`
+(run resolution), export/replay Supabase fallbacks, `POST` incident/decision
+actions (actor = authenticated caller, never a hardcoded service name).
+
+**Special cases:**
+- `POST /api/billing/webhook`: HMAC `X-Signature`, never bearer tokens.
+- `POST /api/twin/reviews`: `reviewer_id` must equal the authenticated
+  principal (`identity_mismatch` → 400); unattributed reviews are rejected
+  whenever auth is configured and otherwise stored with
+  `identity_verified: false`.
+- `GET /api/events/stream`: long-lived SSE; occupies one server thread per
+  client until disconnect (local/dev fan-out scale, not internet scale).
 
 ## Residual risks (do not ignore in production)
 1. **Multi-tenancy without an IdP.** `user_id` is caller-asserted. Deploy behind Supabase Auth (verify JWTs server-side) before treating rows as private. RLS is a second layer, not the only layer — and service-role keys bypass RLS by design. Setting `RIFT_SUPABASE_JWT_SECRET` switches the server to verified-identity mode; until then, `RIFT_REQUIRE_USER_ID` + ownership checks are assertion-based only.
