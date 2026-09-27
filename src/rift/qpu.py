@@ -46,6 +46,26 @@ def qaoa_hardware_available() -> bool:
         return False
 
 
+def backend_status() -> dict:
+    """Effective quantum backend state for /api/health and /api/meta.
+
+    The serving backend is always the local simulator; IBM hardware is
+    opt-in per call (solve_on_ibm with RIFT_QPU_TOKEN), never the
+    default. No advantage is claimed either way.
+    """
+    aer = qiskit_aer_available()
+    hw = qaoa_hardware_available()
+    return {
+        "backend": "statevector-simulator" if aer else "unavailable",
+        "aer_available": aer,
+        "hardware_configured": hw,
+        "hardware_default": False,
+        "note": ("Qiskit Aer simulator; IBM hardware is explicit opt-in per "
+                 "call only" if aer else
+                 "Qiskit Aer not installed: simulator paths are unavailable"),
+    }
+
+
 def _ising_operator(qubo: QUBO):
     """Map QUBO (x in {0,1}) to an Ising SparsePauliOp via x = (1 - Z) / 2."""
     from qiskit.quantum_info import SparsePauliOp

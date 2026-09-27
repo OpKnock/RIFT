@@ -41,9 +41,11 @@ def _canonical(action: str, evidence_id: str, reviewer_id: str,
 class ReviewLedger:
     """Append-only clinician-judgment log with tamper-evident chaining.
 
-    Pass store_path (or set RIFT_REVIEWS_LEDGER) for crash-safe JSONL
-    durability: every record is fsynced on append and replayed on startup.
-    Without it the ledger is demonstration-grade in-memory only.
+    Crash-safe JSONL durability by default (``RIFT_DATA_DIR``/``./data``;
+    every record fsynced on append, replayed on startup). Set
+    ``RIFT_REVIEWS_LEDGER`` to override the path, or to empty string to
+    force pure in-memory mode (tests only — audit data is then lost on
+    restart).
     """
 
     def __init__(self, store_path: str | None = None) -> None:
@@ -134,4 +136,37 @@ class ReviewLedger:
         return self._store is not None
 
 
-ledger = ReviewLedger(store_path=os.environ.get("RIFT_REVIEWS_LEDGER") or None)
+def _default_store_path(env_name: str, filename: str) -> str | None:
+    """Durable-by-default ledger path.
+
+    Explicit env value wins (empty string forces pure in-memory, e.g. for
+    tests); otherwise ``RIFT_DATA_DIR``/``./data`` holds crash-safe JSONL.
+    """
+    explicit = os.environ.get(env_name)
+    if explicit is not None:
+        return explicit or None
+    base = os.environ.get("RIFT_DATA_DIR", "data")
+    return os.path.join(base, filename)
+
+
+_ledger: ReviewLedger | None = None
+
+
+def get_ledger() -> ReviewLedger:
+    """Process-wide review ledger, constructed on first use.
+
+    Lazy (not import-time) so importing the module never touches the
+    filesystem: the durable JSONL file is created on first actual use.
+    """
+    global _ledger
+    if _ledger is None:
+        _ledger = ReviewLedger(store_path=_default_store_path("RIFT_REVIEWS_LEDGER", "reviews.jsonl"))
+    return _ledger
+
+
+def __getattr__(name: str):
+    # Legacy attribute access (reviews.ledger) resolves through the
+    # lazy singleton. Prefer get_ledger() in new code.
+    if name == "ledger":
+        return get_ledger()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

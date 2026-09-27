@@ -54,4 +54,27 @@ def test_prospective_ledger_survives_restart(tmp_path):
 def test_in_memory_ledgers_stay_demo_grade():
     assert ReviewLedger().durable is False
     assert ProspectiveManager().durable is False
-    assert pros_module.manager.durable is False  # default process: demo mode
+
+
+def test_process_singletons_are_durable_by_default(tmp_path, monkeypatch):
+    # Point the durable default at tmp: singletons must be crash-safe
+    # without any explicit env configuration.
+    monkeypatch.setenv("RIFT_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(pros_module, "_manager", None)
+    import rift.health.reviews as rev_module
+    monkeypatch.setattr(rev_module, "_ledger", None)
+    assert pros_module.get_manager().durable is True
+    assert rev_module.get_ledger().durable is True
+    assert (tmp_path / "prospective.jsonl").exists()
+    assert (tmp_path / "reviews.jsonl").exists()
+
+
+def test_empty_env_forces_in_memory(tmp_path, monkeypatch):
+    monkeypatch.setenv("RIFT_DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("RIFT_REVIEWS_LEDGER", "")
+    monkeypatch.setenv("RIFT_PROSPECTIVE_LEDGER", "")
+    import rift.health.reviews as rev_module
+    monkeypatch.setattr(pros_module, "_manager", None)
+    monkeypatch.setattr(rev_module, "_ledger", None)
+    assert pros_module.get_manager().durable is False
+    assert rev_module.get_ledger().durable is False

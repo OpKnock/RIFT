@@ -2,11 +2,20 @@ import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'ax
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
+export interface QuantumBackendDetail {
+  backend: string
+  aer_available: boolean
+  hardware_configured: boolean
+  hardware_default: boolean
+  note: string
+}
+
 export interface HealthStatus {
   status: string
   engine: string
   version: string
   quantum_backend: string
+  quantum_backend_detail?: QuantumBackendDetail
   persistence: { configured: boolean }
   billing: { configured: boolean; provider: string }
 }
@@ -15,6 +24,7 @@ export interface EngineMeta {
   engine: string
   engine_version: string
   quantum_backend: string
+  quantum_backend_detail?: QuantumBackendDetail
   capabilities: string[]
   optimizers: string[]
   backends: string[]

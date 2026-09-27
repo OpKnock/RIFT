@@ -15,14 +15,13 @@ import time
 
 class ProspectiveManager:
     """Prospective ledger: locked predictions, no retro-refit. Deterministic,
-    no clock leakage.
+    no clock leakage. Durable by default: crash-safe JSONL under
+    ``RIFT_DATA_DIR``/``./data`` unless ``RIFT_PROSPECTIVE_LEDGER``
+    overrides the path (empty string forces in-memory, tests only).
 
     Each prediction is stored with its issuance day and input hash;
     outcome arrival is a separate step that records (not mutates) the
     locked prediction.
-
-    Pass store_path (or set RIFT_PROSPECTIVE_LEDGER) for crash-safe JSONL
-    durability. Without it the ledger is demonstration-grade in-memory only.
     """
 
     def __init__(self, store_path: str | None = None) -> None:
@@ -97,4 +96,29 @@ class ProspectiveManager:
         return self._store is not None
 
 
-manager = ProspectiveManager(store_path=os.environ.get("RIFT_PROSPECTIVE_LEDGER") or None)
+def _default_store_path(env_name: str, filename: str) -> str | None:
+    """Durable-by-default ledger path (see reviews._default_store_path)."""
+    explicit = os.environ.get(env_name)
+    if explicit is not None:
+        return explicit or None
+    base = os.environ.get("RIFT_DATA_DIR", "data")
+    return os.path.join(base, filename)
+
+
+_manager: ProspectiveManager | None = None
+
+
+def get_manager() -> ProspectiveManager:
+    """Process-wide prospective ledger, constructed on first use (see reviews.get_ledger)."""
+    global _manager
+    if _manager is None:
+        _manager = ProspectiveManager(store_path=_default_store_path("RIFT_PROSPECTIVE_LEDGER", "prospective.jsonl"))
+    return _manager
+
+
+def __getattr__(name: str):
+    # Legacy attribute access (prospective.manager) resolves through the
+    # lazy singleton. Prefer get_manager() in new code.
+    if name == "manager":
+        return get_manager()
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
