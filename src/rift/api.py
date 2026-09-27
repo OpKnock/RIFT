@@ -976,6 +976,236 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
                     self._finish(timer, request_id, "GET", path, 502, "persistence_error")
                 return
+        # --- Phase 10: Experiment Platform ---
+        if path == "/api/experiments/templates":
+            _, ok = self._identity(request_id)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
+            try:
+                from .experiments import experiment_archive
+                templates = [t.to_dict() for t in experiment_archive.list_templates(public_only=False)]
+                self._send(200, json.dumps({"templates": templates}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
+            except Exception:
+                self._send(500, json.dumps({"error": "templates_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
+            return
+
+        if path.startswith("/api/experiments/templates/"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 4:
+                template_id = parts[3]
+                _, ok = self._identity(request_id)
+                if not ok:
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
+                    return
+                try:
+                    from .experiments import experiment_archive
+                    template = experiment_archive.get_template(template_id)
+                    if template:
+                        self._send(200, json.dumps(template.to_dict()), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 200)
+                    else:
+                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 404, "not_found")
+                except Exception:
+                    self._send(500, json.dumps({"error": "templates_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 500, "internal")
+                return
+
+        if path.startswith("/api/experiments/") and path.endswith("/versions"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 4:
+                experiment_id = parts[2]
+                _, ok = self._identity(request_id)
+                if not ok:
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
+                    return
+                try:
+                    from .experiments import experiment_archive
+                    exp = experiment_archive.get_experiment(experiment_id)
+                    if not exp:
+                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 404, "not_found")
+                        return
+                    # Return version history from experiment record
+                    versions = exp.get("versions", [exp])
+                    self._send(200, json.dumps({"experiment_id": experiment_id, "versions": versions}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 200)
+                except Exception:
+                    self._send(500, json.dumps({"error": "versions_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 500, "internal")
+                return
+
+        if path.startswith("/api/experiments/") and path.endswith("/runs"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 4:
+                experiment_id = parts[2]
+                _, ok = self._identity(request_id)
+                if not ok:
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
+                    return
+                try:
+                    from .experiments import experiment_archive
+                    runs = [r.to_dict() for r in experiment_archive.get_runs(experiment_id)]
+                    self._send(200, json.dumps({"experiment_id": experiment_id, "runs": runs}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 200)
+                except Exception:
+                    self._send(500, json.dumps({"error": "runs_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 500, "internal")
+                return
+
+        if path.startswith("/api/experiments/") and "/runs/" in path:
+            parts = path.strip("/").split("/")
+            if len(parts) == 5:
+                experiment_id = parts[2]
+                run_id = parts[4]
+                _, ok = self._identity(request_id)
+                if not ok:
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
+                    return
+                try:
+                    from .experiments import experiment_archive
+                    runs = experiment_archive.get_runs(experiment_id)
+                    run = next((r for r in runs if r.id == run_id), None)
+                    if run:
+                        self._send(200, json.dumps(run.to_dict()), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 200)
+                    else:
+                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 404, "not_found")
+                except Exception:
+                    self._send(500, json.dumps({"error": "runs_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 500, "internal")
+                return
+
+        if path.startswith("/api/experiments/") and path.endswith("/snapshots"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 4:
+                experiment_id = parts[2]
+                _, ok = self._identity(request_id)
+                if not ok:
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
+                    return
+                try:
+                    from .experiments import experiment_archive
+                    exp = experiment_archive.get_experiment(experiment_id)
+                    if exp and exp.get("snapshot"):
+                        self._send(200, json.dumps(exp["snapshot"]), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 200)
+                    else:
+                        self._send(404, json.dumps({"error": "no_snapshot"}), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 404, "not_found")
+                except Exception:
+                    self._send(500, json.dumps({"error": "snapshots_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 500, "internal")
+                return
+
+        if path == "/api/experiments/benchmarks":
+            _, ok = self._identity(request_id)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
+            try:
+                from .experiments import experiment_archive
+                benchmarks = [b.to_dict() for b in experiment_archive._benchmarks.values()]
+                self._send(200, json.dumps({"benchmarks": benchmarks}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
+            except Exception:
+                self._send(500, json.dumps({"error": "benchmarks_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
+            return
+
+        if path.startswith("/api/experiments/") and path.endswith("/evidence"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 4:
+                experiment_id = parts[2]
+                _, ok = self._identity(request_id)
+                if not ok:
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
+                    return
+                try:
+                    from .experiments import experiment_archive
+                    bundles = [b.to_dict() for b in experiment_archive._evidence_bundles.values() if b.experiment_id == experiment_id]
+                    self._send(200, json.dumps({"experiment_id": experiment_id, "bundles": bundles}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 200)
+                except Exception:
+                    self._send(500, json.dumps({"error": "evidence_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 500, "internal")
+                return
+
+        if path.startswith("/api/experiments/") and path.endswith("/export"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 4:
+                experiment_id = parts[2]
+                _, ok = self._identity(request_id)
+                if not ok:
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
+                    return
+                try:
+                    from .experiments import experiment_archive
+                    package = experiment_archive.export_experiment(experiment_id)
+                    if package:
+                        self._send(200, json.dumps(package), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 200)
+                    else:
+                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 404, "not_found")
+                except Exception:
+                    self._send(500, json.dumps({"error": "export_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 500, "internal")
+                return
+
+        if path.startswith("/api/experiments/") and path.endswith("/replay"):
+            parts = path.strip("/").split("/")
+            if len(parts) == 4:
+                experiment_id = parts[2]
+                _, ok = self._identity(request_id)
+                if not ok:
+                    self._finish(timer, request_id, "GET", path, 401, "auth")
+                    return
+                try:
+                    from .experiments import experiment_archive, verify_reproducibility
+                    exp = experiment_archive.get_experiment(experiment_id)
+                    if not exp:
+                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 404, "not_found")
+                        return
+                    spec = exp.get("spec")
+                    if not spec:
+                        self._send(400, json.dumps({"error": "no_spec"}), request_id=request_id)
+                        self._finish(timer, request_id, "GET", path, 400, "validation")
+                        return
+                    # In a real implementation, this would re-run the experiment
+                    # For now, return the spec for client-side replay
+                    self._send(200, json.dumps({
+                        "experiment_id": experiment_id,
+                        "spec": spec,
+                        "fingerprint": exp.get("fingerprint"),
+                        "message": "Use this spec with POST /api/demo or POST /api/experiments/{id}/runs to replay"
+                    }), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 200)
+                except Exception:
+                    self._send(500, json.dumps({"error": "replay_error", "request_id": request_id}), request_id=request_id)
+                    self._finish(timer, request_id, "GET", path, 500, "internal")
+                return
+
+        if path == "/api/experiments/scheduler/jobs":
+            _, ok = self._identity(request_id)
+            if not ok:
+                self._finish(timer, request_id, "GET", path, 401, "auth")
+                return
+            try:
+                from .experiments import experiment_archive
+                # Return scheduler job status (in-memory)
+                self._send(200, json.dumps({"jobs": [], "message": "Scheduler jobs are in-memory only"}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 200)
+            except Exception:
+                self._send(500, json.dumps({"error": "scheduler_error", "request_id": request_id}), request_id=request_id)
+                self._finish(timer, request_id, "GET", path, 500, "internal")
+            return
+
         if path.startswith("/api/experiments/"):
             parts = path.strip("/").split("/")
             if len(parts) == 3:
@@ -1721,236 +1951,6 @@ class Handler(BaseHTTPRequestHandler):
             _remember_webhook_key(key)
             self._send(200, json.dumps({"received": True, "event": event["event_name"]}), request_id=request_id)
             self._finish(timer, request_id, "POST", path, 200)
-            return
-
-        # --- Phase 10: Experiment Platform ---
-        if path == "/api/experiments/templates":
-            _, ok = self._identity(request_id)
-            if not ok:
-                self._finish(timer, request_id, "GET", path, 401, "auth")
-                return
-            try:
-                from .experiments import experiment_archive
-                templates = [t.to_dict() for t in experiment_archive.list_templates(public_only=False)]
-                self._send(200, json.dumps({"templates": templates}), request_id=request_id)
-                self._finish(timer, request_id, "GET", path, 200)
-            except Exception:
-                self._send(500, json.dumps({"error": "templates_error", "request_id": request_id}), request_id=request_id)
-                self._finish(timer, request_id, "GET", path, 500, "internal")
-            return
-
-        if path.startswith("/api/experiments/templates/"):
-            parts = path.strip("/").split("/")
-            if len(parts) == 4:
-                template_id = parts[3]
-                _, ok = self._identity(request_id)
-                if not ok:
-                    self._finish(timer, request_id, "GET", path, 401, "auth")
-                    return
-                try:
-                    from .experiments import experiment_archive
-                    template = experiment_archive.get_template(template_id)
-                    if template:
-                        self._send(200, json.dumps(template.to_dict()), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 200)
-                    else:
-                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 404, "not_found")
-                except Exception:
-                    self._send(500, json.dumps({"error": "templates_error", "request_id": request_id}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 500, "internal")
-                return
-
-        if path.startswith("/api/experiments/") and path.endswith("/versions"):
-            parts = path.strip("/").split("/")
-            if len(parts) == 4:
-                experiment_id = parts[2]
-                _, ok = self._identity(request_id)
-                if not ok:
-                    self._finish(timer, request_id, "GET", path, 401, "auth")
-                    return
-                try:
-                    from .experiments import experiment_archive
-                    exp = experiment_archive.get_experiment(experiment_id)
-                    if not exp:
-                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 404, "not_found")
-                        return
-                    # Return version history from experiment record
-                    versions = exp.get("versions", [exp])
-                    self._send(200, json.dumps({"experiment_id": experiment_id, "versions": versions}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 200)
-                except Exception:
-                    self._send(500, json.dumps({"error": "versions_error", "request_id": request_id}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 500, "internal")
-                return
-
-        if path.startswith("/api/experiments/") and path.endswith("/runs"):
-            parts = path.strip("/").split("/")
-            if len(parts) == 4:
-                experiment_id = parts[2]
-                _, ok = self._identity(request_id)
-                if not ok:
-                    self._finish(timer, request_id, "GET", path, 401, "auth")
-                    return
-                try:
-                    from .experiments import experiment_archive
-                    runs = [r.to_dict() for r in experiment_archive.get_runs(experiment_id)]
-                    self._send(200, json.dumps({"experiment_id": experiment_id, "runs": runs}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 200)
-                except Exception:
-                    self._send(500, json.dumps({"error": "runs_error", "request_id": request_id}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 500, "internal")
-                return
-
-        if path.startswith("/api/experiments/") and "/runs/" in path:
-            parts = path.strip("/").split("/")
-            if len(parts) == 5:
-                experiment_id = parts[2]
-                run_id = parts[4]
-                _, ok = self._identity(request_id)
-                if not ok:
-                    self._finish(timer, request_id, "GET", path, 401, "auth")
-                    return
-                try:
-                    from .experiments import experiment_archive
-                    runs = experiment_archive.get_runs(experiment_id)
-                    run = next((r for r in runs if r.id == run_id), None)
-                    if run:
-                        self._send(200, json.dumps(run.to_dict()), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 200)
-                    else:
-                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 404, "not_found")
-                except Exception:
-                    self._send(500, json.dumps({"error": "runs_error", "request_id": request_id}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 500, "internal")
-                return
-
-        if path.startswith("/api/experiments/") and path.endswith("/snapshots"):
-            parts = path.strip("/").split("/")
-            if len(parts) == 4:
-                experiment_id = parts[2]
-                _, ok = self._identity(request_id)
-                if not ok:
-                    self._finish(timer, request_id, "GET", path, 401, "auth")
-                    return
-                try:
-                    from .experiments import experiment_archive
-                    exp = experiment_archive.get_experiment(experiment_id)
-                    if exp and exp.get("snapshot"):
-                        self._send(200, json.dumps(exp["snapshot"]), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 200)
-                    else:
-                        self._send(404, json.dumps({"error": "no_snapshot"}), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 404, "not_found")
-                except Exception:
-                    self._send(500, json.dumps({"error": "snapshots_error", "request_id": request_id}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 500, "internal")
-                return
-
-        if path == "/api/experiments/benchmarks":
-            _, ok = self._identity(request_id)
-            if not ok:
-                self._finish(timer, request_id, "GET", path, 401, "auth")
-                return
-            try:
-                from .experiments import experiment_archive
-                benchmarks = [b.to_dict() for b in experiment_archive._benchmarks.values()]
-                self._send(200, json.dumps({"benchmarks": benchmarks}), request_id=request_id)
-                self._finish(timer, request_id, "GET", path, 200)
-            except Exception:
-                self._send(500, json.dumps({"error": "benchmarks_error", "request_id": request_id}), request_id=request_id)
-                self._finish(timer, request_id, "GET", path, 500, "internal")
-            return
-
-        if path.startswith("/api/experiments/") and path.endswith("/evidence"):
-            parts = path.strip("/").split("/")
-            if len(parts) == 4:
-                experiment_id = parts[2]
-                _, ok = self._identity(request_id)
-                if not ok:
-                    self._finish(timer, request_id, "GET", path, 401, "auth")
-                    return
-                try:
-                    from .experiments import experiment_archive
-                    bundles = [b.to_dict() for b in experiment_archive._evidence_bundles.values() if b.experiment_id == experiment_id]
-                    self._send(200, json.dumps({"experiment_id": experiment_id, "bundles": bundles}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 200)
-                except Exception:
-                    self._send(500, json.dumps({"error": "evidence_error", "request_id": request_id}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 500, "internal")
-                return
-
-        if path.startswith("/api/experiments/") and path.endswith("/export"):
-            parts = path.strip("/").split("/")
-            if len(parts) == 4:
-                experiment_id = parts[2]
-                _, ok = self._identity(request_id)
-                if not ok:
-                    self._finish(timer, request_id, "GET", path, 401, "auth")
-                    return
-                try:
-                    from .experiments import experiment_archive
-                    package = experiment_archive.export_experiment(experiment_id)
-                    if package:
-                        self._send(200, json.dumps(package), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 200)
-                    else:
-                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 404, "not_found")
-                except Exception:
-                    self._send(500, json.dumps({"error": "export_error", "request_id": request_id}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 500, "internal")
-                return
-
-        if path.startswith("/api/experiments/") and path.endswith("/replay"):
-            parts = path.strip("/").split("/")
-            if len(parts) == 4:
-                experiment_id = parts[2]
-                _, ok = self._identity(request_id)
-                if not ok:
-                    self._finish(timer, request_id, "GET", path, 401, "auth")
-                    return
-                try:
-                    from .experiments import experiment_archive, verify_reproducibility
-                    exp = experiment_archive.get_experiment(experiment_id)
-                    if not exp:
-                        self._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 404, "not_found")
-                        return
-                    spec = exp.get("spec")
-                    if not spec:
-                        self._send(400, json.dumps({"error": "no_spec"}), request_id=request_id)
-                        self._finish(timer, request_id, "GET", path, 400, "validation")
-                        return
-                    # In a real implementation, this would re-run the experiment
-                    # For now, return the spec for client-side replay
-                    self._send(200, json.dumps({
-                        "experiment_id": experiment_id,
-                        "spec": spec,
-                        "fingerprint": exp.get("fingerprint"),
-                        "message": "Use this spec with POST /api/demo or POST /api/experiments/{id}/runs to replay"
-                    }), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 200)
-                except Exception:
-                    self._send(500, json.dumps({"error": "replay_error", "request_id": request_id}), request_id=request_id)
-                    self._finish(timer, request_id, "GET", path, 500, "internal")
-                return
-
-        if path == "/api/experiments/scheduler/jobs":
-            _, ok = self._identity(request_id)
-            if not ok:
-                self._finish(timer, request_id, "GET", path, 401, "auth")
-                return
-            try:
-                from .experiments import experiment_archive
-                # Return scheduler job status (in-memory)
-                self._send(200, json.dumps({"jobs": [], "message": "Scheduler jobs are in-memory only"}), request_id=request_id)
-                self._finish(timer, request_id, "GET", path, 200)
-            except Exception:
-                self._send(500, json.dumps({"error": "scheduler_error", "request_id": request_id}), request_id=request_id)
-                self._finish(timer, request_id, "GET", path, 500, "internal")
             return
 
         # POST endpoints for Phase 10
