@@ -51,7 +51,9 @@ export class ErrorBoundary extends Component<Props, State> {
                 Something went wrong
               </h1>
               <p className="text-secondary-600 dark:text-secondary-400 mb-6">
-                We encountered an unexpected error. Our team has been notified.
+                We encountered an unexpected error. It was logged locally in this
+                browser only — no report leaves your machine. Use “Report Issue”
+                below to file it yourself.
               </p>
 
               {this.state.error && (
@@ -61,8 +63,13 @@ export class ErrorBoundary extends Component<Props, State> {
                   </summary>
                   <pre className="bg-secondary-100 dark:bg-secondary-800 p-3 rounded-lg text-xs overflow-x-auto text-secondary-700 dark:text-secondary-300 max-h-40 overflow-y-auto">
                     {this.state.error.message}
-                    {this.state.error.stack && `\n\n${this.state.error.stack}`}
+                    {import.meta.env.DEV && this.state.error.stack && `\n\n${this.state.error.stack}`}
                   </pre>
+                  {!import.meta.env.DEV && (
+                    <p className="text-xs text-secondary-500 mt-2">
+                      Full stack traces are shown in development builds only.
+                    </p>
+                  )}
                 </details>
               )}
 
@@ -77,7 +84,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 </Button>
                 <Button
                   variant="ghost"
-                  onClick={() => window.open('https://github.com/OpKnock/RIFT/issues/new', '_blank')}
+                  onClick={() => window.open('https://github.com/OpKnock/RIFT/issues/new', '_blank', 'noopener,noreferrer')}
                   className="text-error-600 hover:text-error-700 dark:text-error-400 dark:hover:text-error-300"
                 >
                   <Bug className="w-4 h-4 mr-2" aria-hidden="true" />

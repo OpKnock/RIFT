@@ -6,5 +6,7 @@ __pycache__/
 venv/
 .env
 .pytest_cache/
+# Local durable ledgers (reviews/prospective JSONL) — runtime state, never commit.
+data/*.jsonl
 frontend/node_modules/
 frontend/dist/

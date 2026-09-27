@@ -47,9 +47,16 @@ snapshots, benchmarks, evidence, export, replay, scheduler) and
 `GET /api/experiments/:id`, `GET /api/runs/:id`.
 
 **Gated + ownership-enforced** (403 on `owner_mismatch`):
-Supabase experiment/run reads and writes, `POST /api/experiments/compare`
+Supabase experiment/run rows, `POST /api/experiments/compare`
 (run resolution), export/replay Supabase fallbacks, `POST` incident/decision
 actions (actor = authenticated caller, never a hardcoded service name).
+
+**Listing visibility:** `GET /api/operations/incidents` and
+`GET /api/operations/decisions` are workspace-visible by default (so
+owner-less triage items stay reachable) with `?owner=<id>` and
+`?mine=true` (caller principal) filters available. This matches the
+single-tenant assumption in residual risk 3 — do not treat listing
+visibility as a multi-tenant boundary.
 
 **Special cases:**
 - `POST /api/billing/webhook`: HMAC `X-Signature`, never bearer tokens.

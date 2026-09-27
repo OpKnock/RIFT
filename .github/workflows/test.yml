@@ -73,3 +73,8 @@ jobs:
         run: npx vitest run
       - name: Typecheck + production build
         run: npm run build
+      - name: Bundle-size gate (total JS ≤ 2048 KB uncompressed)
+        run: |
+          total=$(du -sb dist/assets/*.js | awk '{s+=$1} END {print s}')
+          echo "total JS: $total bytes"
+          test "$total" -le 2097152

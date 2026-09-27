@@ -5,6 +5,36 @@ All notable changes to RIFT will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Experiment import no longer crashes on frozen `ExperimentRun` (runs get fresh ids, specs re-validated)
+- Experiment version creation no longer self-references (standalone version records; specs validated)
+- Reviewer identity bound to authenticated principal (`identity_mismatch` → 400; unattributed reviews rejected when auth is on; `identity_verified` flag in ledger)
+- Review/prospective reads and prospective mutations now gated like other ops endpoints
+- Incident/decision/template audit actors use the authenticated caller (or `anonymous`), never hardcoded names
+- Traffic domain accepted end-to-end (validator, bounds, runner dispatch, live execution verified)
+- Scheduler stores real jobs (validated specs, listable state) instead of acknowledging without scheduling
+- `GET` routes no longer shadowed inside `do_POST` (templates/versions/runs/snapshots/benchmarks/evidence/export/replay/scheduler)
+- `local.sh` generators synced with fixed Dockerfile/compose; canonical `RIFT_*` env names
+- Vite dev proxy honors `VITE_API_TARGET` (host `npm run dev` works again)
+- Dropped `className` props now forwarded in Badge/Input/Textarea/Select/Checkbox/Switch
+- User menu buttons navigate (Settings/API Keys/Security tabs); sign-out clears the token; Language removed (no i18n); profile name shown
+- `window.open` calls use `noopener,noreferrer`; ErrorBoundary no longer claims team notification nor leaks stacks in prod
+- Missing `datetime` import (versions endpoint 500'd always); missing `__main__` block (API container crash-looped); Vite port/index.html/config mounts; CORS allow-list for browser API access
+
+### Added
+- `GET /api/events/stream` (SSE lifecycle events), `GET /api/intelligence/status`, `POST /api/intelligence/scenario|explain` (mock-labeled by default)
+- `GET /api/experiments/*` Supabase fallbacks with ownership for export/replay; Supabase→archive dual-write mirror
+- Domain-agnostic `guardian_core` stages; traffic domain with Guardian rules T-001…T-005
+- Frontend CI job (lint zero-warnings, 15 Vitest tests, build) + bundle-size gate (2 MB JS)
+- `prometheus.local.yml` for compose (production file stays k8s-only)
+- Production image builds and serves the React app at `/app/` with SPA fallback
+- Authoritative endpoint auth matrix in `docs/security.md`; `UPGRADE.md`, `EXTENSION.md`
+- Durable-by-default review/prospective JSONL ledgers (lazy singletons, `RIFT_DATA_DIR`)
+- JSON checkpoints with fingerprint integrity (pickle removed)
+- `?owner=` / `?mine=true` listing filters for incidents/decisions
+
 ## [1.0.0] - 2026-09-27
 
 ### Added

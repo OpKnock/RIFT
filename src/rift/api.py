@@ -802,11 +802,14 @@ class Handler(BaseHTTPRequestHandler):
                 self._finish(timer, request_id, "GET", path, 500, "internal")
             return
         if path == "/api/health":
+            from .qpu import backend_status
+            qb = backend_status()
             payload = {
                 "status": "ok",
                 "engine": "rift",
                 "version": ENGINE_VERSION,
-                "quantum_backend": "statevector-simulator",
+                "quantum_backend": qb["backend"],
+                "quantum_backend_detail": qb,
                 "persistence": supabase_status(),
                 "billing": billing_status(),
             }
@@ -814,11 +817,16 @@ class Handler(BaseHTTPRequestHandler):
             self._finish(timer, request_id, "GET", path, 200)
             return
         if path == "/api/meta":
+            from .qpu import backend_status
+            qb = backend_status()
             self._send(200, json.dumps({
                 "engine": "rift",
                 "engine_version": ENGINE_VERSION,
-                "quantum_backend": "statevector-simulator",
-                "capabilities": ["demo", "experiments", "runs", "billing", "guardian"],
+                "quantum_backend": qb["backend"],
+                "quantum_backend_detail": qb,
+                "capabilities": ["demo", "twin", "experiments", "runs",
+                                 "operations", "explainability", "intelligence",
+                                 "billing", "guardian", "events"],
                 "optimizers": ["exact", "qaoa-expectation", "qaoa-cvar"],
                 "backends": ["statevector-simulator"],
                 "limits": describe_limits(),
@@ -943,7 +951,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._finish(timer, request_id, "GET", path, 500, "internal")
             return
         if path == "/api/operations/incidents":
-            _, ok = self._identity(request_id)
+            # Tenant scoping: ?owner=<id> filters to one owner, ?mine=true
+            # filters to the authenticated caller. Without either, listing
+            # is workspace-visible (single-tenant assumption documented in
+            # docs/security.md) so unacknowledged (owner-less) incidents
+            # stay triageable.
+            caller, ok = self._identity(request_id, None, query)
             if not ok:
                 self._finish(timer, request_id, "GET", path, 401, "auth")
                 return
@@ -954,11 +967,15 @@ class Handler(BaseHTTPRequestHandler):
                 status = (query.get("status") or [None])[0]
                 severity = (query.get("severity") or [None])[0]
                 type_ = (query.get("type") or [None])[0]
+                owner = (query.get("owner") or [None])[0]
+                if (query.get("mine") or [""])[0].lower() in ("1", "true", "yes"):
+                    owner = caller
 
                 incidents = incident_store.list(
                     status=IncidentStatus(status) if status else None,
                     severity=IncidentSeverity(severity) if severity else None,
                     type=IncidentType(type_) if type_ else None,
+                    owner=owner,
                     limit=100,
                 )
                 self._send(200, json.dumps([i.to_dict() for i in incidents]), request_id=request_id)
@@ -991,7 +1008,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
 
         if path == "/api/operations/decisions":
-            _, ok = self._identity(request_id)
+            # Same tenant-scoping contract as the incident listing: ?owner=
+            # filters (mapped to proposed_by here), ?mine=true scopes to
+            # the caller; unfiltered listing stays workspace-visible.
+            caller, ok = self._identity(request_id, None, query)
             if not ok:
                 self._finish(timer, request_id, "GET", path, 401, "auth")
                 return
@@ -1001,10 +1021,14 @@ class Handler(BaseHTTPRequestHandler):
 
                 status = (query.get("status") or [None])[0]
                 scenario_id = (query.get("scenario_id") or [None])[0]
+                proposed_by = (query.get("owner") or [None])[0]
+                if (query.get("mine") or [""])[0].lower() in ("1", "true", "yes"):
+                    proposed_by = caller
 
                 decisions = decision_store.list(
                     status=DecisionStatus(status) if status else None,
                     scenario_id=scenario_id,
+                    proposed_by=proposed_by,
                     limit=100,
                 )
                 self._send(200, json.dumps([d.to_dict() for d in decisions]), request_id=request_id)
