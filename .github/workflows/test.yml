@@ -11,8 +11,9 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
-      - run: pip install -e ".[dev]" -c constraints.txt
-      - run: pytest
+      - run: pip install -e ".[dev,qiskit]" -c constraints.txt
+      # -rs so any future skip prints its reason instead of going unexplained.
+      - run: pytest -q -rs
   validate:
     runs-on: ubuntu-latest
     steps:
