@@ -28,3 +28,4 @@ coverage
 .turbo
 dist-ssr
 *.local
+frontend/src/probe-line.tsx
