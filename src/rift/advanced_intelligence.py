@@ -427,7 +427,7 @@ Identify patterns and suggest fixes.
             try:
                 validated = validate_spec_payload(spec)
                 scenarios.append(validated.to_dict())
-            except Exception:
+            except Exception:  # nosec B110 -- grid-search skips invalid combos; valid ones still collected
                 pass
         return scenarios
 
@@ -470,7 +470,7 @@ class LearningInfrastructure:
     def record_feedback(self, decision_id: str, outcome: str, feedback: dict) -> dict:
         """Record human feedback on a decision outcome."""
         entry = {
-            "feedback_id": f"fb-{hashlib.md5(f'{decision_id}{datetime.now()}'.encode()).hexdigest()[:12]}",
+            "feedback_id": f"fb-{hashlib.md5(f'{decision_id}{datetime.now()}'.encode(), usedforsecurity=False).hexdigest()[:12]}",
             "decision_id": decision_id,
             "outcome": outcome,  # "correct", "incorrect", "partial", "unknown"
             "feedback": feedback,
@@ -483,7 +483,7 @@ class LearningInfrastructure:
     def record_decision_outcome(self, decision_id: str, predicted_risk: float, realized_event: bool, horizon_days: int) -> dict:
         """Record realized outcome for a decision."""
         entry = {
-            "tracking_id": f"trk-{hashlib.md5(f'{decision_id}{datetime.now()}'.encode()).hexdigest()[:12]}",
+            "tracking_id": f"trk-{hashlib.md5(f'{decision_id}{datetime.now()}'.encode(), usedforsecurity=False).hexdigest()[:12]}",
             "decision_id": decision_id,
             "predicted_risk": predicted_risk,
             "realized_event": realized_event,
@@ -498,7 +498,7 @@ class LearningInfrastructure:
     def propose_model_candidate(self, model_id: str, candidate_config: dict, evidence: dict) -> dict:
         """Propose a model update candidate (requires human approval)."""
         candidate = {
-            "candidate_id": f"cand-{hashlib.md5(f'{model_id}{datetime.now()}'.encode()).hexdigest()[:12]}",
+            "candidate_id": f"cand-{hashlib.md5(f'{model_id}{datetime.now()}'.encode(), usedforsecurity=False).hexdigest()[:12]}",
             "model_id": model_id,
             "config": candidate_config,
             "evidence": evidence,
@@ -563,7 +563,7 @@ class GovernanceManager:
 
     def require_approval_for(self, action_type: str, description: str, requester: str) -> str:
         """Create an approval request for a governance-gated action."""
-        request_id = f"gov-{hashlib.md5(f'{action_type}{description}{datetime.now()}'.encode()).hexdigest()[:12]}"
+        request_id = f"gov-{hashlib.md5(f'{action_type}{description}{datetime.now()}'.encode(), usedforsecurity=False).hexdigest()[:12]}"
         request = {
             "request_id": request_id,
             "action_type": action_type,  # "model_promotion", "shadow_mode", "retraining", "policy_change"

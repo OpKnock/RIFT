@@ -79,7 +79,7 @@ RIFT Core
 | `GET /api/operations/incidents` | Incident lifecycle |
 | `GET /api/operations/decisions` | Decision workflow |
 | `GET /api/explainability/audit` | Audit trail |
-| `WS /events` | Real-time event stream |
+| `GET /api/events/stream` | Real-time event stream (SSE, no WebSocket upgrade) |
 
 ## Configuration
 
@@ -94,7 +94,7 @@ Key variables:
 - `RIFT_SUPABASE_URL` / `RIFT_SUPABASE_KEY` — database (unset = in-process archive + durable-JSONL fallback under `data/`; no SQLite)
 - `RIFT_SUPABASE_JWT_SECRET` — Verified-JWT identity (production)
 - `RIFT_API_TOKEN` — Service token for auth
-- `IBM_QPU_TOKEN` — IBM Quantum token (optional)
+- `RIFT_QPU_TOKEN` — IBM Quantum token (optional)
 - `RIFT_LEMON_SQUEEZY_*` — Billing (optional)
 
 ## Development

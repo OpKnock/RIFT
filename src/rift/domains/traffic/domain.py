@@ -74,7 +74,7 @@ def create_traffic_scenario(config: dict | None = None) -> Scenario:
         # Add stochastic variation (deterministic seed based on state)
         import hashlib
         seed_str = f"{state['flow_rate']:.1f}{state['queue_length']:.1f}{green_time:.2f}"
-        h = int(hashlib.md5(seed_str.encode()).hexdigest()[:8], 16)
+        h = int(hashlib.md5(seed_str.encode(), usedforsecurity=False).hexdigest()[:8], 16)
         noise = (h % 1000) / 10000.0 - 0.05  # -5% to +5%
 
         return {
@@ -357,8 +357,8 @@ try:
     # Only register if extension manager is available
     if hasattr(extension_manager, '_manifests'):
         extension_manager._manifests[DOMAIN_ID] = traffic_manifest
-except Exception:
-    pass  # Extension manager not available yet
+except Exception:  # nosec B110 -- extension manager not available yet; domain still importable standalone
+    pass
 
 
 # Canonical plugin instance

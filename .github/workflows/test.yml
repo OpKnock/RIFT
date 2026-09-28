@@ -114,4 +114,4 @@ jobs:
         run: npx playwright test -c playwright.config.ts
       - if: always()
         name: Stop production image
-        run: docker stop rift-e2e; docker rm rift-e2e
+        run: docker stop rift-e2e 2>/dev/null || true; docker rm rift-e2e 2>/dev/null || true

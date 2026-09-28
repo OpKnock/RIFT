@@ -162,7 +162,7 @@ def _spec_from_payload(payload: dict) -> "ExperimentSpec | None":
         try:
             from rift.experiments import ExperimentSpec
             return ExperimentSpec(**payload["spec"])
-        except Exception:
+        except Exception:  # nosec B110 -- unparseable mirror spec falls through to row-shape adaptation below
             pass
     try:
         return _spec_from_experiment_row(payload)

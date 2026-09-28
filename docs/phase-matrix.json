@@ -392,10 +392,13 @@
    "evidence": {
     "endpoints": [],
     "files": [
-     "web/index.html",
-     "web/app.js"
+     "frontend/src/App.tsx",
+     "frontend/src/main.tsx",
+     "frontend/playwright.config.ts",
+     "frontend/e2e/app.e2e.ts"
     ],
     "tests": [
+     "tests/test_frontend_serving.py",
      "tests/test_health_api.py"
     ]
    },

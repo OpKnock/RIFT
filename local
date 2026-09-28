@@ -106,9 +106,16 @@ services:
     ports:
       - "8080:8080"
     environment:
+      # Values interpolate from the shell (start() sources .env.local),
+      # so operator-supplied Supabase/JWT/token settings actually reach
+      # the container; literals below are dev-only defaults.
       - RIFT_ENV=development
-      - RIFT_API_TOKEN=dev-token
-      - RIFT_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+      - RIFT_API_TOKEN=${RIFT_API_TOKEN:-dev-token-change-in-production}
+      - RIFT_SUPABASE_URL=${RIFT_SUPABASE_URL:-}
+      - RIFT_SUPABASE_KEY=${RIFT_SUPABASE_KEY:-}
+      - RIFT_SUPABASE_JWT_SECRET=${RIFT_SUPABASE_JWT_SECRET:-}
+      - RIFT_SUPABASE_JWT_AUD=${RIFT_SUPABASE_JWT_AUD:-}
+      - RIFT_CORS_ORIGINS=${RIFT_CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       - LOG_LEVEL=DEBUG
       - LOG_FORMAT=json
     volumes:

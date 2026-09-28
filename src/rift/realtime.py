@@ -85,7 +85,7 @@ class EventBus:
             try:
                 q.put_nowait(event)
                 delivered += 1
-            except Exception:
+            except Exception:  # nosec B110 -- one slow subscriber must not break fan-out to the rest
                 pass
         return delivered
 
@@ -146,7 +146,7 @@ class WSConnection:
             async for msg in self.ws:
                 data = json.loads(msg)
                 await self._handle_message(data)
-        except Exception:
+        except Exception:  # nosec B110 -- disconnect ends the loop; cleanup in finally still runs
             pass
         finally:
             await self._cleanup()
@@ -171,7 +171,7 @@ class WSConnection:
             while True:
                 event = await queue.get()
                 await self.ws.send(json.dumps({"type": "event", "topic": topic, "data": event}))
-        except Exception:
+        except Exception:  # nosec B110 -- send failure ends this forwarder; the bus itself is unaffected
             pass
 
     async def _cleanup(self) -> None:
