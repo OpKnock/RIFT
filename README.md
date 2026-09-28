@@ -91,11 +91,11 @@ cp .env.example .env
 
 Key variables:
 - `RIFT_ENV` — development/production
-- `DATABASE_URL` — SQLite (dev) or PostgreSQL (prod)
+- `RIFT_SUPABASE_URL` / `RIFT_SUPABASE_KEY` — database (unset = in-process archive + durable-JSONL fallback under `data/`; no SQLite)
+- `RIFT_SUPABASE_JWT_SECRET` — Verified-JWT identity (production)
 - `RIFT_API_TOKEN` — Service token for auth
-- `JWT_SECRET` — JWT signing key
 - `IBM_QPU_TOKEN` — IBM Quantum token (optional)
-- `LEMON_SQUEEZY_*` — Billing (optional)
+- `RIFT_LEMON_SQUEEZY_*` — Billing (optional)
 
 ## Development
 

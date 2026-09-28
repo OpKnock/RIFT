@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "vitest",
+    "test:e2e": "playwright test -c playwright.config.ts",
     "test:ui": "vitest --ui"
   },
   "dependencies": {
@@ -32,6 +33,7 @@
     "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/file-saver": "^2.0.5",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",

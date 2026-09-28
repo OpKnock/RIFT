@@ -4,8 +4,8 @@
 boundary: parsing, rate limiting, auth, dispatch, and the 404 tail. The 55
 `if path == ...` route blocks used to live inline in `do_GET`/`do_POST`,
 making `api.py` ~2900 lines. They now live here, one module per area
-(54 handlers after the dead duplicate `/runs` route was removed and the
-`/` → `/app/` redirect was added):
+(55 handlers: 36 GET + 19 POST — the dead duplicate `/runs` route was
+removed and a `/` → `/app/` redirect added):
 
 | module               | routes                                                        |
 |----------------------|---------------------------------------------------------------|

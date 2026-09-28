@@ -79,7 +79,9 @@ legacy rows stay readable). The boundary holds across **both** stores:
   archive read enforces the same check — stale/deleted Supabase rows are
   never served cross-tenant via the mirror.
 - Supabase outage surfaces as `unavailable` → `502`; handlers never fall
-  back to the mirror on outage (compare included).
+  back to the mirror on outage (compare included). When Supabase is
+  configured, a clean miss is final — the archive is a mirror/cache, not
+  a second source of truth, so deleted rows cannot resurrect from it.
 - Incidents bind `owner` at create; incident/decision mutations require
   owner/proposer match (ownerless legacy objects stay actionable).
 - Versions write through to Supabase (`versions` column, migration `008`);

@@ -174,12 +174,14 @@ def _resolve_experiment(store: "SupabaseStore", experiment_id: str,
                         caller: str | None) -> tuple[dict | None, dict | None, str | None]:
     """Single resolve path for experiment reads (persistence unification).
 
-    Supabase first when configured (ownership-enforced), then the local
-    archive mirror (ownership-enforced too: mirror records carry user_id).
-    Returns (payload_dict, spec_dict_or_None, error) where error is None
-    on success, "forbidden", "missing", or "unavailable" (Supabase outage:
-    callers must 502, never silently serve the mirror). Payload shape
-    mirrors the Supabase row so callers treat both stores uniformly.
+    Supabase first when configured (ownership-enforced). The archive
+    mirror is only consulted when Supabase is NOT configured: once the
+    database is authoritative, a clean miss means "missing" (404) — a
+    deleted row must never resurrect from a stale mirror, and an outage
+    surfaces as "unavailable" (callers must 502, never serve the mirror).
+    Archive records carry user_id so the unconfigured path enforces the
+    same tenant boundary. Payload shape mirrors the Supabase row so
+    callers treat both stores uniformly.
 
     Never sends responses (unlike _load_row): callers own status codes,
     so fallback never double-sends. A Supabase transport error surfaces
@@ -195,6 +197,10 @@ def _resolve_experiment(store: "SupabaseStore", experiment_id: str,
             return None, None, "forbidden"
         spec = _spec_from_experiment_row(row)
         return (dict(row), spec.to_dict() if spec is not None else None, None)
+    if store.configured:
+        # Authoritative miss: the archive is only a mirror/cache, never a
+        # second source of truth. A deleted row must not resurrect here.
+        return None, None, "missing"
     exp = experiment_archive.get_experiment(experiment_id)
     if exp:
         # The archive mirror is not authoritative, but it is also not
@@ -217,6 +223,8 @@ def _resolve_run(store: "SupabaseStore", run_id: str,
         if owner_mismatch(row.get("user_id"), caller):
             return None, "forbidden"
         return dict(row), None
+    if store.configured:
+        return None, "missing"
     run = experiment_archive.find_run(run_id)
     if run is not None:
         if owner_mismatch(getattr(run, "user_id", None), caller):

@@ -183,7 +183,12 @@ All gated when auth is set; experiment/run creation additionally needs
 the database (503 otherwise). Supabase writes are mirrored into the
 local archive, so compare/export/replay see a unified view. Ownership is
 enforced on both stores (403 on mismatch); a Supabase outage is 502, never
-a silent mirror read. Versions/import responses carry `"durable": true`
+a silent mirror read. When Supabase is configured it is authoritative for
+reads: export/replay/compare resolve there first (miss is 404, outage is
+502) and never fall back to the archive, so deleted rows cannot resurrect
+from a stale mirror; compare answers 404 `candidate_not_found` (with ids)
+rather than silently comparing fewer candidates than requested.
+Versions/import responses carry `"durable": true`
 when the write reached Supabase (migration `008` adds the `versions`
 column); archive-only writes report `"durable": false`. Templates are
 visible when public, system/legacy, or owned by the caller.

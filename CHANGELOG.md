@@ -17,6 +17,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Runs list reads the authoritative store with per-row tenant filtering (and archive fallback unconfigured); dead duplicate `/runs` handler removed
 - Frontend consumes realtime SSE on the operations page (live badge, polling fallback); session state restores across reloads via `/auth/session-info`
 - Removed unused `socket.io-client` dependency (backend exposes SSE, not Socket.IO)
+- Export/replay read Supabase first when configured (outage 502, miss 404); the archive is only used unconfigured — stale mirrors can no longer resurrect deleted rows or mask outages
+- `_resolve_experiment`/`_resolve_run` no longer consult the archive when Supabase is configured (miss stays missing)
+- Compare returns 404 `candidate_not_found` (with ids) instead of silently comparing a smaller candidate set
+- Production CSP explicitly allows Google Fonts (previously contradicted index.html); PWA/manifest scope fixed under `/app/`
+- Removed 37 unreachable trailing `return False` statements left by the api.py split
+- Frontend served-asset contract gated in CI (built HTML must reference `/app/`); new Playwright E2E job exercises the production image in a real browser
+- `local` health checks hit `/app/`, drops SQLite references (JSONL ledgers), and no longer requires host Node/npm
 - Experiment import no longer crashes on frozen `ExperimentRun` (runs get fresh ids, specs re-validated)
 - Experiment version creation no longer self-references (standalone version records; specs validated)
 - Reviewer identity bound to authenticated principal (`identity_mismatch` → 400; unattributed reviews rejected when auth is on; `identity_verified` flag in ledger)

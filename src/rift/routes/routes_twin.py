@@ -47,7 +47,6 @@ def get_api_twin_demo(h, request_id, timer, path, query):
         h._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
-    return False
 
 
 def get_api_twin_prospective(h, request_id, timer, path, query):
@@ -65,7 +64,6 @@ def get_api_twin_prospective(h, request_id, timer, path, query):
                    request_id=request_id)
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
-    return False
 
 
 def get_api_twin_reviews(h, request_id, timer, path, query):
@@ -86,7 +84,6 @@ def get_api_twin_reviews(h, request_id, timer, path, query):
                    request_id=request_id)
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
-    return False
 
 
 def get_api_explainability_audit(h, request_id, timer, path, query):
@@ -104,7 +101,6 @@ def get_api_explainability_audit(h, request_id, timer, path, query):
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
 
-    return False
 
 
 def get_api_explainability_evidence(h, request_id, timer, path, query):
@@ -122,7 +118,6 @@ def get_api_explainability_evidence(h, request_id, timer, path, query):
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
 
-    return False
 
 
 def get_api_intelligence_status(h, request_id, timer, path, query):
@@ -151,7 +146,6 @@ def get_api_intelligence_status(h, request_id, timer, path, query):
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
 
-    return False
 
 
 def get_api_twin_evidence(h, request_id, timer, path, query):
@@ -259,7 +253,6 @@ def get_api_twin_evidence(h, request_id, timer, path, query):
         h._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
-    return False
 
 
 def post_api_twin_reviews(h, request_id, timer, path, query):
@@ -327,7 +320,6 @@ def post_api_twin_reviews(h, request_id, timer, path, query):
         h._finish(timer, request_id, "POST", path, 500, "internal")
     return True
 
-    return False
 
 
 def post_api_twin_prospective(h, request_id, timer, path, query):
@@ -383,7 +375,6 @@ def post_api_twin_prospective(h, request_id, timer, path, query):
         return True
     h._finish(timer, request_id, "POST", path, 200)
     return True
-    return False
 
 
 def post_api_intelligence_scenario(h, request_id, timer, path, query):
@@ -422,7 +413,6 @@ def post_api_intelligence_scenario(h, request_id, timer, path, query):
         h._finish(timer, request_id, "POST", path, 500, "internal")
     return True
 
-    return False
 
 
 def post_api_intelligence_explain(h, request_id, timer, path, query):
@@ -470,4 +460,3 @@ def post_api_intelligence_explain(h, request_id, timer, path, query):
         h._finish(timer, request_id, "POST", path, 500, "internal")
     return True
 
-    return False

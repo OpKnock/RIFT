@@ -33,8 +33,11 @@ check_prereqs() {
     command -v docker >/dev/null || missing+=("docker")
     command -v docker-compose >/dev/null || missing+=("docker-compose")
     command -v python3 >/dev/null || missing+=("python3")
-    command -v node >/dev/null || missing+=("node")
-    command -v npm >/dev/null || missing+=("npm")
+    # Node/npm are optional on the host: the frontend runs inside its
+    # container (npm run dev), so a Docker-only developer without Node
+    # must still be able to start the stack.
+    command -v node >/dev/null || warn "node not found on host (ok: frontend runs in-container)"
+    command -v npm >/dev/null || warn "npm not found on host (ok: frontend runs in-container)"
 
     if [ ${#missing[@]} -gt 0 ]; then
         error "Missing prerequisites: ${missing[*]}"
@@ -298,9 +301,10 @@ start() {
         return 1
     fi
 
-    # Verify Frontend
-    if curl -sf "http://localhost:5173" >/dev/null; then
-        success "RIFT Frontend is running at http://localhost:5173"
+    # Verify Frontend (the bundle lives under /app/; the Vite root alone
+    # proves nothing about the real application URL).
+    if curl -sf "http://localhost:5173/app/" >/dev/null; then
+        success "RIFT Frontend is running at http://localhost:5173/app/"
     else
         warn "Frontend may still be starting"
     fi
@@ -309,7 +313,7 @@ start() {
     docker-compose -f "${COMPOSE_FILE}" ps
     success "RIFT local environment started!"
     log "API: http://localhost:8080"
-    log "Frontend: http://localhost:5173"
+    log "Frontend: http://localhost:5173/app/"
     log "Prometheus: http://localhost:9090"
     log "Grafana: http://localhost:3000 (admin/admin)"
 }
@@ -335,10 +339,9 @@ reset() {
     # Remove volumes
     docker-compose -f "${COMPOSE_FILE}" down -v
 
-    # Remove local database
-    rm -f "${RIFT_ROOT}/rift_local.db"
-    rm -f "${RIFT_ROOT}/rift_local.db-wal"
-    rm -f "${RIFT_ROOT}/rift_local.db-shm"
+    # No local database files to remove: persistence is Supabase when
+    # configured, otherwise the in-process archive plus durable JSONL
+    # ledgers under data/ (kept: audit history must survive a reset).
 
     # Remove logs
     rm -rf "${LOG_DIR}"
@@ -385,7 +388,7 @@ health() {
     if curl -sf "http://localhost:8080/api/persistence/status" | jq -e '.configured == true' >/dev/null 2>&1; then
         success "Database: Connected"
     else
-        warn "Database: Not configured (using SQLite fallback)"
+        warn "Database: Not configured (in-process archive + durable-JSONL fallback)"
     fi
 
     # Redis
@@ -410,8 +413,8 @@ health() {
         warn "Grafana: Not responding"
     fi
 
-    # Frontend
-    if curl -sf "http://localhost:5173" >/dev/null 2>&1; then
+    # Frontend (real application URL, not the Vite root)
+    if curl -sf "http://localhost:5173/app/" >/dev/null 2>&1; then
         success "Frontend: Running"
     else
         warn "Frontend: Not responding"
@@ -514,8 +517,7 @@ diag() {
     echo "Docker: $(docker --version)"
     echo "Docker Compose: $(docker-compose --version)"
     echo "Python: $(python3 --version)"
-    echo "Node: $(node --version)"
-    echo "NPM: $(npm --version)"
+    echo "Node: $(node --version 2>/dev/null || echo 'not installed on host (in-container only)')"
 
     echo ""
     echo "=== Docker Status ==="
@@ -558,12 +560,9 @@ init_demo() {
         return 1
     fi
 
-    # Initialize local database if using SQLite
-    if [ -f "${RIFT_ROOT}/rift_local.db" ]; then
-        log "SQLite database exists"
-    else
-        log "SQLite database will be created on first API call"
-    fi
+    # Durable JSONL ledgers (data/*.jsonl) are created on first write;
+    # there is no SQLite fallback anymore.
+    log "Ledger directory: ${RIFT_ROOT}/data"
 
     success "Demo data initialized"
 }

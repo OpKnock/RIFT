@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { MessageCircle, X, BookOpen, Bug, Mail } from 'lucide-react'
+import { appPath } from '@/utils/base-path'
 
 export function FloatingContact() {
   const [open, setOpen] = useState(false)
@@ -27,7 +28,7 @@ export function FloatingContact() {
     <div ref={ref} className="fixed bottom-4 right-4 z-40">
       {open && (
         <div className="mb-2 w-60 rounded-xl border border-secondary-200 bg-white p-2 shadow-xl dark:border-secondary-700 dark:bg-secondary-900" role="menu" aria-label="Contact options">
-          <a href="/docs" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-secondary-100 dark:hover:bg-secondary-800" role="menuitem">
+          <a href={appPath('/docs')} className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-secondary-100 dark:hover:bg-secondary-800" role="menuitem">
             <BookOpen className="w-4 h-4 text-secondary-500" />Documentation
           </a>
           <a href="mailto:support@rift.dev" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-secondary-100 dark:hover:bg-secondary-800" role="menuitem">

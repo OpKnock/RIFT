@@ -108,7 +108,6 @@ def get_api_experiments_templates(h, request_id, timer, path, query):
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
 
-    return False
 
 
 def get_api_experiments_templates_2(h, request_id, timer, path, query):
@@ -288,7 +287,6 @@ def get_api_experiments_benchmarks(h, request_id, timer, path, query):
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
 
-    return False
 
 
 def get_api_experiments_evidence(h, request_id, timer, path, query):
@@ -338,47 +336,54 @@ def get_api_experiments_export(h, request_id, timer, path, query):
             return True
         try:
             from rift.experiments import experiment_archive
-            package = experiment_archive.export_experiment(experiment_id)
-            if package is not None and owner_mismatch(
-                    (package.get("experiment") or {}).get("user_id"), caller):
-                h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
-                h._finish(timer, request_id, "GET", path, 403, "auth")
-                return True
-            if package is None:
-                # Fall back to Supabase-backed experiments (with
-                # ownership enforcement) when the local archive
-                # has no record (e.g. after a restart).
-                store = SupabaseStore()
-                if store.configured:
-                    exp_row, failed = h._load_row(
-                        lambda: store.get_experiment(experiment_id),
-                        timer, request_id, "GET", path,
-                    )
-                    if not failed and exp_row:
-                        if owner_mismatch(exp_row.get("user_id"), caller):
-                            h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
-                            h._finish(timer, request_id, "GET", path, 403, "auth")
-                            return True
-                        spec = _spec_from_experiment_row(exp_row)
-                        if spec is not None:
-                            runs_out = []
-                            try:
-                                rows = (store.list_runs(experiment_id).data or [])
-                            except Exception:
-                                rows = []
-                            for row in rows:
-                                if owner_mismatch(row.get("user_id"), caller):
-                                    continue
-                                run = _run_from_row(row, spec)
-                                if run is not None:
-                                    runs_out.append(run.to_dict())
-                            package = {
-                                "experiment": exp_row,
-                                "spec": spec.to_dict(),
-                                "runs": runs_out,
-                                "exported_at": datetime.now(timezone.utc).isoformat(),
-                                "engine_version": ENGINE_VERSION,
-                            }
+            store = SupabaseStore()
+            package = None
+            if store.configured:
+                # Supabase is authoritative here: outage is 502, miss is
+                # 404. The archive is never consulted, so a stale mirror
+                # cannot leak a deleted row or mask an outage.
+                exp_row, failed = h._load_row(
+                    lambda: store.get_experiment(experiment_id),
+                    timer, request_id, "GET", path,
+                )
+                if failed:
+                    return True
+                if owner_mismatch(exp_row.get("user_id"), caller):
+                    h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                    h._finish(timer, request_id, "GET", path, 403, "auth")
+                    return True
+                spec = _spec_from_experiment_row(exp_row)
+                if spec is not None:
+                    try:
+                        rows = (store.list_runs(experiment_id).data or [])
+                    except Exception:
+                        log_event("dependency_failure", request_id=request_id, dependency="supabase")
+                        h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+                        h._finish(timer, request_id, "GET", path, 502, "persistence_error")
+                        return True
+                    runs_out = []
+                    for row in rows:
+                        if not isinstance(row, dict):
+                            continue
+                        if owner_mismatch(row.get("user_id"), caller):
+                            continue
+                        run = _run_from_row(row, spec)
+                        if run is not None:
+                            runs_out.append(run.to_dict())
+                    package = {
+                        "experiment": exp_row,
+                        "spec": spec.to_dict(),
+                        "runs": runs_out,
+                        "exported_at": datetime.now(timezone.utc).isoformat(),
+                        "engine_version": ENGINE_VERSION,
+                    }
+            else:
+                package = experiment_archive.export_experiment(experiment_id)
+                if package is not None and owner_mismatch(
+                        (package.get("experiment") or {}).get("user_id"), caller):
+                    h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                    h._finish(timer, request_id, "GET", path, 403, "auth")
+                    return True
             if package:
                 h._send(200, json.dumps(package), request_id=request_id)
                 h._finish(timer, request_id, "GET", path, 200)
@@ -405,30 +410,33 @@ def get_api_experiments_replay(h, request_id, timer, path, query):
         try:
             from rift.experiments import experiment_archive, validate_spec_payload
             from rift.runner import run_spec
+            store = SupabaseStore()
             spec_data = None
-            exp = experiment_archive.get_experiment(experiment_id)
-            if exp:
-                if owner_mismatch(exp.get("user_id"), caller):
+            if store.configured:
+                # Supabase is authoritative: replay executes the stored
+                # spec, never a stale mirror. Miss is 404, outage is 502
+                # (both sent by _load_row).
+                exp_row, failed = h._load_row(
+                    lambda: store.get_experiment(experiment_id),
+                    timer, request_id, "GET", path,
+                )
+                if failed:
+                    return True
+                if owner_mismatch(exp_row.get("user_id"), caller):
                     h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
                     h._finish(timer, request_id, "GET", path, 403, "auth")
                     return True
-                spec_data = exp.get("spec")
-            if spec_data is None:
-                # Fall back to Supabase-backed experiments (owned).
-                store = SupabaseStore()
-                if store.configured:
-                    exp_row, failed = h._load_row(
-                        lambda: store.get_experiment(experiment_id),
-                        timer, request_id, "GET", path,
-                    )
-                    if not failed and exp_row:
-                        if owner_mismatch(exp_row.get("user_id"), caller):
-                            h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
-                            h._finish(timer, request_id, "GET", path, 403, "auth")
-                            return True
-                        spec = _spec_from_experiment_row(exp_row)
-                        if spec is not None:
-                            spec_data = spec.to_dict()
+                spec = _spec_from_experiment_row(exp_row)
+                if spec is not None:
+                    spec_data = spec.to_dict()
+            else:
+                exp = experiment_archive.get_experiment(experiment_id)
+                if exp:
+                    if owner_mismatch(exp.get("user_id"), caller):
+                        h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
+                        h._finish(timer, request_id, "GET", path, 403, "auth")
+                        return True
+                    spec_data = exp.get("spec")
             if not spec_data:
                 h._send(404, json.dumps({"error": "not_found"}), request_id=request_id)
                 h._finish(timer, request_id, "GET", path, 404, "not_found")
@@ -484,7 +492,6 @@ def get_api_experiments_scheduler_jobs(h, request_id, timer, path, query):
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
 
-    return False
 
 
 def get_api_experiments(h, request_id, timer, path, query):
@@ -611,7 +618,6 @@ def post_api_experiments(h, request_id, timer, path, query):
         h._finish(timer, request_id, "POST", path, 502, "persistence_error")
     return True
 
-    return False
 
 
 def post_api_experiments_runs_run(h, request_id, timer, path, query):
@@ -850,7 +856,6 @@ def post_api_experiments_templates(h, request_id, timer, path, query):
         h._finish(timer, request_id, "POST", path, 500, "internal")
     return True
 
-    return False
 
 
 def post_api_experiments_versions(h, request_id, timer, path, query):
@@ -1013,35 +1018,38 @@ def post_api_experiments_compare(h, request_id, timer, path, query):
         store = SupabaseStore()
 
         def _resolve(run_id: str):
-            # Supabase first when configured (ownership-enforced),
-            # then the local archive mirror (dual-written on create,
-            # ownership-enforced too). Uses the no-send fetch: _load_row
-            # responds itself, so it must not be used on paths that fall
-            # through to the archive (double-send + silent stale reads).
-            # A genuine Supabase outage surfaces as "unavailable" (the
-            # caller 502s) instead of quietly serving the mirror.
+            # Supabase first when configured (ownership-enforced). Uses
+            # the no-send fetch: _load_row responds itself, so it must
+            # not be used on paths that fall through to the archive
+            # (double-send + silent stale reads). A genuine Supabase
+            # outage surfaces as "unavailable" (the caller 502s) instead
+            # of quietly serving the mirror, and an authoritative miss
+            # stays "missing" (no mirror resurrection). The archive is
+            # only consulted when Supabase is unconfigured, or when it
+            # holds data Supabase cannot adapt.
             if store.configured:
                 row, err = _fetch_supabase_row(store, "run", run_id)
                 if err == "unavailable":
                     return "unavailable", None
-                if row:
-                    if owner_mismatch(row.get("user_id"), caller):
+                if not row:
+                    return "missing", None
+                if owner_mismatch(row.get("user_id"), caller):
+                    return "forbidden", None
+                exp_row, exp_err = _fetch_supabase_row(
+                    store, "experiment", row.get("experiment_id", ""))
+                if exp_err == "unavailable":
+                    return "unavailable", None
+                if exp_row:
+                    if owner_mismatch(exp_row.get("user_id"), caller):
                         return "forbidden", None
-                    exp_row, exp_err = _fetch_supabase_row(
-                        store, "experiment", row.get("experiment_id", ""))
-                    if exp_err == "unavailable":
-                        return "unavailable", None
-                    if exp_row:
-                        if owner_mismatch(exp_row.get("user_id"), caller):
-                            return "forbidden", None
-                        spec = _spec_from_experiment_row(exp_row)
-                        if spec is not None:
-                            run = _run_from_row(row, spec)
-                            if run is not None:
-                                return None, run
-                    # Supabase has the run but the chain does not adapt
-                    # (or the experiment is missing there): fall through
-                    # to the archive mirror below.
+                    spec = _spec_from_experiment_row(exp_row)
+                    if spec is not None:
+                        run = _run_from_row(row, spec)
+                        if run is not None:
+                            return None, run
+                # Supabase has the run but the chain does not adapt
+                # (or the experiment is missing there): fall through
+                # to the archive mirror below.
             run = experiment_archive.find_run(run_id)
             if run is not None:
                 if owner_mismatch(getattr(run, "user_id", None), caller):
@@ -1051,6 +1059,7 @@ def post_api_experiments_compare(h, request_id, timer, path, query):
 
         forbidden = False
         unavailable = False
+        missing_candidates: list = []
         candidate_runs = []
         err, baseline_run = _resolve(str(baseline_id))
         if err == "forbidden":
@@ -1066,11 +1075,29 @@ def post_api_experiments_compare(h, request_id, timer, path, query):
                 if err == "unavailable":
                     unavailable = True
                     break
+                if err == "missing":
+                    # Never silently compare a different candidate set
+                    # than the caller asked for.
+                    missing_candidates.append(str(cid))
+                    continue
                 if run is not None:
                     candidate_runs.append(run)
         if forbidden:
             h._send(403, json.dumps({"error": "forbidden"}), request_id=request_id)
             h._finish(timer, request_id, "POST", path, 403, "auth")
+            return True
+        if unavailable:
+            log_event("dependency_failure", request_id=request_id, dependency="supabase")
+            h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
+            h._finish(timer, request_id, "POST", path, 502, "persistence_error")
+            return True
+        if not baseline_run:
+            h._send(404, json.dumps({"error": "baseline_not_found"}), request_id=request_id)
+            h._finish(timer, request_id, "POST", path, 404, "not_found")
+            return True
+        if missing_candidates:
+            h._send(404, json.dumps({"error": "candidate_not_found", "candidate_ids": missing_candidates}), request_id=request_id)
+            h._finish(timer, request_id, "POST", path, 404, "not_found")
             return True
         if unavailable:
             log_event("dependency_failure", request_id=request_id, dependency="supabase")
@@ -1104,7 +1131,6 @@ def post_api_experiments_compare(h, request_id, timer, path, query):
         h._finish(timer, request_id, "POST", path, 500, "internal")
     return True
 
-    return False
 
 
 def post_api_experiments_import(h, request_id, timer, path, query):
@@ -1205,7 +1231,6 @@ def post_api_experiments_import(h, request_id, timer, path, query):
         h._finish(timer, request_id, "POST", path, 500, "internal")
     return True
 
-    return False
 
 
 def _spec_from_import_package(package: dict):
@@ -1282,4 +1307,3 @@ def post_api_experiments_scheduler_jobs(h, request_id, timer, path, query):
         h._finish(timer, request_id, "POST", path, 500, "internal")
     return True
 
-    return False

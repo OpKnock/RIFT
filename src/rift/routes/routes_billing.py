@@ -14,7 +14,6 @@ def get_api_billing_status(h, request_id, timer, path, query):
     h._send(200, json.dumps(billing_status()), request_id=request_id)
     h._finish(timer, request_id, "GET", path, 200)
     return True
-    return False
 
 
 def get_api_billing_entitlement(h, request_id, timer, path, query):
@@ -44,7 +43,6 @@ def get_api_billing_entitlement(h, request_id, timer, path, query):
         h._send(502, json.dumps({"error": "persistence_error", "request_id": request_id}), request_id=request_id)
         h._finish(timer, request_id, "GET", path, 502, "persistence_error")
     return True
-    return False
 
 
 def post_api_billing_checkout(h, request_id, timer, path, query):
@@ -106,7 +104,6 @@ def post_api_billing_checkout(h, request_id, timer, path, query):
         h._finish(timer, request_id, "POST", path, 502, "billing_error")
     return True
 
-    return False
 
 
 def post_api_billing_webhook(h, request_id, timer, path, query):
@@ -212,4 +209,3 @@ def post_api_billing_webhook(h, request_id, timer, path, query):
     return True
 
 # POST endpoints for Phase 10
-    return False
