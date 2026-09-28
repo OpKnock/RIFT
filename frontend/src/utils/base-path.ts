@@ -6,8 +6,14 @@
 // unaffected. Derives the prefix from vite's BASE_URL so it tracks config.
 const BASE = (import.meta.env.BASE_URL || '/').replace(/\/$/, '');
 
+/** Pure join (exported for tests): base + path with exactly one slash. */
+export function joinBase(base: string, path: string): string {
+  const b = (base || '/').replace(/\/$/, '');
+  return `${b}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 export function appPath(path: string): string {
-  return `${BASE}${path.startsWith('/') ? path : `/${path}`}`;
+  return joinBase(BASE, path);
 }
 
 export function goApp(path: string): void {

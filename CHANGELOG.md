@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- First-run UX: local stack defaults to open dev mode (no mystery token, no 401 walls); 401s now render a professional AuthRequired state with a direct link to token settings
+- Settings detects open-dev servers and says so instead of showing a useless token form; session state restores across reloads
+- 3D twin performance: no more per-frame React setState across 72 nodes, no unconfigured shadow passes, memoized meshes with stable hover callbacks
+- Loading skeletons replace blank-then-error flashes on dashboard/operations pages; stale "no push channel" copy corrected
 - EventBus async fan-out no longer throws loop exceptions on full subscriber queues (drop-in-callback + closed-loop guard); regression tests included
 - Removed dead WebSocket transport (`WSConnection`, `WebSocketMessage`); SSE is the only supported transport, with a test proving no WS surface remains
 - Reconciliation rule failures and optimizer failures are explicit `{status: failed, ...}` / `{triggered: false, ...}` results instead of action-shaped dicts

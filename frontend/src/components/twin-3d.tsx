@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
+import { useMemo, useState, useEffect, useRef, useCallback, memo } from 'react'
 import { Canvas, useFrame, extend } from '@react-three/fiber'
 import { OrbitControls, Line } from '@react-three/drei'
 import * as THREE from 'three'
@@ -75,8 +75,22 @@ function layoutTree(nodes: TreeNode[]): { placed: PlacedNode[]; edges: Array<[nu
   return { placed, edges }
 }
 
-// Animated node component
-function NodeMesh({
+// Node component. Deliberately frame-loop free: per-frame setState across
+// dozens of nodes forces React reconciliation at 60fps, and constant
+// rotation costs GPU for no information. Selection pulse decays through a
+// material ref (no re-render); OrbitControls owns camera motion.
+//
+// Custom comparator: parent inline onClick/onHover arrows change identity
+// every render, so default memo would never hit. They close over the
+// stable handleClick/handleHover plus the memoized node object, so data
+// props alone determine the output.
+function nodePropsEqual(
+  prev: { node: PlacedNode; selected: boolean; hovered: boolean },
+  next: { node: PlacedNode; selected: boolean; hovered: boolean },
+): boolean {
+  return prev.node === next.node && prev.selected === next.selected && prev.hovered === next.hovered
+}
+const NodeMesh = memo(function NodeMesh({
   node,
   selected,
   hovered,
@@ -90,19 +104,23 @@ function NodeMesh({
   onHover: (on: boolean) => void
 }) {
   const meshRef = useRef<THREE.Mesh>(null!)
-  const [pulse, setPulse] = useState(0)
+  const glowRef = useRef<THREE.MeshStandardMaterial>(null!)
+  const pulseRef = useRef(0)
 
-  useFrame(() => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y += 0.005
-      if (pulse > 0) {
-        setPulse(p => Math.max(0, p - 0.02))
-      }
+  useFrame((_, delta) => {
+    if (pulseRef.current > 0) {
+      pulseRef.current = Math.max(0, pulseRef.current - delta * 1.5)
+      if (glowRef.current) glowRef.current.emissiveIntensity = pulseRef.current * 0.6
     }
   })
 
   useEffect(() => {
-    if (selected) setPulse(1)
+    if (selected) {
+      pulseRef.current = 1
+      if (glowRef.current) glowRef.current.emissiveIntensity = 0.6
+    } else if (glowRef.current) {
+      glowRef.current.emissiveIntensity = 0
+    }
   }, [selected])
 
   return (
@@ -117,11 +135,12 @@ function NodeMesh({
     >
       <sphereGeometry args={[node.size, 24, 24]} />
       <meshStandardMaterial
+        ref={glowRef}
         color={node.color}
         roughness={0.3}
         metalness={0.1}
         emissive={selected ? node.color : hovered ? '#333' : '#000'}
-        emissiveIntensity={pulse * 0.5}
+        emissiveIntensity={0}
       />
       {selected && (
         <mesh position={[0, 0, 0]} scale={1.5}>
@@ -131,7 +150,7 @@ function NodeMesh({
       )}
     </mesh>
   )
-}
+}, nodePropsEqual)
 
 // Edge lines
 function Edges({ edges, placed }: { edges: Array<[number, number]>; placed: PlacedNode[] }) {
@@ -242,9 +261,11 @@ export function FutureTree3D({
   }, [onNodeSelect])
 
   const handleHover = useCallback((id: string, on: boolean) => {
+    // Functional update keeps this callback referentially stable so the
+    // memoized node meshes don't re-render on every hover change.
     if (on) setHoveredId(id)
-    else if (hoveredId === id) setHoveredId(null)
-  }, [hoveredId])
+    else setHoveredId(current => (current === id ? null : current))
+  }, [])
 
   // Playback controls
   useEffect(() => {
@@ -312,7 +333,7 @@ export function FutureTree3D({
         <Canvas camera={{ position: [8, 6, 14], fov: 45 }} dpr={[1, 2]} onCreated={({ gl }) => { gl.setClearColor(0x0f172a, 1) }}>
           <fog color="#0f172a" near={10} far={50} />
           <ambientLight intensity={0.6} />
-          <directionalLight position={[10, 15, 10]} intensity={1.5} castShadow />
+          <directionalLight position={[10, 15, 10]} intensity={1.5} />
           <directionalLight position={[-5, 10, -5]} intensity={0.5} />
 
           {/* Grid floor */}
