@@ -188,6 +188,9 @@ reads: export/replay/compare resolve there first (miss is 404, outage is
 502) and never fall back to the archive, so deleted rows cannot resurrect
 from a stale mirror; compare answers 404 `candidate_not_found` (with ids)
 rather than silently comparing fewer candidates than requested.
+Snapshots and evidence bundles are local derived artifacts (no Supabase
+tables): their endpoints gate on the authoritative experiment record
+first, then serve the derived bytes.
 Versions/import responses carry `"durable": true`
 when the write reached Supabase (migration `008` adds the `versions`
 column); archive-only writes report `"durable": false`. Templates are

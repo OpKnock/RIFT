@@ -433,7 +433,7 @@ class Handler(BaseHTTPRequestHandler):
         return
 
 
-def serve(host="0.0.0.0", port=8080):
+def serve(host="0.0.0.0", port=8080):  # nosec B104 -- containerized service must bind all interfaces; edge terminates TLS
     server = ThreadingHTTPServer((host, port), Handler)
     server.daemon_threads = True
     try:
@@ -448,7 +448,7 @@ def _main() -> None:
     import os
 
     parser = argparse.ArgumentParser(description="RIFT API server")
-    parser.add_argument("--host", default=os.getenv("RIFT_HOST", "0.0.0.0"))
+    parser.add_argument("--host", default=os.getenv("RIFT_HOST", "0.0.0.0"))  # nosec B104 -- overridable default for containers; see serve()
     parser.add_argument("--port", type=int, default=int(os.getenv("RIFT_PORT", "8080")))
     args = parser.parse_args()
     serve(host=args.host, port=args.port)

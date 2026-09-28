@@ -93,7 +93,7 @@ def get_api_events_stream(h, request_id, timer, path, query):
             for topic, q in queues:
                 try:
                     event = q.get(timeout=1.0)
-                except Exception:
+                except Exception:  # nosec B112 -- queue timeout polls the next topic; heartbeats cover idle streams
                     continue
                 got_one = True
                 payload = json.dumps({"topic": topic, "data": event})

@@ -255,6 +255,9 @@ def get_api_experiments_snapshots(h, request_id, timer, path, query):
             h._finish(timer, request_id, "GET", path, 404, "not_found")
             return True
         try:
+            # Snapshots are local derived artifacts (no Supabase table):
+            # the resolve above already proved the experiment exists and
+            # the caller owns it; only the derived bytes come from here.
             from rift.experiments import experiment_archive
             exp = experiment_archive.get_experiment(experiment_id)
             if exp and exp.get("snapshot"):
@@ -313,6 +316,9 @@ def get_api_experiments_evidence(h, request_id, timer, path, query):
             h._finish(timer, request_id, "GET", path, 404, "not_found")
             return True
         try:
+            # Evidence bundles are local derived artifacts (no Supabase
+            # table): the resolve above already proved the experiment
+            # exists and the caller owns it.
             from rift.experiments import experiment_archive
             bundles = [b.to_dict() for b in experiment_archive.evidence_for_experiment(experiment_id)]
             h._send(200, json.dumps({"experiment_id": experiment_id, "bundles": bundles}), request_id=request_id)

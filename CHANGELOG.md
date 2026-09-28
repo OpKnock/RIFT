@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Supabase-authoritative export/replay/compare (miss 404 incl. `candidate_not_found`, outage 502); resolvers no longer resurrect deleted rows from the archive mirror
+- Bandit clean: non-security MD5 uses `usedforsecurity=False` (IDs unchanged), narrow justified `nosec` on intentional binds/placeholders/fan-out resilience
+- Frontend builds in CI again (`@types/node`); production Dockerfile drops the obsolete `web/` copy; phase-19 evidence points at real `frontend/` files
+- Config drift fixed (`.env.example`/README use canonical `RIFT_*` names, SSE endpoint documented); `local` propagates `.env.local` into compose and drops SQLite/required-host-Node assumptions
+- Removed 37 unreachable trailing `return False` statements from the split route modules
 - Production React routing unified under `/app` (vite base + router basename, base-aware navigation, manifest scope; API `/` 302-redirects to `/app/`)
 - Tenant isolation closed on archive-backed reads: mirrors carry `user_id`, `_resolve_experiment`/`_resolve_run` enforce on the archive path, versions/runs/snapshots/evidence/replay/export/templates all gate ownership (403)
 - Archive fallback no longer crosses the persistence boundary on outage: compare and resolvers surface `unavailable` → 502 instead of silently serving stale mirrors (also fixes a double-send)

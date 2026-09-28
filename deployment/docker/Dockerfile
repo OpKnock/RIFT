@@ -3,7 +3,7 @@
 
 # Frontend build stage: compile the canonical React product UI
 # (frontend/) so the production image serves the same application
-# that local dev runs, not just the legacy static lab page (web/).
+# that local dev runs.
 FROM node:20-alpine AS frontend-builder
 WORKDIR /build
 COPY frontend/package.json frontend/package-lock.json* ./
@@ -31,9 +31,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install Python dependencies, pinned to constraints.txt so the image
 # resolves the same versions CI tested (build context must be the repo root).
 # src/ must be present: setuptools discovers packages under src/, and the
-# install stays editable because api.py resolves web assets relative to the
-# installed rift package location (non-editable would point ROOT at
-# site-packages/web and 404 the dashboard).
+# install stays editable so the API resolves the frontend bundle relative
+# to the source tree (non-editable installs would 404 the dashboard).
 COPY pyproject.toml constraints.txt README.md ./
 COPY src ./src
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
@@ -61,9 +60,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --chown=rift:rift src/ ./src/
 COPY --chown=rift:rift backend/ ./backend/
 COPY --chown=rift:rift data/ ./data/
-COPY --chown=rift:rift web/ ./web/
 # Canonical React product UI (built above). The API serves it at /app/
-# with SPA fallback; legacy web/ stays at its existing paths.
+# with SPA fallback; `/` 302-redirects there.
 COPY --chown=rift:rift --from=frontend-builder /build/dist ./frontend-dist/
 
 # Switch to non-root user

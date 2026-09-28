@@ -793,13 +793,13 @@ curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: applicatio
 CONFIG_DEVELOPMENT = json.dumps({
     "environment": "development",
     "api": {
-        "host": "0.0.0.0",
+        "host": "0.0.0.0",  # nosec B104 -- example config, not a live binding
         "port": 8080,
         "debug": True,
         "rate_limit": {"requests_per_minute": 1000}
     },
     "database": {
-        "url": "sqlite:///rift_dev.db",
+        "url": "${RIFT_SUPABASE_URL:-unset (archive + JSONL fallback)}",
         "echo": True
     },
     "quantum": {
@@ -826,7 +826,7 @@ CONFIG_DEVELOPMENT = json.dumps({
 CONFIG_PRODUCTION = json.dumps({
     "environment": "production",
     "api": {
-        "host": "0.0.0.0",
+        "host": "0.0.0.0",  # nosec B104 -- example config, not a live binding
         "port": 8080,
         "debug": False,
         "workers": 4,
@@ -839,7 +839,7 @@ CONFIG_PRODUCTION = json.dumps({
     },
     "quantum": {
         "backend": "statevector-simulator",
-        "ibm_token": "${IBM_QPU_TOKEN}",
+        "ibm_token": "${RIFT_QPU_TOKEN}",  # nosec B105 -- env-var placeholder, not a credential
         "shots": 4096
     },
     "logging": {
@@ -851,7 +851,7 @@ CONFIG_PRODUCTION = json.dumps({
         "api_key_enabled": True,
         "jwt_enabled": True,
         "rate_limit_enabled": True,
-        "webhook_secret": "${WEBHOOK_SECRET}"
+        "webhook_secret": "${RIFT_WEBHOOK_SECRET}"  # nosec B105 -- env-var placeholder, not a credential
     },
     "monitoring": {
         "enabled": True,
@@ -861,7 +861,7 @@ CONFIG_PRODUCTION = json.dumps({
     },
     "billing": {
         "provider": "lemon_squeezy",
-        "webhook_secret": "${LEMON_SQUEEZY_WEBHOOK_SECRET}"
+        "webhook_secret": "${RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET}"  # nosec B105 -- env-var placeholder, not a credential
     }
 }, indent=2)
 
