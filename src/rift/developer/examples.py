@@ -871,14 +871,15 @@ services:
   rift-api:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: deployment/docker/Dockerfile
     ports:
       - "8080:8080"
     environment:
       - RIFT_ENV=production
-      - DATABASE_URL=postgresql://user:pass@db:5432/rift
-      - WEBHOOK_SECRET=${WEBHOOK_SECRET}
-      - LEMON_SQUEEZY_WEBHOOK_SECRET=${LEMON_SQUEEZY_WEBHOOK_SECRET}
+      - RIFT_SUPABASE_URL=${RIFT_SUPABASE_URL}
+      - RIFT_SUPABASE_KEY=${RIFT_SUPABASE_KEY}
+      - RIFT_WEBHOOK_SECRET=${RIFT_WEBHOOK_SECRET}
+      - RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET=${RIFT_LEMON_SQUEEZY_WEBHOOK_SECRET}
     depends_on:
       - db
       - redis

@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- EventBus async fan-out no longer throws loop exceptions on full subscriber queues (drop-in-callback + closed-loop guard); regression tests included
+- Removed dead WebSocket transport (`WSConnection`, `WebSocketMessage`); SSE is the only supported transport, with a test proving no WS surface remains
+- Reconciliation rule failures and optimizer failures are explicit `{status: failed, ...}` / `{triggered: false, ...}` results instead of action-shaped dicts
+- Clarified determinism contract: content-derived fingerprints are pure; opaque unique IDs guarantee uniqueness only
 - Supabase-authoritative export/replay/compare (miss 404 incl. `candidate_not_found`, outage 502); resolvers no longer resurrect deleted rows from the archive mirror
 - Bandit clean: non-security MD5 uses `usedforsecurity=False` (IDs unchanged), narrow justified `nosec` on intentional binds/placeholders/fan-out resilience
 - Frontend builds in CI again (`@types/node`); production Dockerfile drops the obsolete `web/` copy; phase-19 evidence points at real `frontend/` files

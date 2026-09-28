@@ -385,13 +385,6 @@ export interface PaginatedResponse<T> {
   }
 }
 
-export interface WebSocketMessage<T> {
-  type: string
-  payload: T
-  timestamp: string
-  requestId?: string
-}
-
 export interface SimulationProgress {
   runId: string
   stage: 'initializing' | 'generating_futures' | 'optimizing' | 'verifying' | 'complete' | 'failed'
