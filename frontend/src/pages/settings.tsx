@@ -22,6 +22,7 @@ export function Settings() {
   const [savedTick, setSavedTick] = useState(false)
   const [tokenInput, setTokenInput] = useState('')
   const [hasToken, setHasToken] = useState(() => api.getToken() !== null)
+  const [serverOpen, setServerOpen] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
   const [utm] = useState(() => readUtm())
   const [health, setHealth] = useState<HealthStatus | null>(null)
@@ -52,11 +53,15 @@ export function Settings() {
         if (cancelled) return
         if (info && info.user_id) {
           setHasToken(true)
+          setServerOpen(false)
           setAuthMode(info.mechanism === 'session-cookie' ? 'session cookie (HttpOnly)' : 'local token')
         } else if (api.getToken() !== null) {
           setHasToken(true)
         } else {
           setHasToken(false)
+          // 200 with no identity and no local token = open dev mode:
+          // the server needs no credentials at all.
+          setServerOpen(info !== null)
         }
       })
       .catch(() => { if (!cancelled && api.getToken() !== null) setHasToken(true) })
@@ -227,12 +232,19 @@ export function Settings() {
                 (<code className="font-mono">/metrics</code>, <code className="font-mono">/api/ops/monitor</code>). Preferred: an HttpOnly session cookie, so
                 the secret leaves the browser immediately. Status: {hasToken ? <Badge variant="success">{authMode}</Badge> : <Badge variant="secondary">no token</Badge>}
               </p>
+              {serverOpen && !hasToken && (
+                <p className="text-sm text-secondary-600 dark:text-secondary-400 border border-secondary-200 dark:border-secondary-700 rounded-lg px-3 py-2" role="status">
+                  Open development mode — this server accepts requests without credentials, so there is nothing to configure here.
+                </p>
+              )}
               {tokenError && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{tokenError}</p>}
-              <div className="flex gap-3">
-                <Input type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} placeholder="Paste service token" aria-label="Service token" />
-                <Button onClick={saveToken} disabled={!tokenInput.trim()}>Save</Button>
-                {hasToken && <Button variant="outline" onClick={clearToken}>Clear</Button>}
-              </div>
+              {(!serverOpen || hasToken) && (
+                <div className="flex gap-3">
+                  <Input type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)} placeholder="Paste service token" aria-label="Service token" />
+                  <Button onClick={saveToken} disabled={!tokenInput.trim()}>Save</Button>
+                  {hasToken && <Button variant="outline" onClick={clearToken}>Clear</Button>}
+                </div>
+              )}
               <p className="text-sm text-secondary-500">Server-side keys, rotation, and per-user credentials are operator duties — no management endpoint exists.</p>
             </div>
           </Card>

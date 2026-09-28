@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { api, apiErrorMessage } from '@/services/api'
+import { api, apiErrorMessage, isUnauthorized } from '@/services/api'
+import { AuthRequired } from '@/components/ui/auth-required'
+import { SkeletonCard } from '@/components/ui/skeleton'
 import { readEvents, type AppEvent } from '@/utils/event-log'
 import { SOURCE_DEFS, MQTT_NOTE, type SourceProbe } from '@/utils/sources'
 import { goApp } from '@/utils/base-path'
@@ -14,6 +16,7 @@ export function Runs() {
   const [alerts, setAlerts] = useState<Array<{ rule: string; firing: boolean; reason: string }>>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [authRequired, setAuthRequired] = useState(false)
   const [billing, setBilling] = useState<{ configured: boolean; provider: string } | null>(null)
   const [entitlement, setEntitlement] = useState<unknown>(null)
   const [entitlementError, setEntitlementError] = useState<string | null>(null)
@@ -48,8 +51,14 @@ export function Runs() {
             }
           }
           setEvents(readEvents())
+          if (!cancelled) setAuthRequired(false)
         })
-        .catch((e) => { if (!cancelled) setError(apiErrorMessage(e, 'Failed to load monitor.')) })
+        .catch((e) => {
+          if (!cancelled) {
+            if (isUnauthorized(e)) setAuthRequired(true)
+            else setError(apiErrorMessage(e, 'Failed to load monitor.'))
+          }
+        })
         .finally(() => { if (!cancelled) setLoading(false) })
     }
     if (!paused) load()
@@ -112,7 +121,7 @@ export function Runs() {
       <div>
         <h1 className="text-3xl font-bold text-secondary-900 dark:text-white">Operations</h1>
         <p className="text-secondary-600 dark:text-secondary-400 mt-1">
-          Live telemetry from <code className="font-mono text-sm">GET /api/ops/monitor</code>, polled every 5 s (client polling — the server offers no push channel).
+          Live telemetry from <code className="font-mono text-sm">GET /api/ops/monitor</code>, polled every 5 s (the event stream carries incident/decision updates live; see Live Operations).
           Per-run listing requires persistence (Supabase); without it the server answers 503 — shown honestly, not faked.
         </p>
         {notifState !== 'granted' && notifState !== 'unsupported' && (
@@ -133,8 +142,9 @@ export function Runs() {
       </div>
       <Card>
         <div className="p-6">
-          {loading && <p className="text-sm text-secondary-500">Loading monitor…</p>}
-          {error && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{error}</p>}
+          {loading && <SkeletonCard />}
+          {authRequired && !loading && <AuthRequired resource="operations telemetry" />}
+          {error && !authRequired && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{error}</p>}
           {!loading && !error && (
             <div className="space-y-4">
               <div>

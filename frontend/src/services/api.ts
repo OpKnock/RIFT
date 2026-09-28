@@ -188,6 +188,15 @@ function apiErrorMessage(error: unknown, fallback: string): string {
   return fallback
 }
 
+/**
+ * True when the server rejected the request for missing/invalid
+ * credentials (HTTP 401). Callers show the AuthRequired empty state for
+ * this case instead of a raw error banner.
+ */
+function isUnauthorized(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 401
+}
+
 class ApiClient {
   private client: AxiosInstance
 
@@ -393,4 +402,4 @@ class ApiClient {
 
 export const api = new ApiClient()
 export default api
-export { apiErrorMessage }
+export { apiErrorMessage, isUnauthorized }

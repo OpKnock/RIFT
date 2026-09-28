@@ -93,7 +93,7 @@ Key variables:
 - `RIFT_ENV` — development/production
 - `RIFT_SUPABASE_URL` / `RIFT_SUPABASE_KEY` — database (unset = in-process archive + durable-JSONL fallback under `data/`; no SQLite)
 - `RIFT_SUPABASE_JWT_SECRET` — Verified-JWT identity (production)
-- `RIFT_API_TOKEN` — Service token for auth
+- `RIFT_API_TOKEN` — Service token for auth (leave empty for local open-dev mode; the UI then needs no login)
 - `RIFT_QPU_TOKEN` — IBM Quantum token (optional)
 - `RIFT_LEMON_SQUEEZY_*` — Billing (optional)
 

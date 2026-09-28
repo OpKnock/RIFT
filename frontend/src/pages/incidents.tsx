@@ -4,8 +4,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { api, apiErrorMessage } from '@/services/api'
+import { api, apiErrorMessage, isUnauthorized } from '@/services/api'
 import { useEventStream } from '@/hooks/use-event-stream'
+import { AuthRequired } from '@/components/ui/auth-required'
+import { SkeletonCard } from '@/components/ui/skeleton'
 
 const POLL_MS = 10000
 
@@ -62,6 +64,15 @@ export function Incidents() {
   const [decisions, setDecisions] = useState<Decision[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [authRequired, setAuthRequired] = useState(false)
+
+  const handleFetchError = useCallback((e: unknown, fallback: string) => {
+    if (isUnauthorized(e)) {
+      setAuthRequired(true)
+    } else {
+      setError(apiErrorMessage(e, fallback))
+    }
+  }, [])
   const [activeTab, setActiveTab] = useState<'incidents' | 'decisions'>('incidents')
   const [filters, setFilters] = useState({ status: '', severity: '', type: '' })
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
@@ -73,19 +84,21 @@ export function Incidents() {
     try {
       const data = await api.getIncidents(filters)
       setIncidents(data)
+      setAuthRequired(false)
     } catch (e) {
-      setError(apiErrorMessage(e, 'Failed to load incidents'))
+      handleFetchError(e, 'Failed to load incidents')
     }
-  }, [filters])
+  }, [filters, handleFetchError])
 
   const fetchDecisions = useCallback(async () => {
     try {
       const data = await api.getDecisions()
       setDecisions(data)
+      setAuthRequired(false)
     } catch (e) {
-      setError(apiErrorMessage(e, 'Failed to load decisions'))
+      handleFetchError(e, 'Failed to load decisions')
     }
-  }, [])
+  }, [handleFetchError])
 
   // Live refresh via SSE when the stream is up; the interval below
   // stays as the fallback (EventSource cannot send bearer headers, and
@@ -184,7 +197,9 @@ export function Incidents() {
         </p>
       </div>
 
-      {error && <div className="p-3 rounded-lg bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 text-error-600 dark:text-error-400" role="alert">{error}</div>}
+      {loading && <SkeletonCard />}
+      {authRequired && !loading && <AuthRequired resource="incidents and decisions" />}
+      {error && !authRequired && <div className="p-3 rounded-lg bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 text-error-600 dark:text-error-400" role="alert">{error}</div>}
 
       <Tabs value={activeTab} onValueChange={(v: string) => setActiveTab(v as 'incidents' | 'decisions')} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
