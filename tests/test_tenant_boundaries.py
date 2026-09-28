@@ -306,6 +306,72 @@ def test_templates_private_hidden(monkeypatch):
         assert status == 200
 
 
+# --- export/replay authority + no resurrection ---
+
+def test_export_supabase_authoritative(monkeypatch):
+    _clear(monkeypatch)
+    _reset_fake()
+    _patch_store(monkeypatch)
+    exp_id = str(uuid.uuid4())
+    _seed_supabase(exp_id)
+    with _Server() as server:
+        status, payload = _get(server.url(f"/api/experiments/{exp_id}/export?user_id=user-a"))
+        assert status == 200 and payload["experiment"]["id"] == exp_id
+        # Delete the authoritative row but leave a stale mirror: the
+        # mirror must not resurrect (404), and an outage must 502.
+        from rift.experiments import experiment_archive
+        experiment_archive.store_experiment({
+            "id": exp_id, "name": "stale", "spec": _spec_dict(),
+            "status": "created", "versions": [], "user_id": "user-a",
+        })
+        del FakeStore.rows[exp_id]
+        status, payload = _get(server.url(f"/api/experiments/{exp_id}/export?user_id=user-a"))
+        assert status == 404, payload
+        _seed_supabase(exp_id)
+        FakeStore.get_error = Exception("connection refused")
+        try:
+            status, payload = _get(server.url(f"/api/experiments/{exp_id}/export?user_id=user-a"))
+            assert status == 502, payload
+        finally:
+            FakeStore.get_error = None
+
+
+def test_replay_supabase_authoritative(monkeypatch):
+    _clear(monkeypatch)
+    _reset_fake()
+    _patch_store(monkeypatch)
+    exp_id = str(uuid.uuid4())
+    _seed_supabase(exp_id)
+    with _Server() as server:
+        del FakeStore.rows[exp_id]
+        from rift.experiments import experiment_archive
+        experiment_archive.store_experiment({
+            "id": exp_id, "name": "stale",
+            "spec": {"name": "stale", "optimizer": "exact"},
+            "status": "created", "versions": [], "user_id": "user-a",
+        })
+        status, payload = _get(server.url(f"/api/experiments/{exp_id}/replay?user_id=user-a"))
+        assert status == 404, payload
+
+
+def test_resolve_no_resurrection(monkeypatch):
+    _clear(monkeypatch)
+    _reset_fake()
+    _patch_store(monkeypatch)
+    exp_id = str(uuid.uuid4())
+    from rift.experiments import experiment_archive
+    experiment_archive.store_experiment({
+        "id": exp_id, "name": "ghost", "spec": _spec_dict(),
+        "status": "created", "versions": [], "user_id": "user-a",
+    })
+    with _Server() as server:
+        # Store configured, Supabase has no such row: 404, not the mirror.
+        status, payload = _get(server.url(f"/api/experiments/{exp_id}?user_id=user-a"))
+        assert status == 404, payload
+        status, payload = _get(server.url(f"/api/experiments/{exp_id}/versions?user_id=user-a"))
+        assert status == 404, payload
+
+
 # --- compare safety ---
 
 def test_compare_outage_is_502_not_stale_mirror(monkeypatch):
@@ -349,6 +415,13 @@ def test_compare_archive_run_enforces_owner(monkeypatch):
             "user_id": "user-a", "baseline_id": base_id, "candidate_ids": [cand_id],
         })
         assert status == 201, payload
+        status, payload = _post(server.url("/api/experiments/compare"), {
+            "user_id": "user-a", "baseline_id": base_id,
+            "candidate_ids": [cand_id, "run-does-not-exist"],
+        })
+        assert status == 404, payload
+        assert payload["error"] == "candidate_not_found"
+        assert payload["candidate_ids"] == ["run-does-not-exist"]
 
 
 # --- import ---

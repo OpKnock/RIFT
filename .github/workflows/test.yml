@@ -80,3 +80,38 @@ jobs:
           total=$(du -sb dist/assets/*.js | awk '{s+=$1} END {print s}')
           echo "total JS: $total bytes"
           test "$total" -le 2097152
+      - name: Sub-path contract (built HTML references /app/ assets)
+        run: |
+          grep -q 'href="/app/rift.svg"' dist/index.html
+          grep -q 'href="/app/manifest.webmanifest"' dist/index.html
+          grep -q 'src="/app/assets/' dist/index.html
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build production image (repo-root context)
+        run: docker build -f ../deployment/docker/Dockerfile -t rift:e2e ../
+      - name: Run production image
+        run: |
+          docker run -d --name rift-e2e -p 8080:8080 rift:e2e
+          for i in $(seq 1 30); do
+            curl -fs http://localhost:8080/api/health && break || sleep 5
+          done
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Playwright chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser E2E against production image
+        run: npx playwright test -c playwright.config.ts
+      - if: always()
+        name: Stop production image
+        run: docker stop rift-e2e; docker rm rift-e2e

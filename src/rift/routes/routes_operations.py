@@ -42,7 +42,6 @@ def get_api_operations_incidents(h, request_id, timer, path, query):
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
 
-    return False
 
 
 def get_api_operations_incidents_action(h, request_id, timer, path, query):
@@ -103,7 +102,6 @@ def get_api_operations_decisions(h, request_id, timer, path, query):
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
 
-    return False
 
 
 def get_api_operations_decisions_action(h, request_id, timer, path, query):
@@ -174,7 +172,6 @@ def post_api_operations_incidents(h, request_id, timer, path, query):
         h._finish(timer, request_id, "POST", path, 500, "internal")
     return True
 
-    return False
 
 
 def post_api_operations_incidents_action(h, request_id, timer, path, query):

@@ -25,7 +25,6 @@ def get_api_auth_session_info(h, request_id, timer, path, query):
     h._send(200, json.dumps({"user_id": caller, "mechanism": mechanism}), request_id=request_id)
     h._finish(timer, request_id, "GET", path, 200)
     return True
-    return False
 
 
 def post_api_auth_session(h, request_id, timer, path, query):
@@ -72,7 +71,6 @@ def post_api_auth_session(h, request_id, timer, path, query):
         h._finish(timer, request_id, "POST", path, 500, "internal")
     return True
 
-    return False
 
 
 def post_api_auth_logout(h, request_id, timer, path, query):
@@ -84,4 +82,3 @@ def post_api_auth_logout(h, request_id, timer, path, query):
     h._finish(timer, request_id, "POST", path, 200)
     return True
 
-    return False

@@ -51,7 +51,6 @@ def get_api_ops_monitor(h, request_id, timer, path, query):
                    request_id=request_id)
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
-    return False
 
 
 def get_api_events_stream(h, request_id, timer, path, query):
@@ -119,7 +118,6 @@ def get_api_events_stream(h, request_id, timer, path, query):
             event_bus.unsubscribe_sync(topic, q)
         h._finish(timer, request_id, "GET", path, 200)
     return True
-    return False
 
 
 def get_metrics(h, request_id, timer, path, query):
@@ -148,7 +146,6 @@ def get_metrics(h, request_id, timer, path, query):
                    request_id=request_id)
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
-    return False
 
 
 def get_api_health(h, request_id, timer, path, query):
@@ -167,7 +164,6 @@ def get_api_health(h, request_id, timer, path, query):
     h._send(200, json.dumps(payload), request_id=request_id)
     h._finish(timer, request_id, "GET", path, 200)
     return True
-    return False
 
 
 def get_api_meta(h, request_id, timer, path, query):
@@ -189,7 +185,6 @@ def get_api_meta(h, request_id, timer, path, query):
     }), request_id=request_id)
     h._finish(timer, request_id, "GET", path, 200)
     return True
-    return False
 
 
 def get_api_persistence_status(h, request_id, timer, path, query):
@@ -197,7 +192,6 @@ def get_api_persistence_status(h, request_id, timer, path, query):
     h._send(200, json.dumps(supabase_status()), request_id=request_id)
     h._finish(timer, request_id, "GET", path, 200)
     return True
-    return False
 
 
 def get_api_demo(h, request_id, timer, path, query):
@@ -214,7 +208,6 @@ def get_api_demo(h, request_id, timer, path, query):
         h._send(500, json.dumps({"error": "internal_error", "request_id": request_id}), request_id=request_id)
         h._finish(timer, request_id, "GET", path, 500, "internal")
     return True
-    return False
 
 
 def get_app_app(h, request_id, timer, path, query):
@@ -255,7 +248,9 @@ def get_app_app(h, request_id, timer, path, query):
     h.send_header("X-Frame-Options", "DENY")
     h.send_header("Referrer-Policy", "no-referrer")
     if target.suffix == ".html":
-        h.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:; connect-src 'self'")
+        # Google Fonts (referenced by index.html) are explicitly allowed;
+        # everything else stays same-origin.
+        h.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; img-src 'self' data:; connect-src 'self'")
     if request_id:
         h.send_header("X-Request-ID", request_id)
     for key, value in _cors_headers(h.headers.get("Origin")).items():
@@ -267,4 +262,3 @@ def get_app_app(h, request_id, timer, path, query):
         pass
     h._finish(timer, request_id, "GET", path, 200)
     return True
-    return False

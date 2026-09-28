@@ -16,9 +16,12 @@ const STREAM_URL = `${import.meta.env.VITE_API_URL || '/api'}/events/stream`
 /**
  * Server-Sent Events subscription with silent polling fallback.
  *
- * EventSource carries cookies (HttpOnly session works) but not the
- * localStorage bearer token, so on authenticated-non-cookie setups the
- * stream 401s and callers must keep their polling interval as backup.
+ * withCredentials lets the HttpOnly session cookie ride along, which
+ * covers same-origin production (/app + /api) and the split-origin dev
+ * setup (5173 -> 8080, allowed by the server CORS allow-list with
+ * credentials). The localStorage bearer token can never ride an
+ * EventSource (no custom headers), so on bearer-only setups the stream
+ * 401s and callers must keep their polling interval as backup.
  * Returns `live` so UIs can show which transport is active.
  */
 export function useEventStream({ topics, onEvent, enabled = true }: Options): boolean {
@@ -36,7 +39,7 @@ export function useEventStream({ topics, onEvent, enabled = true }: Options): bo
     const url = `${STREAM_URL}?topics=${encodeURIComponent(list.join(','))}`
     let source: EventSource | null = null
     try {
-      source = new EventSource(url)
+      source = new EventSource(url, { withCredentials: true })
     } catch {
       setLive(false)
       return

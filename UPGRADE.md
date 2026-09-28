@@ -86,9 +86,9 @@ Planned breaking changes:
 # 1. Stop services
 ./local.sh stop
 
-# 2. Restore database from backup
-rm rift_local.db
-cp data.backup.YYYYMMDD/rift_local.db .
+# 2. Restore database from backup (Supabase: use your project backup;
+# local JSONL ledgers live under data/ — restore data.backup.YYYYMMDD/*.jsonl)
+cp data.backup.YYYYMMDD/*.jsonl data/ 2>/dev/null || true
 
 # 3. Checkout previous version
 git checkout v1.x.y
