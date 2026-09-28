@@ -10,7 +10,7 @@ No formatter is enforced in CI — follow the existing style so the codebase sta
 - **Docstrings**: every public function gets one line stating what it does plus its failure contract. Document what is *not* done as well as what is (e.g. "tested against a local fixture, not a live server").
 - **Errors**: fail closed. Validate inputs, raise `ValueError`/`FhirError` with a reason, never clamp, default, or invent data. Broad `except` blocks must log (`log_event` with `request_id`) and return a truthful status — never bare `pass` (Bandit `B110` fails the build; justified suppressions carry `# nosec` + reason).
 - **No `assert` for runtime validation** in `src/` — asserts are for tests only.
-- **Determinism**: seeded RNGs, sorted outputs, no wall-clock time in IDs or hashes. Timestamps come from data, never `now()`, except explicit provenance metadata.
+- **Determinism**: seeded RNGs, sorted outputs. Content-derived identifiers (spec fingerprints, run fingerprints) must be pure functions of content — no wall-clock time. Opaque unique IDs (`fb-`, `trk-`, `cand-`, `gov-`, run/incident UUIDs) guarantee uniqueness only, never reproducibility; that distinction is load-bearing, so never assert a time-based ID equals a fixed value in tests. Timestamps come from data, never `now()`, except explicit provenance metadata (`created_at`, `exported_at`).
 - **Secrets**: server-side only, from env via `settings.py`. Error bodies carry `{error, request_id}` — never tracebacks, keys, or tokens.
 - **Naming**: modules `snake_case`, tests `test_<area>_<behavior>.py`, Guardian rules `G-NNN`, env vars `RIFT_*` (canonical; legacy fallbacks documented in `.env.example`).
 

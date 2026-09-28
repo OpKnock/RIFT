@@ -413,11 +413,12 @@
    "deployment_state": "not-applicable",
    "evidence": {
     "endpoints": [],
-    "files": [
-     ".github/workflows/test.yml",
-     "Dockerfile",
-     "docs/deployment.md"
-    ],
+   "files": [
+    ".github/workflows/test.yml",
+    "deployment/docker/Dockerfile",
+    "Dockerfile.dev",
+    "docs/deployment.md"
+   ],
     "tests": [
      "tests/test_schema_consistency.py"
     ]

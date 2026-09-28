@@ -37,7 +37,7 @@ railway variables set RIFT_SUPABASE_URL=... RIFT_SUPABASE_KEY=... RIFT_API_TOKEN
 railway up
 ```
 
-Auto-detects the `Dockerfile` at repo root.
+Point it at `deployment/docker/Dockerfile` (there is intentionally no root Dockerfile; that stale copy was removed).
 
 ## 4. Render free tier (750h/mo, spins down after inactivity)
 
@@ -45,7 +45,7 @@ Connect GitHub repo → Web Service → Docker → `deployment/docker/Dockerfile
 
 ## 5. Vercel (serverless, 100 GB-hours/mo) — NOT SUITABLE
 
-RIFT needs persistent HTTP server + websockets; Vercel Edge Functions are 30s max, no persistent state.
+RIFT needs a persistent HTTP server for SSE streaming (`GET /api/events/stream` — there is no WebSocket transport); Vercel Edge Functions are 30s max, no persistent state.
 
 ## Current status
 

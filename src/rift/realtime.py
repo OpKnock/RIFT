@@ -1,4 +1,8 @@
-"""Real-time Event Infrastructure: WebSocket/SSE, source registry, reconciliation (Phase 5 gaps)."""
+"""Real-time Event Infrastructure: SSE transport, source registry, reconciliation (Phase 5 gaps).
+
+SSE (`GET /api/events/stream`) is the only supported transport; there is
+no WebSocket upgrade on the stdlib server.
+"""
 from __future__ import annotations
 
 import asyncio
@@ -29,10 +33,23 @@ class SourceProbe:
     detail: str | None = None
 
 
-# --- WebSocket / SSE Server ---
+# --- Event bus (SSE transport) ---
+
+def _put_nowait_drop_full(q: "asyncio.Queue", event: dict) -> None:
+    """put_nowait that drops (instead of raising) on a full queue.
+
+    Runs inside the event-loop thread via call_soon_threadsafe, which is
+    the only place the overflow can be observed: the scheduling call
+    itself never raises QueueFull.
+    """
+    try:
+        q.put_nowait(event)
+    except asyncio.QueueFull:
+        pass
+
 
 class EventBus:
-    """In-process event bus for real-time updates. Supports WebSocket and SSE clients."""
+    """In-process event bus for real-time updates. Served over SSE."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -69,7 +86,14 @@ class EventBus:
             self._sync_subscribers[topic].discard(queue)
 
     def publish(self, topic: str, event: dict) -> int:
-        """Publish event to all subscribers of topic. Returns count of deliveries."""
+        """Publish event to all subscribers of topic.
+
+        Returns the count of accepted deliveries. Async queues are fed
+        via the event loop, so a full queue drops this event silently by
+        design (slow subscribers never block fan-out); the drop decision
+        itself runs inside the loop callback, where the overflow must be
+        caught — catching it around the scheduling call would miss.
+        """
         with self._lock:
             async_queues = list(self._subscribers.get(topic, set()))
             sync_queues = list(self._sync_subscribers.get(topic, set()))
@@ -77,9 +101,10 @@ class EventBus:
         if self._loop is not None:
             for q in async_queues:
                 try:
-                    self._loop.call_soon_threadsafe(q.put_nowait, event)
+                    self._loop.call_soon_threadsafe(_put_nowait_drop_full, q, event)
                     delivered += 1
-                except asyncio.QueueFull:
+                except RuntimeError:
+                    # Loop closed after set_loop: this subscriber is gone.
                     pass
         for q in sync_queues:
             try:
@@ -129,54 +154,6 @@ class SSEConnection:
 
     def close(self) -> None:
         self._closed = True
-
-
-# --- WebSocket Handler ---
-
-class WSConnection:
-    """WebSocket connection handler with topic subscriptions."""
-
-    def __init__(self, websocket, event_bus: EventBus) -> None:
-        self.ws = websocket
-        self.event_bus = event_bus
-        self.subscriptions: dict[str, asyncio.Queue] = {}
-
-    async def handle(self) -> None:
-        try:
-            async for msg in self.ws:
-                data = json.loads(msg)
-                await self._handle_message(data)
-        except Exception:  # nosec B110 -- disconnect ends the loop; cleanup in finally still runs
-            pass
-        finally:
-            await self._cleanup()
-
-    async def _handle_message(self, data: dict) -> None:
-        msg_type = data.get("type")
-        if msg_type == "subscribe":
-            for topic in data.get("topics", []):
-                if topic not in self.subscriptions:
-                    q = self.event_bus.subscribe(topic)
-                    self.subscriptions[topic] = q
-                    asyncio.create_task(self._forward(topic, q))
-        elif msg_type == "unsubscribe":
-            for topic in data.get("topics", []):
-                if topic in self.subscriptions:
-                    self.event_bus.unsubscribe(topic, self.subscriptions.pop(topic))
-        elif msg_type == "ping":
-            await self.ws.send(json.dumps({"type": "pong", "timestamp": datetime.now(timezone.utc).isoformat()}))
-
-    async def _forward(self, topic: str, queue: asyncio.Queue) -> None:
-        try:
-            while True:
-                event = await queue.get()
-                await self.ws.send(json.dumps({"type": "event", "topic": topic, "data": event}))
-        except Exception:  # nosec B110 -- send failure ends this forwarder; the bus itself is unaffected
-            pass
-
-    async def _cleanup(self) -> None:
-        for topic, q in self.subscriptions.items():
-            self.event_bus.unsubscribe(topic, q)
 
 
 # --- Canonical Event Bus ---
@@ -390,7 +367,12 @@ class ReconciliationEngine:
             self._reconciliation_rules.append(rule)
 
     def run_reconciliation(self, sources_data: dict[str, dict]) -> list[dict]:
-        """Run consistency checks and apply reconciliation rules."""
+        """Run consistency checks and apply reconciliation rules.
+
+        A failing rule is an explicit failed-reconciliation entry
+        (``status: "failed"``), never an action-shaped dict a caller
+        could mistake for a decision.
+        """
         checks = self.consistency_checker.check_consistency(sources_data)
         actions = []
 
@@ -401,7 +383,12 @@ class ReconciliationEngine:
                     actions.append(action)
                     self.event_bus.publish("reconciliation.action", action)
             except Exception as e:
-                actions.append({"error": str(e), "rule": str(rule)})
+                actions.append({
+                    "status": "failed",
+                    "rule": str(rule),
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                })
 
         return actions
 
@@ -450,6 +437,8 @@ class ReoptimizationTrigger:
                     action = {
                         "trigger_id": f"reopt-{uuid.uuid4().hex[:8]}",
                         "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "triggered": True,
+                        "status": "ok",
                         "reason": f"risk_change={risk_change:.3f}" + (" guardian_changed" if guardian_changed else ""),
                         "previous_risk": last_risk,
                         "current_risk": curr_risk,
@@ -462,7 +451,15 @@ class ReoptimizationTrigger:
                     self.event_bus.publish("reoptimization.triggered", action)
                     return action
                 except Exception as e:
-                    return {"error": str(e), "material": True}
+                    # Explicit failure: callers must not read "material"
+                    # as proof that reoptimization happened.
+                    return {
+                        "triggered": False,
+                        "status": "failed",
+                        "error": str(e),
+                        "error_type": type(e).__name__,
+                        "material": True,
+                    }
 
             return None
 
@@ -502,7 +499,7 @@ def probe_all_sources_and_update_trust() -> dict[str, SourceTrustScore]:
     return {ts.source_key: ts for ts in source_trust_manager.get_all_scores()}
 
 
-# --- SSE / WebSocket Integration Helpers ---
+# --- SSE integration helpers (no WebSocket transport exists) ---
 
 def create_sse_response(topics: list[str]) -> tuple[str, dict]:
     """Create SSE response headers and initial event."""
