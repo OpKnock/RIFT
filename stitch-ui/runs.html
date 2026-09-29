@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RIFT // Counterfactual Intelligence - Runs</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Public+Sans:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            surface: "#090d16",
+            "surface-container": "#111827",
+            "surface-container-high": "#1f2937",
+            primary: "#06b6d4",
+            "primary-container": "#0891b2",
+            "on-surface": "#f3f4f6",
+            "on-surface-variant": "#9ca3af",
+            "outline-variant": "#374151"
+          },
+          borderRadius: {
+            DEFAULT: "0.25rem",
+            lg: "0.5rem",
+            xl: "0.75rem",
+            full: "9999px"
+          },
+          fontFamily: {
+            headline: ["Space Grotesk"],
+            display: ["Space Grotesk"],
+            body: ["Inter"],
+            label: ["Public Sans"]
+          }
+        },
+      },
+    }
+  </script>
+  <script src="./rift-live.js"></script>
+</head>
+<body class="bg-surface text-on-surface font-body antialiased min-h-screen flex selection:bg-primary selection:text-surface">
+<!-- SideNavBar -->
+<aside class="fixed top-0 left-0 h-screen w-64 flex flex-col justify-between shrink-0 bg-surface dark:bg-surface border-r border-outline-variant dark:border-outline-variant p-4 z-50">
+<div class="flex flex-col gap-6">
+<div class="flex items-center gap-3 px-3 py-2">
+<span class="font-headline text-lg font-bold tracking-widest text-primary dark:text-primary">RIFT</span>
+<span class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Counterfactual Intelligence</span>
+</div>
+<nav class="flex flex-col gap-1 font-body text-sm">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./dashboard.html">
+<span class="material-symbols-outlined">dashboard</span>
+          Dashboard
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./scenarios.html">
+<span class="material-symbols-outlined">alt_route</span>
+          Scenarios
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./simulation.html">
+<span class="material-symbols-outlined">model_training</span>
+          Simulation
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-surface-container-high dark:bg-surface-container-high text-primary dark:text-primary font-medium border-l-2 border-primary hover:bg-surface-container hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./runs.html">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">play_circle</span>
+          Runs
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./experiments.html">
+<span class="material-symbols-outlined">science</span>
+          Experiments
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./evidence.html">
+<span class="material-symbols-outlined">find_in_page</span>
+          Evidence
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./incidents.html">
+<span class="material-symbols-outlined">warning</span>
+          Incidents
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./explainability.html">
+<span class="material-symbols-outlined">psychology</span>
+          Explainability
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./settings.html">
+<span class="material-symbols-outlined">settings</span>
+          Settings
+        </a>
+</nav>
+</div>
+<div class="flex flex-col gap-4">
+<button class="w-full bg-primary hover:bg-primary-container text-surface font-headline font-semibold py-2 px-4 rounded-lg transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">add</span>
+        New Run
+      </button>
+<div class="flex flex-col gap-1 pt-2 border-t border-outline-variant">
+<a class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-on-surface-variant text-xs hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined text-base">menu_book</span>
+          Documentation
+        </a>
+<a class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-on-surface-variant text-xs hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined text-base">terminal</span>
+          Terminal
+        </a>
+</div>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<div class="flex-1 ml-64 flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="sticky top-0 right-0 w-full z-40 bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline-variant">
+<div class="flex justify-between items-center px-6 py-2.5 w-full">
+<div class="flex items-center gap-4">
+<span class="font-headline text-sm font-bold uppercase tracking-wider text-primary dark:text-primary">RIFT // Engine Status</span>
+<div class="hidden lg:flex items-center gap-3 pl-4 border-l border-outline-variant text-xs">
+<span class="text-on-surface-variant font-medium flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Cluster-01: Online
+            </span>
+<span class="text-on-surface-variant font-medium flex items-center gap-1.5">Engine: v0.9.4-rc</span>
+<span class="text-on-surface-variant font-medium flex items-center gap-1.5">Latency: 24ms</span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-3 py-1.5 rounded bg-surface-container hover:bg-surface-container-high text-xs font-medium text-primary border border-outline-variant transition-colors active:opacity-80">Verify Snapshot</button>
+<button class="px-3 py-1.5 rounded bg-primary hover:bg-primary-container text-surface text-xs font-semibold transition-colors active:opacity-80">Deploy Override</button>
+<div class="flex items-center gap-2 pl-3 border-l border-outline-variant">
+<button class="p-1.5 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-lg">notifications_active</span></button>
+<button class="p-1.5 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-lg">help_outline</span></button>
+<button class="p-1.5 rounded hover:bg-surface-container text-on-surface-variant hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-lg">tune</span></button>
+</div>
+</div>
+</div>
+</header>
+<!-- Canvas Dashboard View -->
+<main class="flex-1 p-6 flex flex-col gap-6 bg-surface">
+<!-- 1. Top status bar showing endpoint GET /api/ops/monitor, polling status, and sync status -->
+<div class="bg-surface-container rounded-xl p-4 border border-outline-variant flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+<div class="flex items-center gap-3">
+<div class="p-2 rounded-lg bg-surface-container-high text-primary">
+<span class="material-symbols-outlined">api</span>
+</div>
+<div>
+<div class="text-xs font-label uppercase tracking-wider text-on-surface-variant">Active Monitor Endpoint</div>
+<div class="font-mono text-sm font-semibold text-on-surface flex items-center gap-2">
+<span class="text-primary">GET</span> /api/ops/monitor
+            </div>
+</div>
+</div>
+<div class="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+<!-- Polling Toggle Status -->
+<div class="flex items-center gap-2 bg-surface px-3 py-1.5 rounded-lg border border-outline-variant">
+<span class="relative flex h-2.5 w-2.5">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" id="poll-ping"></span>
+<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" id="poll-dot"></span>
+</span>
+<span class="text-xs font-medium text-on-surface" id="poll-text">Polling Active (5s)</span>
+<button class="ml-2 text-xs bg-surface-container-high hover:bg-outline-variant text-on-surface px-2 py-0.5 rounded transition-colors font-medium" id="poll-toggle-btn" onclick="togglePolling()">Pause</button>
+</div>
+<!-- Sync Status -->
+<div class="flex items-center gap-2 text-xs text-on-surface-variant border-l border-outline-variant pl-4">
+<span class="material-symbols-outlined text-sm text-primary">sync</span>
+<span>Synced <span class="font-mono" id="sync-timer">0s</span> ago</span>
+</div>
+</div>
+</div>
+<!-- 5. Simulated 401 Unauthorized handling card state -->
+<div class="bg-surface-container border border-amber-500/30 rounded-xl p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-all duration-300" id="auth-alert-card">
+<div class="flex items-start gap-3">
+<div class="p-2 rounded-lg bg-amber-500/10 text-amber-400 shrink-0">
+<span class="material-symbols-outlined">security</span>
+</div>
+<div>
+<div class="font-headline font-semibold text-sm text-amber-300 flex items-center gap-2">
+<span>Authentication Token Expired</span>
+<span class="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded font-mono">HTTP 401</span>
+</div>
+<p class="text-xs text-on-surface-variant mt-0.5">Telemetry ingestion stream requires token re-validation. Live metrics might be degraded.</p>
+</div>
+</div>
+<div class="flex items-center gap-3 w-full md:w-auto justify-end">
+<button class="px-3 py-1.5 rounded bg-surface-container-high hover:bg-outline-variant text-xs font-medium text-on-surface transition-colors flex items-center gap-1.5" id="retry-btn" onclick="simulateRetry()">
+<span class="material-symbols-outlined text-sm">refresh</span>
+            Manual Retry
+          </button>
+<a class="px-3 py-1.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-xs font-semibold text-amber-300 transition-colors flex items-center gap-1.5" href="./settings.html">
+<span class="material-symbols-outlined text-sm">settings</span>
+            Token Settings
+          </a>
+</div>
+</div>
+<!-- 2. Summary metric cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+<!-- Card 1 -->
+<div class="bg-surface-container rounded-xl p-5 border border-outline-variant flex flex-col justify-between gap-4">
+<div class="flex items-center justify-between">
+<span class="text-xs font-label uppercase tracking-wider text-on-surface-variant">Total Request Volume</span>
+<span class="p-1.5 rounded-lg bg-surface-container-high text-primary"><span class="material-symbols-outlined text-base">monitoring</span></span>
+</div>
+<div>
+<div class="text-2xl font-headline font-bold text-on-surface font-mono">1,482,904</div>
+<div class="flex items-center gap-1 text-xs text-emerald-400 mt-1">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+<span>+12.4% from last hour</span>
+</div>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container rounded-xl p-5 border border-outline-variant flex flex-col justify-between gap-4">
+<div class="flex items-center justify-between">
+<span class="text-xs font-label uppercase tracking-wider text-on-surface-variant">Failure Rate (Global)</span>
+<span class="p-1.5 rounded-lg bg-surface-container-high text-amber-400"><span class="material-symbols-outlined text-base">error</span></span>
+</div>
+<div>
+<div class="text-2xl font-headline font-bold text-on-surface font-mono">0.042%</div>
+<div class="flex items-center gap-1 text-xs text-amber-400 mt-1">
+<span class="material-symbols-outlined text-sm">warning</span>
+<span>Slight elevation detected</span>
+</div>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container rounded-xl p-5 border border-outline-variant flex flex-col justify-between gap-4">
+<div class="flex items-center justify-between">
+<span class="text-xs font-label uppercase tracking-wider text-on-surface-variant">p95 Latency</span>
+<span class="p-1.5 rounded-lg bg-surface-container-high text-primary"><span class="material-symbols-outlined text-base">timer</span></span>
+</div>
+<div>
+<div class="text-2xl font-headline font-bold text-on-surface font-mono">42.8ms</div>
+<div class="flex items-center gap-1 text-xs text-emerald-400 mt-1">
+<span class="material-symbols-outlined text-sm">trending_down</span>
+<span>-3.2ms optimized</span>
+</div>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="bg-surface-container rounded-xl p-5 border border-outline-variant flex flex-col justify-between gap-4">
+<div class="flex items-center justify-between">
+<span class="text-xs font-label uppercase tracking-wider text-on-surface-variant">Alert Evaluation Engine</span>
+<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-rose-500/20 text-rose-400 font-bold tracking-wider animate-pulse">FIRING</span>
+</div>
+<div>
+<div class="text-2xl font-headline font-bold text-on-surface font-mono">2 / 14</div>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-xs text-rose-400 font-medium">2 Active Rules</span>
+<span class="text-xs text-on-surface-variant">• 12 OK</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Grid layout for Alert Rules & Detailed Breakdown -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- 3. Alert Rules Evaluation Matrix list -->
+<div class="bg-surface-container rounded-xl border border-outline-variant flex flex-col overflow-hidden">
+<div class="p-4 border-b border-outline-variant flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">rule</span>
+<h3 class="font-headline font-semibold text-sm text-on-surface">Alert Rules Evaluation Matrix</h3>
+</div>
+<span class="text-xs text-on-surface-variant font-mono">14 Rules</span>
+</div>
+<div class="divide-y divide-outline-variant overflow-y-auto max-h-[360px]">
+<!-- Rule 1 -->
+<div class="p-3.5 flex items-center justify-between hover:bg-surface-container-high/50 transition-colors">
+<div class="flex flex-col gap-0.5">
+<span class="text-xs font-semibold text-on-surface font-mono">HighMemorySpike_v2</span>
+<span class="text-[10px] text-on-surface-variant">Threshold &gt; 85% for 3m</span>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-rose-500/20 text-rose-400 font-bold">FIRING</span>
+<span class="text-[10px] text-on-surface-variant font-mono">12s ago</span>
+</div>
+</div>
+<!-- Rule 2 -->
+<div class="p-3.5 flex items-center justify-between hover:bg-surface-container-high/50 transition-colors">
+<div class="flex flex-col gap-0.5">
+<span class="text-xs font-semibold text-on-surface font-mono">CounterfactualDrift_Max</span>
+<span class="text-[10px] text-on-surface-variant">KL Divergence &gt; 0.42</span>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-rose-500/20 text-rose-400 font-bold">FIRING</span>
+<span class="text-[10px] text-on-surface-variant font-mono">1m ago</span>
+</div>
+</div>
+<!-- Rule 3 -->
+<div class="p-3.5 flex items-center justify-between hover:bg-surface-container-high/50 transition-colors">
+<div class="flex flex-col gap-0.5">
+<span class="text-xs font-semibold text-on-surface font-mono">IngestQueue_Backpressure</span>
+<span class="text-[10px] text-on-surface-variant">Unprocessed &gt; 50k</span>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold">OK</span>
+<span class="text-[10px] text-on-surface-variant font-mono">Just now</span>
+</div>
+</div>
+<!-- Rule 4 -->
+<div class="p-3.5 flex items-center justify-between hover:bg-surface-container-high/50 transition-colors">
+<div class="flex flex-col gap-0.5">
+<span class="text-xs font-semibold text-on-surface font-mono">DownstreamAPI_Timeout</span>
+<span class="text-[10px] text-on-surface-variant">P99 &gt; 500ms</span>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-400 font-bold">OK</span>
+<span class="text-[10px] text-on-surface-variant font-mono">Just now</span>
+</div>
+</div>
+<!-- Rule 5 -->
+<div class="p-3.5 flex items-center justify-between hover:bg-surface-container-high/50 transition-colors">
+<div class="flex flex-col gap-0.5">
+<span class="text-xs font-semibold text-on-surface font-mono">AuthToken_Expiry_Warn</span>
+<span class="text-[10px] text-on-surface-variant">TTL &lt; 300s</span>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-amber-500/20 text-amber-400 font-bold">WARN</span>
+<span class="text-[10px] text-on-surface-variant font-mono">4s ago</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 4. Per-route traffic & latency breakdown table -->
+<div class="bg-surface-container rounded-xl border border-outline-variant lg:col-span-2 flex flex-col overflow-hidden">
+<div class="p-4 border-b border-outline-variant flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">table_chart</span>
+<h3 class="font-headline font-semibold text-sm text-on-surface">Per-Route Traffic &amp; Latency Breakdown</h3>
+</div>
+<div class="flex items-center gap-2">
+<input class="bg-surface border border-outline-variant rounded px-2.5 py-1 text-xs text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary" placeholder="Filter routes..." type="text"/>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant text-[11px] font-label uppercase tracking-wider text-on-surface-variant bg-surface-container-high/30">
+<th class="py-3 px-4 font-semibold">Route Path</th>
+<th class="py-3 px-3 font-semibold">Requests (10m)</th>
+<th class="py-3 px-3 font-semibold">Failures</th>
+<th class="py-3 px-3 font-semibold">Fail %</th>
+<th class="py-3 px-3 font-semibold">P50</th>
+<th class="py-3 px-3 font-semibold">P95</th>
+<th class="py-3 px-3 font-semibold">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant text-xs font-mono">
+<tr class="hover:bg-surface-container-high/50 transition-colors">
+<td class="py-3 px-4 text-primary font-medium">/api/v1/simulate/counterfactual</td>
+<td class="py-3 px-3 text-on-surface">428,910</td>
+<td class="py-3 px-3 text-on-surface">124</td>
+<td class="py-3 px-3 text-emerald-400">0.029%</td>
+<td class="py-3 px-3 text-on-surface">12ms</td>
+<td class="py-3 px-3 text-on-surface">28ms</td>
+<td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 font-sans font-semibold">Healthy</span></td>
+</tr>
+<tr class="hover:bg-surface-container-high/50 transition-colors">
+<td class="py-3 px-4 text-primary font-medium">/api/v1/runs/batch-evaluate</td>
+<td class="py-3 px-3 text-on-surface">312,400</td>
+<td class="py-3 px-3 text-on-surface">310</td>
+<td class="py-3 px-3 text-amber-400">0.099%</td>
+<td class="py-3 px-3 text-on-surface">45ms</td>
+<td class="py-3 px-3 text-on-surface">94ms</td>
+<td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-400 font-sans font-semibold">Degraded</span></td>
+</tr>
+<tr class="hover:bg-surface-container-high/50 transition-colors">
+<td class="py-3 px-4 text-primary font-medium">/api/ops/monitor</td>
+<td class="py-3 px-3 text-on-surface">210,042</td>
+<td class="py-3 px-3 text-on-surface">2</td>
+<td class="py-3 px-3 text-emerald-400">0.001%</td>
+<td class="py-3 px-3 text-on-surface">4ms</td>
+<td class="py-3 px-3 text-on-surface">9ms</td>
+<td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 font-sans font-semibold">Healthy</span></td>
+</tr>
+<tr class="hover:bg-surface-container-high/50 transition-colors">
+<td class="py-3 px-4 text-primary font-medium">/api/v1/evidence/query</td>
+<td class="py-3 px-3 text-on-surface">184,290</td>
+<td class="py-3 px-3 text-on-surface">1,420</td>
+<td class="py-3 px-3 text-rose-400 font-bold">0.770%</td>
+<td class="py-3 px-3 text-on-surface">110ms</td>
+<td class="py-3 px-3 text-on-surface">240ms</td>
+<td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-[10px] bg-rose-500/10 text-rose-400 font-sans font-semibold">Critical</span></td>
+</tr>
+<tr class="hover:bg-surface-container-high/50 transition-colors">
+<td class="py-3 px-4 text-primary font-medium">/api/v1/explainability/shap</td>
+<td class="py-3 px-3 text-on-surface">98,120</td>
+<td class="py-3 px-3 text-on-surface">14</td>
+<td class="py-3 px-3 text-emerald-400">0.014%</td>
+<td class="py-3 px-3 text-on-surface">65ms</td>
+<td class="py-3 px-3 text-on-surface">142ms</td>
+<td class="py-3 px-3"><span class="px-2 py-0.5 rounded text-[10px] bg-emerald-500/10 text-emerald-400 font-sans font-semibold">Healthy</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+  <script src="./live/runs.js"></script>
+</body></html>

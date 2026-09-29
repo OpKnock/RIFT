@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RIFT // Counterfactual Intelligence - Experiments</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=Public+Sans:wght@300;400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            surface: "#090d16",
+            "surface-container": "#111827",
+            "surface-container-high": "#1f293d",
+            primary: "#0891b2",
+            "primary-container": "#0e4f62",
+            "on-primary-container": "#a5f3fc",
+            "on-surface": "#f3f4f6",
+            "on-surface-variant": "#9ca3af",
+            "outline-variant": "#1e293b"
+          },
+          borderRadius: {
+            DEFAULT: "0.25rem",
+            lg: "0.5rem",
+            xl: "0.75rem",
+            full: "9999px"
+          },
+          fontFamily: {
+            headline: ["Space Grotesk", "sans-serif"],
+            display: ["Space Grotesk", "sans-serif"],
+            body: ["Inter", "sans-serif"],
+            label: ["Public Sans", "sans-serif"],
+            mono: ["JetBrains Mono", "monospace"]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    body {
+      background-color: #090d16;
+      color: #f3f4f6;
+      font-family: 'Inter', sans-serif;
+    }
+  </style>
+  <script src="./rift-live.js"></script>
+</head>
+<body class="bg-surface text-on-surface min-h-screen flex flex-col antialiased selection:bg-primary selection:text-white">
+<!-- SideNavBar -->
+<aside class="fixed top-0 left-0 h-screen w-64 flex flex-col justify-between shrink-0 bg-surface dark:bg-surface border-r border-outline-variant dark:border-outline-variant z-50 p-4">
+<div class="flex flex-col gap-6">
+<div class="flex items-center gap-3 px-2 pt-2">
+<div class="w-8 h-8 rounded-lg bg-primary-container flex items-center justify-center text-on-primary-container font-headline font-bold">R</div>
+<div>
+<h1 class="font-headline text-lg font-bold tracking-widest text-primary dark:text-primary">RIFT</h1>
+<p class="font-body text-xs text-on-surface-variant">Counterfactual Intelligence</p>
+</div>
+</div>
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./dashboard.html">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label text-xs uppercase tracking-wider">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./scenarios.html">
+<span class="material-symbols-outlined" data-icon="alt_route">alt_route</span>
+<span class="font-label text-xs uppercase tracking-wider">Scenarios</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./simulation.html">
+<span class="material-symbols-outlined" data-icon="model_training">model_training</span>
+<span class="font-label text-xs uppercase tracking-wider">Simulation</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./runs.html">
+<span class="material-symbols-outlined" data-icon="play_circle">play_circle</span>
+<span class="font-label text-xs uppercase tracking-wider">Runs</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-surface-container-high dark:bg-surface-container-high text-primary dark:text-primary font-medium border-l-2 border-primary active:scale-[0.98]" href="./experiments.html">
+<span class="material-symbols-outlined" data-icon="science" style="font-variation-settings: 'FILL' 1;">science</span>
+<span class="font-label text-xs uppercase tracking-wider">Experiments</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./evidence.html">
+<span class="material-symbols-outlined" data-icon="find_in_page">find_in_page</span>
+<span class="font-label text-xs uppercase tracking-wider">Evidence</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./incidents.html">
+<span class="material-symbols-outlined" data-icon="warning">warning</span>
+<span class="font-label text-xs uppercase tracking-wider">Incidents</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./explainability.html">
+<span class="material-symbols-outlined" data-icon="psychology">psychology</span>
+<span class="font-label text-xs uppercase tracking-wider">Explainability</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./settings.html">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label text-xs uppercase tracking-wider">Settings</span>
+</a>
+</nav>
+</div>
+<div class="flex flex-col gap-4">
+<button class="w-full bg-primary hover:bg-cyan-600 text-white font-headline text-sm font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-cyan-950/50 transition-all active:scale-[0.98]">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+        New Run
+      </button>
+<div class="border-t border-outline-variant pt-3 flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-on-surface-variant text-xs hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="menu_book">menu_book</span>
+          Documentation
+        </a>
+<a class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-on-surface-variant text-xs hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined text-sm" data-icon="terminal">terminal</span>
+          Terminal
+        </a>
+</div>
+</div>
+</aside>
+<!-- Main Wrapper -->
+<div class="pl-64 flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="sticky top-0 right-0 w-full z-40 bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline-variant">
+<div class="flex justify-between items-center px-6 py-2.5 w-full">
+<div class="flex items-center gap-6">
+<div class="font-headline text-sm font-bold uppercase tracking-wider text-primary dark:text-primary">RIFT // Engine Status</div>
+<div class="flex items-center gap-4 text-xs font-medium">
+<span class="text-on-surface-variant dark:text-on-surface-variant flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Cluster-01: Online
+            </span>
+<span class="text-on-surface-variant dark:text-on-surface-variant flex items-center gap-1.5 font-mono">Engine: v0.9.4-rc</span>
+<span class="text-on-surface-variant dark:text-on-surface-variant flex items-center gap-1.5 font-mono">Latency: 24ms</span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-medium px-3 py-1.5 rounded border border-outline-variant transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm text-primary" data-icon="verified">verified</span>
+            Verify Snapshot
+          </button>
+<button class="bg-primary-container text-on-primary-container text-xs font-medium px-3 py-1.5 rounded hover:bg-cyan-800 transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-sm" data-icon="bolt">bolt</span>
+            Deploy Override
+          </button>
+<div class="h-4 w-px bg-outline-variant mx-1"></div>
+<button class="text-on-surface-variant hover:text-on-surface p-1.5 rounded-lg hover:bg-surface-container">
+<span class="material-symbols-outlined text-lg" data-icon="notifications_active">notifications_active</span>
+</button>
+<button class="text-on-surface-variant hover:text-on-surface p-1.5 rounded-lg hover:bg-surface-container">
+<span class="material-symbols-outlined text-lg" data-icon="help_outline">help_outline</span>
+</button>
+<button class="text-on-surface-variant hover:text-on-surface p-1.5 rounded-lg hover:bg-surface-container">
+<span class="material-symbols-outlined text-lg" data-icon="tune">tune</span>
+</button>
+<div class="w-7 h-7 rounded-full bg-surface-container-high border border-primary/40 flex items-center justify-center overflow-hidden ml-1">
+<img class="w-full h-full object-cover" data-alt="Professional avatar portrait of a lead software research engineer with dark aesthetic lighting, cyan data reflections on glasses, high detail focus." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBJOD8tARXpd9wbRIkHa7WlbFPW_7_jpZxFVOIteH-fzwxhh4FgkR_8jRCR9fJIXr_jgiTqLMPRHsNAt4sUpWiX6FTeNGaCj3Sl30zq9cV2VvQR6a0UpafhseMwyMN3fIYYZ-KhE5savFErEJW8f8i_mNUYWYQeB_P3geCH3dblKyeSivS0BNgaxcIp9dR9VuVFZaM66nBrs6boT3bbMlJFbyW3XciIYWgc0AR4_cI_c_ERmRqo6Fq9G5Li6Kzer8x1L65GUJ62LXQ"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Area -->
+<main class="flex-1 p-6 flex flex-col gap-6 max-w-[1600px] w-full mx-auto">
+<!-- 1. Header with title & API status -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-surface-container/50 border border-outline-variant p-5 rounded-xl backdrop-blur-md">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="font-mono text-xs text-primary uppercase tracking-wider font-semibold">CORE / EXPERIMENTS &amp; COUNTERFACTUAL SWEEPS</span>
+</div>
+<h2 class="font-headline text-2xl font-bold tracking-tight text-on-surface">Experiment Orchestration &amp; Matrix Runs</h2>
+</div>
+<div class="flex items-center gap-3 bg-surface-container-high px-4 py-2 rounded-lg border border-outline-variant">
+<span class="material-symbols-outlined text-cyan-400 text-sm animate-spin" data-icon="sync">sync</span>
+<div class="flex flex-col">
+<span class="font-mono text-xs text-on-surface font-semibold">GET /api/experiments</span>
+<span class="font-mono text-[10px] text-emerald-400">Status 200 OK • Polling active (5s)</span>
+</div>
+</div>
+</div>
+<!-- 2. 401 Authentication Notice Card -->
+<div class="bg-amber-950/20 border border-amber-500/30 rounded-xl p-4 flex items-center justify-between gap-4 text-amber-200" id="auth-notice">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+<span class="material-symbols-outlined" data-icon="lock_reset">lock_reset</span>
+</div>
+<div>
+<h4 class="font-headline font-semibold text-sm text-amber-100">401 Authentication Notice: Token Expired</h4>
+<p class="text-xs text-amber-300/80 font-mono mt-0.5">Intercepted 401 Unauthorized on <span class="underline">/api/experiments</span> endpoint sync worker.</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-xs font-medium px-3 py-1.5 rounded transition-colors border border-amber-500/30" onclick="dismissAuthNotice()">
+            Dismiss
+          </button>
+<button class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs px-4 py-1.5 rounded transition-colors flex items-center gap-1.5" id="refresh-btn" onclick="refreshAuthToken()">
+<span class="material-symbols-outlined text-sm" data-icon="key">key</span>
+            Refresh Token
+          </button>
+</div>
+</div>
+<!-- 3. Two-Column Workspace -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+<!-- Left Column: Experiment List Table (7 cols) -->
+<div class="lg:col-span-7 bg-surface-container border border-outline-variant rounded-xl flex flex-col overflow-hidden">
+<div class="p-4 border-b border-outline-variant flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg" data-icon="list">list</span>
+<h3 class="font-headline font-semibold text-sm">Active Sweeps &amp; Matrix Queue</h3>
+</div>
+<div class="flex items-center gap-2">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-on-surface-variant text-sm" data-icon="search">search</span>
+<input class="bg-surface border border-outline-variant rounded-lg pl-8 pr-3 py-1 text-xs text-on-surface placeholder:text-on-surface-variant focus:outline-none focus:border-primary w-44" placeholder="Filter experiments..." type="text"/>
+</div>
+<button class="bg-surface hover:bg-surface-container-high border border-outline-variant p-1.5 rounded-lg text-on-surface-variant hover:text-on-surface">
+<span class="material-symbols-outlined text-sm" data-icon="filter_list">filter_list</span>
+</button>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant bg-surface-container-high/50 font-label text-[11px] uppercase tracking-wider text-on-surface-variant">
+<th class="py-3 px-4 font-medium">
+<input class="rounded bg-surface border-outline-variant text-primary focus:ring-0" type="checkbox"/>
+</th>
+<th class="py-3 px-4 font-medium">Experiment Name</th>
+<th class="py-3 px-4 font-medium">Optimizer</th>
+<th class="py-3 px-4 font-medium">Status</th>
+<th class="py-3 px-4 font-medium">Corridor</th>
+<th class="py-3 px-4 font-medium text-right">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant text-xs font-mono">
+<tr class="hover:bg-surface-container-high/40 transition-colors bg-primary-container/10">
+<td class="py-3 px-4">
+<input checked="" class="rounded bg-surface border-outline-variant text-primary focus:ring-0" type="checkbox"/>
+</td>
+<td class="py-3 px-4 font-semibold text-on-surface flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                    sweep-qaoa-alpha-92
+                  </td>
+<td class="py-3 px-4 text-on-surface-variant">qaoa-cvar</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800">
+<span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping"></span>
+                      Running
+                    </span>
+</td>
+<td class="py-3 px-4 text-on-surface-variant">8,450</td>
+<td class="py-3 px-4 text-right">
+<button class="text-primary hover:text-cyan-300 font-sans font-medium text-xs">Inspect</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-high/40 transition-colors">
+<td class="py-3 px-4">
+<input class="rounded bg-surface border-outline-variant text-primary focus:ring-0" type="checkbox"/>
+</td>
+<td class="py-3 px-4 font-semibold text-on-surface flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    counter-baseline-v2
+                  </td>
+<td class="py-3 px-4 text-on-surface-variant">exact</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800">
+                      Completed
+                    </span>
+</td>
+<td class="py-3 px-4 text-on-surface-variant">12,000</td>
+<td class="py-3 px-4 text-right">
+<button class="text-primary hover:text-cyan-300 font-sans font-medium text-xs">Inspect</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-high/40 transition-colors">
+<td class="py-3 px-4">
+<input class="rounded bg-surface border-outline-variant text-primary focus:ring-0" type="checkbox"/>
+</td>
+<td class="py-3 px-4 font-semibold text-on-surface flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                    sweep-degraded-node-4
+                  </td>
+<td class="py-3 px-4 text-on-surface-variant">qaoa-expectation</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-amber-950 text-amber-300 border border-amber-800">
+                      Degraded
+                    </span>
+</td>
+<td class="py-3 px-4 text-on-surface-variant">5,200</td>
+<td class="py-3 px-4 text-right">
+<button class="text-primary hover:text-cyan-300 font-sans font-medium text-xs">Inspect</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-high/40 transition-colors">
+<td class="py-3 px-4">
+<input class="rounded bg-surface border-outline-variant text-primary focus:ring-0" type="checkbox"/>
+</td>
+<td class="py-3 px-4 font-semibold text-on-surface flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                    batch-simulation-queue-09
+                  </td>
+<td class="py-3 px-4 text-on-surface-variant">exact</td>
+<td class="py-3 px-4">
+<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700">
+                      Queued
+                    </span>
+</td>
+<td class="py-3 px-4 text-on-surface-variant">15,000</td>
+<td class="py-3 px-4 text-right">
+<button class="text-primary hover:text-cyan-300 font-sans font-medium text-xs">Inspect</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-3 border-t border-outline-variant bg-surface-container-high/30 flex items-center justify-between text-xs text-on-surface-variant">
+<span>Showing 4 of 42 experiments</span>
+<div class="flex items-center gap-1">
+<button class="px-2 py-1 bg-surface border border-outline-variant rounded disabled:opacity-50" disabled="">Prev</button>
+<button class="px-2 py-1 bg-surface border border-outline-variant rounded hover:text-on-surface">1</button>
+<button class="px-2 py-1 bg-surface border border-outline-variant rounded hover:text-on-surface">2</button>
+<button class="px-2 py-1 bg-surface border border-outline-variant rounded hover:text-on-surface">Next</button>
+</div>
+</div>
+</div>
+<!-- Right Column: Create Experiment Form (5 cols) -->
+<div class="lg:col-span-5 bg-surface-container border border-outline-variant rounded-xl flex flex-col p-5">
+<div class="flex items-center justify-between pb-4 border-b border-outline-variant mb-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg" data-icon="post_add">post_add</span>
+<h3 class="font-headline font-semibold text-sm">Create New Experiment</h3>
+</div>
+<span class="font-mono text-[10px] text-on-surface-variant">POST /api/experiments</span>
+</div>
+<form class="flex flex-col gap-4">
+<div class="flex flex-col gap-1.5">
+<label class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Experiment Name</label>
+<input class="bg-surface border border-outline-variant rounded-lg px-3 py-2 text-xs font-mono text-on-surface focus:outline-none focus:border-primary" type="text" value="sweep-alpha-production-v3"/>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="flex flex-col gap-1.5">
+<label class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Scenario Dropdown</label>
+<select class="bg-surface border border-outline-variant rounded-lg px-3 py-2 text-xs font-mono text-on-surface focus:outline-none focus:border-primary">
+<option>urban-gridlock-scenario-04</option>
+<option>suburban-evac-matrix-b</option>
+<option>hyperloop-capacity-stress</option>
+</select>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Optimizer Select</label>
+<select class="bg-surface border border-outline-variant rounded-lg px-3 py-2 text-xs font-mono text-on-surface focus:outline-none focus:border-primary">
+<option>qaoa-cvar</option>
+<option>exact</option>
+<option>qaoa-expectation</option>
+</select>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+<div class="flex flex-col gap-1.5">
+<label class="font-label text-[10px] uppercase tracking-wider text-on-surface-variant">Crowd Density</label>
+<input class="bg-surface border border-outline-variant rounded-lg px-3 py-2 text-xs font-mono text-on-surface focus:outline-none focus:border-primary" type="number" value="1250"/>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label text-[10px] uppercase tracking-wider text-on-surface-variant">Smoke Dispersion</label>
+<input class="bg-surface border border-outline-variant rounded-lg px-3 py-2 text-xs font-mono text-on-surface focus:outline-none focus:border-primary" step="0.1" type="number" value="0.45"/>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="font-label text-[10px] uppercase tracking-wider text-on-surface-variant">Corridor Cap</label>
+<input class="bg-surface border border-outline-variant rounded-lg px-3 py-2 text-xs font-mono text-on-surface focus:outline-none focus:border-primary" type="number" value="8450"/>
+</div>
+</div>
+<div class="pt-2 flex items-center justify-between gap-3">
+<button class="px-4 py-2 bg-surface hover:bg-surface-container-high border border-outline-variant rounded-lg text-xs font-medium text-on-surface-variant hover:text-on-surface transition-colors" type="button">
+                Reset Form
+              </button>
+<button class="flex-1 bg-primary hover:bg-cyan-600 text-white font-headline text-xs font-semibold py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 shadow-lg shadow-cyan-950/50 transition-all active:scale-[0.98]" onclick="submitExperiment(this)" type="button">
+<span class="material-symbols-outlined text-sm" data-icon="send">send</span>
+                POST /api/experiments CTA
+              </button>
+</div>
+</form>
+</div>
+</div>
+<!-- 4. Selected Experiment Detail Panel -->
+<div class="bg-surface-container border border-outline-variant rounded-xl p-5 flex flex-col gap-6">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant pb-4">
+<div>
+<div class="flex items-center gap-2">
+<span class="font-mono text-xs text-primary">ID: exp-99482-alpha</span>
+<span class="px-2 py-0.5 rounded text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono">Running</span>
+</div>
+<h3 class="font-headline text-lg font-bold text-on-surface mt-0.5">Sweep Details: sweep-qaoa-alpha-92</h3>
+</div>
+<div class="flex items-center gap-2">
+<button class="bg-surface hover:bg-surface-container-high border border-outline-variant text-on-surface text-xs font-medium px-3.5 py-2 rounded-lg transition-colors flex items-center gap-2" onclick="triggerSimulationReplay()">
+<span class="material-symbols-outlined text-primary text-sm" data-icon="play_arrow">play_arrow</span>
+              Patient-twin / simulation replay
+            </button>
+<button class="bg-surface hover:bg-surface-container-high border border-outline-variant text-on-surface text-xs font-medium px-3.5 py-2 rounded-lg transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="file_upload">file_upload</span>
+              Export JSON
+            </button>
+<button class="bg-surface hover:bg-surface-container-high border border-outline-variant text-on-surface text-xs font-medium px-3.5 py-2 rounded-lg transition-colors flex items-center gap-2">
+<span class="material-symbols-outlined text-sm" data-icon="file_download">file_download</span>
+              Import JSON
+            </button>
+</div>
+</div>
+<!-- Run comparison tool & Runs list -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-6">
+<!-- Runs List & Diff (7 cols) -->
+<div class="xl:col-span-7 flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<h4 class="font-headline font-semibold text-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-base" data-icon="compare_arrows">compare_arrows</span>
+                Side-by-Side Run Comparison (Run A vs Run B Diff Metrics)
+              </h4>
+<span class="font-mono text-[10px] text-on-surface-variant">Diff Engine v2.1</span>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<!-- Run A Card -->
+<div class="bg-surface border border-cyan-500/40 rounded-lg p-3 flex flex-col gap-2">
+<div class="flex items-center justify-between text-xs font-mono">
+<span class="text-cyan-400 font-semibold">RUN A: baseline-04</span>
+<span class="text-on-surface-variant">T=120s</span>
+</div>
+<div class="grid grid-cols-2 gap-2 text-xs font-mono pt-1">
+<div class="bg-surface-container p-2 rounded">
+<div class="text-[10px] text-on-surface-variant">Throughput</div>
+<div class="text-on-surface font-bold">1,420 p/s</div>
+</div>
+<div class="bg-surface-container p-2 rounded">
+<div class="text-[10px] text-on-surface-variant">Congestion Index</div>
+<div class="text-amber-400 font-bold">0.82</div>
+</div>
+</div>
+</div>
+<!-- Run B Card -->
+<div class="bg-surface border border-purple-500/40 rounded-lg p-3 flex flex-col gap-2">
+<div class="flex items-center justify-between text-xs font-mono">
+<span class="text-purple-400 font-semibold">RUN B: counter-opt-09</span>
+<span class="text-on-surface-variant">T=120s</span>
+</div>
+<div class="grid grid-cols-2 gap-2 text-xs font-mono pt-1">
+<div class="bg-surface-container p-2 rounded">
+<div class="text-[10px] text-on-surface-variant">Throughput</div>
+<div class="text-on-surface font-bold">1,890 p/s <span class="text-emerald-400 text-[10px]">+33%</span></div>
+</div>
+<div class="bg-surface-container p-2 rounded">
+<div class="text-[10px] text-on-surface-variant">Congestion Index</div>
+<div class="text-emerald-400 font-bold">0.31 <span class="text-[10px]">-62%</span></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Patient Twin Replay Interactive View mockup -->
+<div class="relative bg-surface rounded-lg border border-outline-variant h-48 flex items-center justify-center overflow-hidden" id="replay-container">
+<div class="absolute inset-0 bg-cover bg-center opacity-20" data-alt="Dark high tech holographic vector wireframe map showing simulated evacuation corridors and nodes in neon cyan and magenta tones." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAV8tq92P5LZ2GvAytc3G0THPBunxmq6m5GGPiDzld-gmqEbvJgNc6uGp7o8pQM91tmnLW6gjHoxQxip_uxCfYWanQ-OVC7EoNampl6-31gCA2OIi9t4e8u7zYiF_PL2F6tjVLJ7_1OpVasxFTcc0OKjPhMDPTsA05a73hWC3HP7rCZWiZuYQ3w7fpXfWpQfNGaDMFJ-dT6Js-moqYtFA73tiWbe_L6HRJhlBmxUJUkGrlU0k1losyqm3w3VEGbKfjradtS59Xai5Y')"></div>
+<div class="z-10 flex flex-col items-center gap-2 text-center p-4">
+<span class="material-symbols-outlined text-3xl text-primary animate-pulse" data-icon="hub">hub</span>
+<p class="font-mono text-xs text-on-surface">Patient-twin spatial simulation engine ready.</p>
+<p class="text-[11px] text-on-surface-variant">Click replay to stream counterfactual matrix telemetry.</p>
+</div>
+</div>
+</div>
+<!-- Benchmark Performance Table (5 cols) -->
+<div class="xl:col-span-5 flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<h4 class="font-headline font-semibold text-sm flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-base" data-icon="table_chart">table_chart</span>
+                Benchmark Performance Table
+              </h4>
+<span class="font-mono text-[10px] text-on-surface-variant">Latency / VQ-Score</span>
+</div>
+<div class="border border-outline-variant rounded-lg overflow-hidden bg-surface">
+<table class="w-full text-left text-xs font-mono">
+<thead>
+<tr class="bg-surface-container-high/60 border-b border-outline-variant text-[11px] text-on-surface-variant">
+<th class="py-2.5 px-3 font-medium">Model Variant</th>
+<th class="py-2.5 px-3 font-medium">Accuracy</th>
+<th class="py-2.5 px-3 font-medium text-right">Inference</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<tr class="hover:bg-surface-container/50">
+<td class="py-2.5 px-3 text-on-surface font-semibold">QAOA-CVaR (v1.2)</td>
+<td class="py-2.5 px-3 text-emerald-400">98.4%</td>
+<td class="py-2.5 px-3 text-right text-on-surface-variant">14ms</td>
+</tr>
+<tr class="hover:bg-surface-container/50">
+<td class="py-2.5 px-3 text-on-surface font-semibold">Exact Solver (Baseline)</td>
+<td class="py-2.5 px-3 text-cyan-400">99.1%</td>
+<td class="py-2.5 px-3 text-right text-on-surface-variant">142ms</td>
+</tr>
+<tr class="hover:bg-surface-container/50">
+<td class="py-2.5 px-3 text-on-surface font-semibold">QAOA-Expectation</td>
+<td class="py-2.5 px-3 text-amber-400">91.5%</td>
+<td class="py-2.5 px-3 text-right text-on-surface-variant">9ms</td>
+</tr>
+<tr class="hover:bg-surface-container/50">
+<td class="py-2.5 px-3 text-on-surface font-semibold">Heuristic-FastSim</td>
+<td class="py-2.5 px-3 text-on-surface-variant">84.2%</td>
+<td class="py-2.5 px-3 text-right text-on-surface-variant">3ms</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+  <script src="./live/experiments.js"></script>
+</body></html>

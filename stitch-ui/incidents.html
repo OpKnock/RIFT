@@ -1,0 +1,478 @@
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RIFT // Counterfactual Intelligence</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=Public+Sans:wght@300;400;500;600&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+  tailwind.config = {
+    darkMode: "class",
+    theme: {
+      extend: {
+        colors: {
+          surface: "#090d16",
+          "surface-container": "#111827",
+          "surface-container-high": "#1f2937",
+          primary: "#06b6d4",
+          "primary-container": "#0891b2",
+          "on-surface": "#f3f4f6",
+          "on-surface-variant": "#9ca3af",
+          "outline-variant": "#374151"
+        },
+        borderRadius: {
+          DEFAULT: "0.25rem",
+          lg: "0.5rem",
+          xl: "0.75rem",
+          full: "9999px"
+        },
+        fontFamily: {
+          headline: ["Space Grotesk", "sans-serif"],
+          display: ["Space Grotesk", "sans-serif"],
+          body: ["Inter", "sans-serif"],
+          label: ["Public Sans", "sans-serif"],
+          mono: ["JetBrains Mono", "monospace"]
+        }
+      }
+    }
+  }
+</script>
+<style>
+  body {
+    background-color: #090d16;
+    color: #f3f4f6;
+  }
+</style>
+  <script src="./rift-live.js"></script>
+</head>
+<body class="bg-surface text-on-surface font-body min-h-screen flex flex-col antialiased selection:bg-primary selection:text-surface">
+<!-- SideNavBar -->
+<aside class="fixed top-0 left-0 h-screen w-64 flex flex-col justify-between shrink-0 bg-surface dark:bg-surface border-r border-outline-variant dark:border-outline-variant z-50">
+<div class="h-full flex flex-col justify-between p-4">
+<div>
+<div class="flex items-center gap-3 px-3 py-4 mb-2">
+<div class="w-8 h-8 rounded bg-primary/10 border border-primary/30 flex items-center justify-center text-primary font-bold font-headline">R</div>
+<div>
+<h1 class="font-headline text-lg font-bold tracking-widest text-primary dark:text-primary">RIFT</h1>
+<p class="font-label text-xs text-on-surface-variant tracking-wider">Counterfactual Intelligence</p>
+</div>
+</div>
+<nav class="space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./dashboard.html">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-sm">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./scenarios.html">
+<span class="material-symbols-outlined">alt_route</span>
+<span class="text-sm">Scenarios</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./simulation.html">
+<span class="material-symbols-outlined">model_training</span>
+<span class="text-sm">Simulation</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./runs.html">
+<span class="material-symbols-outlined">play_circle</span>
+<span class="text-sm">Runs</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./experiments.html">
+<span class="material-symbols-outlined">science</span>
+<span class="text-sm">Experiments</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./evidence.html">
+<span class="material-symbols-outlined">find_in_page</span>
+<span class="text-sm">Evidence</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-surface-container-high dark:bg-surface-container-high text-primary dark:text-primary font-medium border-l-2 border-primary active:scale-[0.98]" href="./incidents.html">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">warning</span>
+<span class="text-sm">Incidents</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./explainability.html">
+<span class="material-symbols-outlined">psychology</span>
+<span class="text-sm">Explainability</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./settings.html">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-sm">Settings</span>
+</a>
+</nav>
+</div>
+<div>
+<button class="w-full mb-4 py-2.5 px-4 bg-primary text-surface font-headline font-bold text-sm rounded-lg hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20" onclick="openCreateModal()">
+<span class="material-symbols-outlined text-base">add</span>
+<span>New Run</span>
+</button>
+<div class="pt-4 border-t border-outline-variant space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant text-xs hover:text-on-surface" href="#">
+<span class="material-symbols-outlined text-sm">menu_book</span>
+<span>Documentation</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant text-xs hover:text-on-surface" href="#">
+<span class="material-symbols-outlined text-sm">terminal</span>
+<span>Terminal</span>
+</a>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<div class="pl-64 flex flex-col flex-1 min-h-screen">
+<!-- TopNavBar -->
+<header class="sticky top-0 right-0 w-full z-40 bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline-variant">
+<div class="flex justify-between items-center px-6 py-2.5 w-full">
+<div class="flex items-center gap-6">
+<div class="font-headline text-sm font-bold uppercase tracking-wider text-primary dark:text-primary flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+            RIFT // Engine Status
+          </div>
+<div class="hidden lg:flex items-center gap-4 text-xs font-mono text-on-surface-variant">
+<span class="text-on-surface font-medium flex items-center gap-1.5"><span class="material-symbols-outlined text-xs text-primary">hub</span> Cluster-01: Online</span>
+<span class="text-on-surface font-medium flex items-center gap-1.5"><span class="material-symbols-outlined text-xs text-primary">memory</span> Engine: v0.9.4-rc</span>
+<span class="text-on-surface font-medium flex items-center gap-1.5"><span class="material-symbols-outlined text-xs text-primary">speed</span> Latency: 24ms</span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-3 py-1.5 bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-mono rounded border border-outline-variant transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-xs text-primary">verified</span>
+<span>Verify Snapshot</span>
+</button>
+<button class="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-mono rounded border border-primary/30 transition-colors flex items-center gap-1.5">
+<span class="material-symbols-outlined text-xs">bolt</span>
+<span>Deploy Override</span>
+</button>
+<div class="h-4 w-px bg-outline-variant mx-1"></div>
+<button class="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-base">notifications_active</span>
+</button>
+<button class="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-base">help_outline</span>
+</button>
+<button class="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-base">tune</span>
+</button>
+<div class="w-7 h-7 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center text-xs font-bold text-primary ml-1">
+            LR
+          </div>
+</div>
+</div>
+</header>
+<!-- Canvas -->
+<main class="flex-1 p-8 space-y-6 max-w-[1600px] w-full mx-auto">
+<!-- Breadcrumbs & Header -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+<div>
+<div class="flex items-center gap-2 text-xs font-mono text-on-surface-variant mb-1">
+<span>CORE</span>
+<span>/</span>
+<span class="text-primary">INCIDENT MANAGEMENT &amp; DECISIONS</span>
+</div>
+<h2 class="font-headline text-2xl font-bold tracking-tight text-on-surface flex items-center gap-3">
+<span>Incident Console &amp; Decision Queue</span>
+<span class="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/30 text-xs font-mono font-normal">Active Monitoring</span>
+</h2>
+</div>
+<div class="flex items-center gap-3">
+<!-- Live Polling Status Indicator -->
+<div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-container border border-outline-variant text-xs font-mono">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+</span>
+<span class="text-on-surface-variant">Live Poll:</span>
+<span class="text-primary font-bold" id="poll-timer">10s</span>
+</div>
+<button class="px-4 py-2 bg-primary text-surface font-headline font-bold text-sm rounded-lg hover:bg-primary/90 transition-all flex items-center gap-2 shadow-lg shadow-primary/20" onclick="openCreateModal()">
+<span class="material-symbols-outlined text-base">add_circle</span>
+<span>Create Incident</span>
+</button>
+</div>
+</div>
+<!-- Collapsible 401 Authentication Warning Card -->
+<div class="bg-surface-container border border-amber-500/30 rounded-xl overflow-hidden transition-all duration-200">
+<div class="px-4 py-3 bg-amber-500/10 flex items-center justify-between cursor-pointer" onclick="toggleAuthWarning()">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-amber-400">gpp_maybe</span>
+<div>
+<h4 class="text-sm font-headline font-semibold text-amber-200">API Gateway Notice: 401 Unauthorized Intercepted on /api/telemetry/stream</h4>
+<p class="text-xs text-amber-300/80 font-mono">Token expired at timestamp 1740832910. Automatic token rotation pending credentials refresh.</p>
+</div>
+</div>
+<div class="flex items-center gap-2">
+<button class="px-2.5 py-1 bg-amber-500 text-surface font-mono text-xs font-bold rounded hover:bg-amber-400 transition-colors" onclick="event.stopPropagation(); refreshAuthToken()">
+              Refresh Token
+            </button>
+<span class="material-symbols-outlined text-amber-400 transition-transform duration-200" id="auth-chevron">expand_less</span>
+</div>
+</div>
+<div class="p-4 border-t border-amber-500/20 text-xs font-mono text-on-surface-variant space-y-2 bg-surface/40" id="auth-warning-content">
+<div class="flex justify-between items-center">
+<span>Endpoint: <code class="text-amber-300">GET /api/telemetry/stream</code></span>
+<span>Status: <strong class="text-amber-400">401 UNAUTHORIZED</strong></span>
+</div>
+<p>The system is using fallback telemetry caches. Decision queues remain accessible, but live streaming counters may experience lag until re-authenticated.</p>
+</div>
+</div>
+<!-- View Selector Tabs -->
+<div class="border-b border-outline-variant flex items-center gap-8">
+<button class="py-3 font-headline text-sm font-semibold text-primary border-b-2 border-primary flex items-center gap-2 transition-colors" id="tab-incidents-btn" onclick="switchTab('incidents')">
+<span class="material-symbols-outlined text-base">warning</span>
+<span>Incidents List</span>
+<span class="ml-1 px-1.5 py-0.5 rounded bg-primary/20 text-xs text-primary font-mono">12</span>
+</button>
+<button class="py-3 font-headline text-sm font-semibold text-on-surface-variant hover:text-on-surface flex items-center gap-2 transition-colors" id="tab-decisions-btn" onclick="switchTab('decisions')">
+<span class="material-symbols-outlined text-base">rule</span>
+<span>Decisions Approval Queue</span>
+<span class="ml-1 px-1.5 py-0.5 rounded bg-surface-container-high text-xs text-on-surface-variant font-mono">5</span>
+</button>
+</div>
+<!-- INCIDENTS LIST VIEW -->
+<div class="space-y-4" id="view-incidents">
+<!-- Filters & Search Bar -->
+<div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-surface-container p-3 rounded-xl border border-outline-variant">
+<div class="flex items-center gap-2 flex-1 max-w-md bg-surface px-3 py-1.5 rounded-lg border border-outline-variant">
+<span class="material-symbols-outlined text-on-surface-variant text-sm">search</span>
+<input class="bg-transparent border-none text-xs text-on-surface placeholder:text-on-surface-variant focus:ring-0 w-full p-0" placeholder="Filter by title, ID or vector signature..." type="text"/>
+</div>
+<div class="flex items-center gap-2 flex-wrap">
+<select class="bg-surface border border-outline-variant rounded-lg text-xs text-on-surface px-3 py-1.5 font-mono focus:ring-1 focus:ring-primary">
+<option>Status: All Statuses</option>
+<option>Active / Triggered</option>
+<option>Mitigating</option>
+<option>Resolved</option>
+</select>
+<select class="bg-surface border border-outline-variant rounded-lg text-xs text-on-surface px-3 py-1.5 font-mono focus:ring-1 focus:ring-primary">
+<option>Severity: All Levels</option>
+<option>Critical (Sev-1)</option>
+<option>Major (Sev-2)</option>
+<option>Moderate (Sev-3)</option>
+</select>
+<button class="px-3 py-1.5 bg-surface-container-high hover:bg-outline-variant text-on-surface text-xs font-mono rounded-lg transition-colors flex items-center gap-1.5" onclick="fetchIncidentsAPI()">
+<span class="material-symbols-outlined text-xs">refresh</span>
+<span>GET /api/incidents</span>
+</button>
+</div>
+</div>
+<!-- Incidents Data Table / Grid -->
+<div class="bg-surface-container rounded-xl border border-outline-variant overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant bg-surface/50 font-mono text-xs text-on-surface-variant">
+<th class="p-4 font-medium">INCIDENT ID</th>
+<th class="p-4 font-medium">TITLE &amp; VECTOR</th>
+<th class="p-4 font-medium">SEVERITY</th>
+<th class="p-4 font-medium">STATUS</th>
+<th class="p-4 font-medium">TIMESTAMP</th>
+<th class="p-4 font-medium text-right">ACTIONS</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant text-xs font-mono">
+<tr class="hover:bg-surface-container-high/50 transition-colors">
+<td class="p-4 text-primary font-bold">#INC-8921</td>
+<td class="p-4">
+<div class="font-bold text-on-surface font-headline text-sm">Counterfactual Divergence Spike</div>
+<div class="text-on-surface-variant text-xs">Model drift detected across Cluster-01 neural weights</div>
+</td>
+<td class="p-4">
+<span class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30 text-[10px]">CRITICAL</span>
+</td>
+<td class="p-4">
+<span class="flex items-center gap-1.5 text-amber-400">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                      Active
+                    </span>
+</td>
+<td class="p-4 text-on-surface-variant">2025-03-01 14:22:01</td>
+<td class="p-4 text-right">
+<button class="px-2.5 py-1 bg-surface-container-high hover:bg-primary hover:text-surface text-on-surface rounded transition-colors text-xs font-mono" onclick="viewIncidentDetails('#INC-8921')">Inspect</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-high/50 transition-colors">
+<td class="p-4 text-primary font-bold">#INC-8919</td>
+<td class="p-4">
+<div class="font-bold text-on-surface font-headline text-sm">Memory Leak in Simulation Pod #4</div>
+<div class="text-on-surface-variant text-xs">Unbounded allocation during Monte Carlo scenario testing</div>
+</td>
+<td class="p-4">
+<span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[10px]">MAJOR</span>
+</td>
+<td class="p-4">
+<span class="flex items-center gap-1.5 text-cyan-400">
+<span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                      Mitigating
+                    </span>
+</td>
+<td class="p-4 text-on-surface-variant">2025-03-01 12:05:44</td>
+<td class="p-4 text-right">
+<button class="px-2.5 py-1 bg-surface-container-high hover:bg-primary hover:text-surface text-on-surface rounded transition-colors text-xs font-mono" onclick="viewIncidentDetails('#INC-8919')">Inspect</button>
+</td>
+</tr>
+<tr class="hover:bg-surface-container-high/50 transition-colors">
+<td class="p-4 text-primary font-bold">#INC-8902</td>
+<td class="p-4">
+<div class="font-bold text-on-surface font-headline text-sm">Asynchronous Queue Timeout</div>
+<div class="text-on-surface-variant text-xs">Kafka broker latency exceeded threshold limit of 500ms</div>
+</td>
+<td class="p-4">
+<span class="px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[10px]">MODERATE</span>
+</td>
+<td class="p-4">
+<span class="flex items-center gap-1.5 text-emerald-400">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                      Resolved
+                    </span>
+</td>
+<td class="p-4 text-on-surface-variant">2025-03-01 09:15:10</td>
+<td class="p-4 text-right">
+<button class="px-2.5 py-1 bg-surface-container-high hover:bg-primary hover:text-surface text-on-surface rounded transition-colors text-xs font-mono" onclick="viewIncidentDetails('#INC-8902')">Inspect</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- DECISIONS APPROVAL QUEUE VIEW -->
+<div class="space-y-4 hidden" id="view-decisions">
+<!-- Filters & Info -->
+<div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-surface-container p-3 rounded-xl border border-outline-variant">
+<div class="flex items-center gap-2 text-xs font-mono text-on-surface-variant">
+<span class="material-symbols-outlined text-primary text-base">rule</span>
+<span>Pending automated countermeasure reviews requiring human sign-off. Endpoint: <code class="text-primary">GET /api/decisions</code></span>
+</div>
+<div class="flex items-center gap-2">
+<select class="bg-surface border border-outline-variant rounded-lg text-xs text-on-surface px-3 py-1.5 font-mono focus:ring-1 focus:ring-primary">
+<option>Risk Level: All</option>
+<option>High Risk</option>
+<option>Standard Risk</option>
+</select>
+<button class="px-3 py-1.5 bg-surface-container-high hover:bg-outline-variant text-on-surface text-xs font-mono rounded-lg transition-colors flex items-center gap-1.5" onclick="fetchDecisionsAPI()">
+<span class="material-symbols-outlined text-xs">refresh</span>
+<span>Sync Queue</span>
+</button>
+</div>
+</div>
+<!-- Decision Cards Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<!-- Decision Card 1 -->
+<div class="bg-surface-container border border-outline-variant rounded-xl p-5 space-y-4 relative overflow-hidden group hover:border-primary/50 transition-colors">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors pointer-events-none"></div>
+<div class="flex items-start justify-between">
+<div>
+<span class="text-xs font-mono text-primary font-bold">DECISION #DEC-4402</span>
+<h3 class="font-headline text-lg font-bold text-on-surface mt-0.5">Isolate Cluster-01 Sub-node 4</h3>
+</div>
+<span class="px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30 text-xs font-mono font-medium">HIGH RISK</span>
+</div>
+<p class="text-xs font-mono text-on-surface-variant">
+              Engine recommends immediate network quarantine of sub-node 4 to prevent counterfactual weight corruption propagation.
+            </p>
+<div class="p-3 bg-surface rounded-lg border border-outline-variant font-mono text-xs space-y-1">
+<div class="flex justify-between text-on-surface-variant">
+<span>Confidence Score:</span>
+<span class="text-emerald-400 font-bold">98.4%</span>
+</div>
+<div class="flex justify-between text-on-surface-variant">
+<span>Impact Vector:</span>
+<span class="text-on-surface">12 active simulation jobs</span>
+</div>
+</div>
+<div class="flex items-center justify-end gap-3 pt-2 border-t border-outline-variant">
+<button class="px-3 py-1.5 bg-surface-container-high hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/40 text-on-surface text-xs font-mono rounded border border-outline-variant transition-colors flex items-center gap-1" onclick="reviewDecision('#DEC-4402', 'reject')">
+<span class="material-symbols-outlined text-xs">close</span>
+<span>Reject</span>
+</button>
+<button class="px-4 py-1.5 bg-primary text-surface font-headline font-bold text-xs rounded hover:bg-primary/90 transition-colors flex items-center gap-1 shadow-md shadow-primary/20" onclick="reviewDecision('#DEC-4402', 'approve')">
+<span class="material-symbols-outlined text-xs">check</span>
+<span>Approve &amp; Execute (POST)</span>
+</button>
+</div>
+</div>
+<!-- Decision Card 2 -->
+<div class="bg-surface-container border border-outline-variant rounded-xl p-5 space-y-4 relative overflow-hidden group hover:border-primary/50 transition-colors">
+<div class="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-full blur-2xl group-hover:bg-primary/10 transition-colors pointer-events-none"></div>
+<div class="flex items-start justify-between">
+<div>
+<span class="text-xs font-mono text-primary font-bold">DECISION #DEC-4401</span>
+<h3 class="font-headline text-lg font-bold text-on-surface mt-0.5">Rollback Neural Checkpoint #812</h3>
+</div>
+<span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 text-xs font-mono font-medium">STANDARD</span>
+</div>
+<p class="text-xs font-mono text-on-surface-variant">
+              Revert active weights to checkpoint #812 following divergence detection in INC-8921.
+            </p>
+<div class="p-3 bg-surface rounded-lg border border-outline-variant font-mono text-xs space-y-1">
+<div class="flex justify-between text-on-surface-variant">
+<span>Confidence Score:</span>
+<span class="text-emerald-400 font-bold">91.2%</span>
+</div>
+<div class="flex justify-between text-on-surface-variant">
+<span>Impact Vector:</span>
+<span class="text-on-surface">Base model weights</span>
+</div>
+</div>
+<div class="flex items-center justify-end gap-3 pt-2 border-t border-outline-variant">
+<button class="px-3 py-1.5 bg-surface-container-high hover:bg-rose-500/20 hover:text-rose-400 hover:border-rose-500/40 text-on-surface text-xs font-mono rounded border border-outline-variant transition-colors flex items-center gap-1" onclick="reviewDecision('#DEC-4401', 'reject')">
+<span class="material-symbols-outlined text-xs">close</span>
+<span>Reject</span>
+</button>
+<button class="px-4 py-1.5 bg-primary text-surface font-headline font-bold text-xs rounded hover:bg-primary/90 transition-colors flex items-center gap-1 shadow-md shadow-primary/20" onclick="reviewDecision('#DEC-4401', 'approve')">
+<span class="material-symbols-outlined text-xs">check</span>
+<span>Approve &amp; Execute (POST)</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- CREATE INCIDENT MODAL (Interactive) -->
+<div class="fixed inset-0 z-50 bg-surface/80 backdrop-blur-sm hidden flex items-center justify-center p-4" id="create-incident-modal">
+<div class="bg-surface-container border border-outline-variant rounded-xl max-w-lg w-full p-6 space-y-6 shadow-2xl relative">
+<div class="flex items-center justify-between pb-4 border-b border-outline-variant">
+<div>
+<h3 class="font-headline text-lg font-bold text-on-surface">Create New Incident Record</h3>
+<p class="text-xs font-mono text-on-surface-variant mt-0.5">POST /api/incidents endpoint simulator</p>
+</div>
+<button class="p-1 rounded text-on-surface-variant hover:text-on-surface" onclick="closeCreateModal()">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<form class="space-y-4" id="incident-form" onsubmit="submitIncidentForm(event)">
+<div>
+<label class="block text-xs font-mono text-on-surface-variant mb-1.5">INCIDENT TITLE</label>
+<input class="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary font-mono" id="inc-title" placeholder="e.g. Memory saturation on simulation node..." required="" type="text"/>
+</div>
+<div>
+<label class="block text-xs font-mono text-on-surface-variant mb-1.5">SEVERITY LEVEL</label>
+<select class="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary font-mono" id="inc-severity">
+<option value="CRITICAL">Critical (Sev-1)</option>
+<option value="MAJOR">Major (Sev-2)</option>
+<option value="MODERATE">Moderate (Sev-3)</option>
+</select>
+</div>
+<div>
+<label class="block text-xs font-mono text-on-surface-variant mb-1.5">DESCRIPTION &amp; VECTOR TELEMETRY</label>
+<textarea class="w-full bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:border-primary focus:ring-1 focus:ring-primary font-mono" id="inc-desc" placeholder="Provide detailed counterfactual anomaly notes..." required="" rows="4"></textarea>
+</div>
+<div class="flex items-center justify-end gap-3 pt-4 border-t border-outline-variant">
+<button class="px-4 py-2 bg-surface-container-high text-on-surface font-mono text-xs rounded hover:bg-outline-variant transition-colors" onclick="closeCreateModal()" type="button">Cancel</button>
+<button class="px-5 py-2 bg-primary text-surface font-headline font-bold text-xs rounded hover:bg-primary/90 transition-colors shadow-lg shadow-primary/20 flex items-center gap-2" type="submit">
+<span class="material-symbols-outlined text-sm">send</span>
+<span>Submit POST /api/incidents</span>
+</button>
+</div>
+</form>
+</div>
+</div>
+<!-- Toast Notification Overlay -->
+<div class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-surface-container border border-primary/50 rounded-xl p-4 shadow-2xl flex items-center gap-3 max-w-sm" id="toast">
+<span class="material-symbols-outlined text-primary" id="toast-icon">check_circle</span>
+<div>
+<h5 class="font-headline font-bold text-sm text-on-surface" id="toast-title">Action Successful</h5>
+<p class="text-xs font-mono text-on-surface-variant" id="toast-msg">API payload processed successfully.</p>
+</div>
+</div>
+
+  <script src="./live/incidents.js"></script>
+</body></html>

@@ -1,0 +1,550 @@
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RIFT // Explainability &amp; Causal Audit Trail</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@400;500;600&amp;family=Public+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            "surface": "#090d16",
+            "surface-container": "#111827",
+            "surface-container-high": "#1f293d",
+            "primary": "#0891b2",
+            "primary-container": "#164e63",
+            "on-surface": "#f3f4f6",
+            "on-surface-variant": "#9ca3af",
+            "outline-variant": "#374151"
+          },
+          borderRadius: {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          fontFamily: {
+            "headline": ["Space Grotesk"],
+            "display": ["Space Grotesk"],
+            "body": ["Inter"],
+            "label": ["Public Sans"]
+          }
+        },
+      },
+    }
+  </script>
+  <script src="./rift-live.js"></script>
+</head>
+<body class="bg-surface text-on-surface font-body min-h-screen flex flex-col antialiased selection:bg-primary selection:text-white">
+<!-- SideNavBar -->
+<aside class="fixed top-0 left-0 h-screen w-64 flex flex-col justify-between shrink-0 bg-surface dark:bg-surface border-r border-outline-variant dark:border-outline-variant z-50 p-4">
+<div class="flex flex-col gap-6">
+<div class="flex items-center gap-3 px-3 py-2">
+<span class="font-headline text-lg font-bold tracking-widest text-primary dark:text-primary">RIFT</span>
+<div class="flex flex-col">
+<span class="font-headline font-bold text-sm tracking-tight">RIFT</span>
+<span class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Counterfactual Intelligence</span>
+</div>
+</div>
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./dashboard.html">
+<span class="material-symbols-outlined">dashboard</span>
+          Dashboard
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./scenarios.html">
+<span class="material-symbols-outlined">alt_route</span>
+          Scenarios
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./simulation.html">
+<span class="material-symbols-outlined">model_training</span>
+          Simulation
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./runs.html">
+<span class="material-symbols-outlined">play_circle</span>
+          Runs
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./experiments.html">
+<span class="material-symbols-outlined">science</span>
+          Experiments
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./evidence.html">
+<span class="material-symbols-outlined">find_in_page</span>
+          Evidence
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./incidents.html">
+<span class="material-symbols-outlined">warning</span>
+          Incidents
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-surface-container-high dark:bg-surface-container-high text-primary dark:text-primary font-medium border-l-2 border-primary active:scale-[0.98]" href="./explainability.html">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">psychology</span>
+          Explainability
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./settings.html">
+<span class="material-symbols-outlined">settings</span>
+          Settings
+        </a>
+</nav>
+</div>
+<div class="flex flex-col gap-3">
+<button class="w-full py-2.5 px-4 bg-primary text-white font-headline text-sm font-semibold rounded-lg hover:opacity-90 transition-opacity active:scale-[0.98] flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-base">add</span>
+        New Run
+      </button>
+<div class="flex flex-col pt-3 border-t border-outline-variant gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant font-medium text-xs hover:bg-surface-container hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">menu_book</span>
+          Documentation
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant font-medium text-xs hover:bg-surface-container hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined text-sm">terminal</span>
+          Terminal
+        </a>
+</div>
+</div>
+</aside>
+<!-- Main Wrapper -->
+<div class="pl-64 flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="sticky top-0 right-0 w-full z-40 bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline-variant">
+<div class="flex justify-between items-center px-6 py-2.5 w-full">
+<div class="flex items-center gap-6">
+<span class="font-headline text-sm font-bold uppercase tracking-wider text-primary dark:text-primary">RIFT // Engine Status</span>
+<div class="flex items-center gap-4 text-xs font-medium">
+<span class="text-on-surface-variant dark:text-on-surface-variant flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>Cluster-01: Online</span>
+<span class="text-on-surface-variant dark:text-on-surface-variant flex items-center gap-1.5">Engine: v0.9.4-rc</span>
+<span class="text-on-surface-variant dark:text-on-surface-variant flex items-center gap-1.5">Latency: 24ms</span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-3 py-1.5 rounded bg-surface-container hover:bg-surface-container-high text-xs font-label text-on-surface transition-colors active:opacity-80">Verify Snapshot</button>
+<button class="px-3 py-1.5 rounded bg-primary-container text-primary text-xs font-label font-semibold hover:opacity-90 transition-opacity active:opacity-80">Deploy Override</button>
+<div class="h-4 w-[1px] bg-outline-variant mx-1"></div>
+<button class="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-lg">notifications_active</span></button>
+<button class="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-lg">help_outline</span></button>
+<button class="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-lg">tune</span></button>
+<div class="w-7 h-7 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center text-xs font-bold text-primary ml-1">LR</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="flex-1 p-8 flex flex-col gap-6 max-w-[1600px] w-full mx-auto">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-3">
+<h1 class="font-headline text-2xl font-bold tracking-tight">CORE / EXPLAINABILITY &amp; CAUSAL AUDIT TRAIL</h1>
+<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-mono bg-primary-container/40 text-primary border border-primary/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-ping"></span>
+              Live Poll: 5s
+            </span>
+</div>
+<p class="text-sm text-on-surface-variant">Real-time counterfactual attribution, guardian constraint verification, and ledger logging for simulation vector #8902.</p>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-2 px-4 py-2 bg-surface-container hover:bg-surface-container-high border border-outline-variant rounded-lg text-xs font-medium transition-all active:scale-[0.98]" onclick="triggerExport()">
+<span class="material-symbols-outlined text-base">download</span>
+            Export Audit Ledger
+          </button>
+</div>
+</div>
+<!-- Sub-navigation Tabs -->
+<div class="flex items-center gap-1 border-b border-outline-variant overflow-x-auto">
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-primary text-primary transition-colors flex items-center gap-2" data-target="overview" onclick="switchTab('overview')">
+<span class="material-symbols-outlined text-base">grid_view</span>
+          Overview
+        </button>
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-colors flex items-center gap-2" data-target="assumptions" onclick="switchTab('assumptions')">
+<span class="material-symbols-outlined text-base">rule_settings</span>
+          Assumptions
+        </button>
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-colors flex items-center gap-2" data-target="provenance" onclick="switchTab('provenance')">
+<span class="material-symbols-outlined text-base">hub</span>
+          Provenance
+        </button>
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-colors flex items-center gap-2" data-target="evidence" onclick="switchTab('evidence')">
+<span class="material-symbols-outlined text-base">troubleshoot</span>
+          Evidence
+        </button>
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-colors flex items-center gap-2" data-target="fingerprint" onclick="switchTab('fingerprint')">
+<span class="material-symbols-outlined text-base">fingerprint</span>
+          Fingerprint
+        </button>
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-colors flex items-center gap-2" data-target="guardian" onclick="switchTab('guardian')">
+<span class="material-symbols-outlined text-base">verified_user</span>
+          Guardian
+        </button>
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-on-surface-variant hover:text-on-surface transition-colors flex items-center gap-2" data-target="audit" onclick="switchTab('audit')">
+<span class="material-symbols-outlined text-base">list_alt</span>
+          Audit
+        </button>
+</div>
+<!-- Tab Content: Overview -->
+<div class="tab-content flex flex-col gap-6" id="tab-overview">
+<!-- Decision Summary Cards Grid (6 cards) -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+<!-- Card 1: Patient ID -->
+<div class="p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col justify-between gap-3">
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="text-xs font-label uppercase tracking-wider">Patient ID</span>
+<span class="material-symbols-outlined text-base text-primary">badge</span>
+</div>
+<div class="flex flex-col">
+<span class="font-mono text-xl font-bold tracking-tight text-on-surface" id="card-patient-id">--</span>
+<span class="text-[10px] text-on-surface-variant mt-0.5">Null-safe validated</span>
+</div>
+</div>
+<!-- Card 2: Simulation Day -->
+<div class="p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col justify-between gap-3">
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="text-xs font-label uppercase tracking-wider">Simulation Day</span>
+<span class="material-symbols-outlined text-base text-primary">calendar_today</span>
+</div>
+<div class="flex flex-col">
+<span class="font-mono text-xl font-bold tracking-tight text-on-surface" id="card-sim-day">--</span>
+<span class="text-[10px] text-on-surface-variant mt-0.5">Vector timeline tick</span>
+</div>
+</div>
+<!-- Card 3: Predicted Risk Score -->
+<div class="p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col justify-between gap-3">
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="text-xs font-label uppercase tracking-wider">Risk Score</span>
+<span class="material-symbols-outlined text-base text-amber-400">monitoring</span>
+</div>
+<div class="flex flex-col">
+<span class="font-mono text-xl font-bold tracking-tight text-amber-400" id="card-risk-score">--</span>
+<span class="text-[10px] text-on-surface-variant mt-0.5">Confidence weighted</span>
+</div>
+</div>
+<!-- Card 4: Uncertainty Index -->
+<div class="p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col justify-between gap-3">
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="text-xs font-label uppercase tracking-wider">Uncertainty</span>
+<span class="material-symbols-outlined text-base text-blue-400">radar</span>
+</div>
+<div class="flex flex-col">
+<span class="font-mono text-xl font-bold tracking-tight text-blue-400" id="card-uncertainty">--</span>
+<span class="text-[10px] text-on-surface-variant mt-0.5">Entropy variance</span>
+</div>
+</div>
+<!-- Card 5: Risk Interval -->
+<div class="p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col justify-between gap-3">
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="text-xs font-label uppercase tracking-wider">Risk Interval</span>
+<span class="material-symbols-outlined text-base text-purple-400">data_thresholding</span>
+</div>
+<div class="flex flex-col">
+<span class="font-mono text-lg font-bold tracking-tight text-purple-400 truncate" id="card-risk-interval">--</span>
+<span class="text-[10px] text-on-surface-variant mt-0.5">95% CI bound</span>
+</div>
+</div>
+<!-- Card 6: Guardian Action Badge -->
+<div class="p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col justify-between gap-3">
+<div class="flex items-center justify-between text-on-surface-variant">
+<span class="text-xs font-label uppercase tracking-wider">Guardian</span>
+<span class="material-symbols-outlined text-base text-emerald-400">security</span>
+</div>
+<div class="flex flex-col">
+<span class="inline-flex items-center justify-center px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/30 font-mono text-xs font-bold text-emerald-400 w-fit" id="card-guardian-badge">--</span>
+<span class="text-[10px] text-on-surface-variant mt-0.5">Constraint engine</span>
+</div>
+</div>
+</div>
+<!-- Causal Reasons List Section -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="lg:col-span-2 flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<h3 class="font-headline font-semibold text-base flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">account_tree</span>
+                Causal Contributing Factors (/api/twin/evidence)
+              </h3>
+<span class="text-xs font-mono text-on-surface-variant">Vector Set: #990-DELTA</span>
+</div>
+<div class="flex flex-col gap-3" id="causal-reasons-container">
+<!-- Dynamically populated or fallback -->
+<div class="p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="font-mono text-xs px-2 py-0.5 rounded bg-primary-container text-primary">#1</span>
+<span class="font-semibold text-sm">Hemodynamic Instability Spike (SVR Drop)</span>
+</div>
+<span class="font-mono text-xs text-amber-400">+0.842 Impact</span>
+</div>
+<p class="text-xs text-on-surface-variant">Counterfactual simulation indicates a 42% drop in systemic vascular resistance directly triggers risk escalation on day 4.</p>
+<div class="flex items-center justify-between pt-2 border-t border-outline-variant/50 text-[11px] font-mono text-on-surface-variant">
+<span>Confidence: 99.2% [CI: 0.81 - 0.87]</span>
+<span>Vector Signature: 0x89F...A12</span>
+</div>
+</div>
+<div class="p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="font-mono text-xs px-2 py-0.5 rounded bg-primary-container text-primary">#2</span>
+<span class="font-semibold text-sm">Metabolic Acidosis Baseline Shift</span>
+</div>
+<span class="font-mono text-xs text-amber-400">+0.651 Impact</span>
+</div>
+<p class="text-xs text-on-surface-variant">Base excess excursion beyond -4.5 mmol/L correlates with increased organ dysfunction vulnerability.</p>
+<div class="flex items-center justify-between pt-2 border-t border-outline-variant/50 text-[11px] font-mono text-on-surface-variant">
+<span>Confidence: 96.8% [CI: 0.62 - 0.68]</span>
+<span>Vector Signature: 0x44B...C09</span>
+</div>
+</div>
+<div class="p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-2">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="font-mono text-xs px-2 py-0.5 rounded bg-primary-container text-primary">#3</span>
+<span class="font-semibold text-sm">Fluid Responsiveness Plateau</span>
+</div>
+<span class="font-mono text-xs text-amber-400">+0.519 Impact</span>
+</div>
+<p class="text-xs text-on-surface-variant">Stroke volume variation drops below threshold, signaling fluid overload risk upon further bolus administration.</p>
+<div class="flex items-center justify-between pt-2 border-t border-outline-variant/50 text-[11px] font-mono text-on-surface-variant">
+<span>Confidence: 94.1% [CI: 0.49 - 0.54]</span>
+<span>Vector Signature: 0x11E...F88</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Side Telemetry Widget -->
+<div class="flex flex-col gap-4">
+<h3 class="font-headline font-semibold text-base flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-lg">terminal</span>
+              Telemetry State
+            </h3>
+<div class="p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-4 text-xs">
+<div class="flex justify-between items-center pb-2 border-b border-outline-variant">
+<span class="text-on-surface-variant">Engine Model</span>
+<span class="font-mono font-semibold text-primary">RIFT-Causal-v3.2</span>
+</div>
+<div class="flex justify-between items-center pb-2 border-b border-outline-variant">
+<span class="text-on-surface-variant">Kernel Execution</span>
+<span class="font-mono font-semibold text-emerald-400">OPTIMIZED</span>
+</div>
+<div class="flex justify-between items-center pb-2 border-b border-outline-variant">
+<span class="text-on-surface-variant">Node Dispatch</span>
+<span class="font-mono font-semibold">us-east-cluster-04</span>
+</div>
+<div class="flex justify-between items-center pb-2 border-b border-outline-variant">
+<span class="text-on-surface-variant">Memory Footprint</span>
+<span class="font-mono font-semibold">14.8 GB / 64 GB</span>
+</div>
+<div class="flex flex-col gap-1.5 pt-1">
+<span class="text-on-surface-variant">SHAP / LIME Convergence</span>
+<div class="w-full bg-surface-container-high h-2 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[98%]"></div>
+</div>
+<span class="text-[10px] text-right font-mono text-on-surface-variant">98.4% Accuracy</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Tab Content: Assumptions -->
+<div class="tab-content hidden flex-col gap-6" id="tab-assumptions">
+<div class="p-6 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-4">
+<h3 class="font-headline text-lg font-semibold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">rule_settings</span>
+            Active Causal Assumptions &amp; Priors
+          </h3>
+<p class="text-sm text-on-surface-variant">Parameters governing counterfactual bounds and structural equation modeling (SEM) priors.</p>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+<div class="p-4 rounded-lg bg-surface border border-outline-variant flex flex-col gap-2">
+<div class="flex justify-between items-center">
+<span class="font-semibold text-sm">Linearity Constraint</span>
+<span class="font-mono text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded">Enforced</span>
+</div>
+<p class="text-xs text-on-surface-variant">Assumes local linearity in latent physiological response surfaces for interval [0, 72h].</p>
+</div>
+<div class="p-4 rounded-lg bg-surface border border-outline-variant flex flex-col gap-2">
+<div class="flex justify-between items-center">
+<span class="font-semibold text-sm">Confounder Null Hypothesis</span>
+<span class="font-mono text-xs text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded">Relaxed</span>
+</div>
+<p class="text-xs text-on-surface-variant">Unobserved confounding tolerance set to epsilon &lt; 0.05 based on synthetic control groups.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Tab Content: Provenance -->
+<div class="tab-content hidden flex-col gap-6" id="tab-provenance">
+<div class="p-6 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-4">
+<h3 class="font-headline text-lg font-semibold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">hub</span>
+            Data Provenance &amp; Lineage Graph
+          </h3>
+<p class="text-sm text-on-surface-variant">Complete chain of custody from raw electronic health record ingestion to counterfactual output.</p>
+<div class="p-6 rounded-lg bg-surface border border-outline-variant flex items-center justify-center text-on-surface-variant font-mono text-xs">
+            [EHR Stream] → (ETL Parser v4) → [Feature Store #12] → (RIFT Engine) → [Audit Ledger]
+          </div>
+</div>
+</div>
+<!-- Tab Content: Evidence -->
+<div class="tab-content hidden flex-col gap-6" id="tab-evidence">
+<div class="p-6 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-4">
+<h3 class="font-headline text-lg font-semibold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">troubleshoot</span>
+            Deep Evidence Extraction
+          </h3>
+<p class="text-sm text-on-surface-variant">Raw tensor evidence matrix parsed from /api/twin/evidence.</p>
+<div class="overflow-x-auto">
+<table class="w-full text-left font-mono text-xs">
+<thead class="bg-surface-container-high text-on-surface-variant">
+<tr>
+<th class="p-3">Evidence ID</th>
+<th class="p-3">Source Sensor</th>
+<th class="p-3">Value / State</th>
+<th class="p-3">Weight</th>
+<th class="p-3">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<tr>
+<td class="p-3 text-primary">EV-9901</td>
+<td class="p-3">BP_ART_MEAN</td>
+<td class="p-3">64.2 mmHg</td>
+<td class="p-3">0.89</td>
+<td class="p-3 text-emerald-400">VERIFIED</td>
+</tr>
+<tr>
+<td class="p-3 text-primary">EV-9902</td>
+<td class="p-3">LACTATE_VENOUS</td>
+<td class="p-3">3.8 mmol/L</td>
+<td class="p-3">0.76</td>
+<td class="p-3 text-emerald-400">VERIFIED</td>
+</tr>
+<tr>
+<td class="p-3 text-primary">EV-9903</td>
+<td class="p-3">HR_TELEMETRY</td>
+<td class="p-3">118 bpm</td>
+<td class="p-3">0.64</td>
+<td class="p-3 text-amber-400">FLAGGED</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- Tab Content: Fingerprint -->
+<div class="tab-content hidden flex-col gap-6" id="tab-fingerprint">
+<div class="p-6 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-4">
+<h3 class="font-headline text-lg font-semibold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">fingerprint</span>
+            Cryptographic Simulation Fingerprint
+          </h3>
+<p class="text-sm text-on-surface-variant">SHA-256 state hash ensuring immutability of the executed counterfactual path.</p>
+<div class="p-4 rounded-lg bg-surface border border-outline-variant font-mono text-xs text-primary break-all">
+            0x7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa9d8758872b7538289769372
+          </div>
+</div>
+</div>
+<!-- Tab Content: Guardian -->
+<div class="tab-content hidden flex-col gap-6" id="tab-guardian">
+<div class="flex flex-col gap-4">
+<h3 class="font-headline text-lg font-semibold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">verified_user</span>
+            Guardian Safety Constraint Findings
+          </h3>
+<p class="text-sm text-on-surface-variant">Real-time stage gates and automated safety constraint enforcement.</p>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div class="p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<span class="font-semibold text-sm">Stage Gate Alpha</span>
+<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono text-xs">PASSED</span>
+</div>
+<p class="text-xs text-on-surface-variant">Hemodynamic boundary check within safe clinical limits.</p>
+</div>
+<div class="p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<span class="font-semibold text-sm">Stage Gate Beta</span>
+<span class="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono text-xs">PASSED</span>
+</div>
+<p class="text-xs text-on-surface-variant">Pharmacokinetic toxicity ceiling verified.</p>
+</div>
+<div class="p-4 rounded-xl bg-surface-container border border-outline-variant flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<span class="font-semibold text-sm">Stage Gate Gamma</span>
+<span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 font-mono text-xs">OVERRIDDEN</span>
+</div>
+<p class="text-xs text-on-surface-variant">Fluid overload constraint overridden by Lead Researcher.</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Tab Content: Audit -->
+<div class="tab-content hidden flex-col gap-6" id="tab-audit">
+<div class="flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<h3 class="font-headline text-lg font-semibold flex items-center gap-2">
+<span class="material-symbols-outlined text-primary">list_alt</span>
+              Audit Ledger (GET /api/explainability/audit)
+            </h3>
+<span class="text-xs font-mono text-on-surface-variant">Showing records 1 - 5 of 142</span>
+</div>
+<div class="rounded-xl bg-surface-container border border-outline-variant overflow-hidden">
+<table class="w-full text-left font-mono text-xs">
+<thead class="bg-surface-container-high text-on-surface-variant border-b border-outline-variant">
+<tr>
+<th class="p-3.5">Timestamp</th>
+<th class="p-3.5">Event Hash</th>
+<th class="p-3.5">Operator</th>
+<th class="p-3.5">Actor</th>
+<th class="p-3.5">Payload Signature</th>
+<th class="p-3.5">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<tr class="hover:bg-surface-container-high/50 transition-colors">
+<td class="p-3.5 text-on-surface-variant">2025-05-14 08:22:14 UTC</td>
+<td class="p-3.5 text-primary">0x4f92...a1b</td>
+<td class="p-3.5">RUN_EXEC</td>
+<td class="p-3.5">System (Auto)</td>
+<td class="p-3.5 text-on-surface-variant">sig_9901824</td>
+<td class="p-3.5 text-emerald-400 font-semibold">VERIFIED</td>
+</tr>
+<tr class="hover:bg-surface-container-high/50 transition-colors">
+<td class="p-3.5 text-on-surface-variant">2025-05-14 08:20:05 UTC</td>
+<td class="p-3.5 text-primary">0x9812...c4e</td>
+<td class="p-3.5">OVERRIDE_GATE</td>
+<td class="p-3.5">Dr. L. Vance</td>
+<td class="p-3.5 text-on-surface-variant">sig_8821903</td>
+<td class="p-3.5 text-amber-400 font-semibold">OVERRIDDEN</td>
+</tr>
+<tr class="hover:bg-surface-container-high/50 transition-colors">
+<td class="p-3.5 text-on-surface-variant">2025-05-14 08:15:30 UTC</td>
+<td class="p-3.5 text-primary">0x1123...f90</td>
+<td class="p-3.5">CONSTRAINT_CHECK</td>
+<td class="p-3.5">Guardian v2</td>
+<td class="p-3.5 text-on-surface-variant">sig_1192834</td>
+<td class="p-3.5 text-emerald-400 font-semibold">VERIFIED</td>
+</tr>
+<tr class="hover:bg-surface-container-high/50 transition-colors">
+<td class="p-3.5 text-on-surface-variant">2025-05-14 08:10:12 UTC</td>
+<td class="p-3.5 text-primary">0x3345...b88</td>
+<td class="p-3.5">SNAPSHOT_VERIFY</td>
+<td class="p-3.5">System (Auto)</td>
+<td class="p-3.5 text-on-surface-variant">sig_4491028</td>
+<td class="p-3.5 text-emerald-400 font-semibold">VERIFIED</td>
+</tr>
+<tr class="hover:bg-surface-container-high/50 transition-colors">
+<td class="p-3.5 text-on-surface-variant">2025-05-14 08:05:00 UTC</td>
+<td class="p-3.5 text-primary">0x9982...e12</td>
+<td class="p-3.5">BLOCK_MUTATION</td>
+<td class="p-3.5">Guardian v2</td>
+<td class="p-3.5 text-on-surface-variant">sig_7720192</td>
+<td class="p-3.5 text-red-400 font-semibold">BLOCKED</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- Client-side Interactive Logic & Null-safe Mock Injector -->
+
+  <script src="./live/explainability.js"></script>
+</body></html>
