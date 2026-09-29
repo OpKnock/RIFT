@@ -32,12 +32,11 @@ interface TabsProps {
 export function Tabs({ value, onValueChange, children, className, orientation = 'horizontal' }: TabsProps) {
   return (
     <TabsContext.Provider value={{ value, onValueChange, orientation }}>
+      {/* Always stack list above content: every caller renders TabsList
+        followed by TabsContent panels. A row root squeezes the list and
+        the panel side by side (seen as overlapping tab labels). */}
       <div
-        className={cn(
-          'flex',
-          orientation === 'vertical' ? 'flex-col' : 'flex-row',
-          className
-        )}
+        className={cn('flex flex-col', className)}
         data-orientation={orientation}
       >
         {children}

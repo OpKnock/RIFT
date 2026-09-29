@@ -24,6 +24,10 @@ export interface TreeNode {
   computation_time_ms?: number
 }
 
+function nf(v: number | null | undefined, dp = 3): string {
+  return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(dp) : '—'
+}
+
 interface PlacedNode extends TreeNode {
   position: [number, number, number]
   color: string
@@ -382,7 +386,7 @@ export function FutureTree3D({
             <Badge variant={selected.valid ? 'success' : 'error'}>{selected.valid ? 'Valid' : 'Invalid'}</Badge>
           </div>
           <p className="font-mono text-xs">Policy: {JSON.stringify(selected.policy)}</p>
-          <p className="font-mono text-xs">Score: {selected.score.toFixed(2)} · Uncertainty: {(selected.uncertainty ?? 0).toFixed(3)} · Guardian: {selected.guardian_action ?? '—'}</p>
+          <p className="font-mono text-xs">Score: {nf(selected.score, 2)} · Uncertainty: {nf(selected.uncertainty ?? 0, 3)} · Guardian: {selected.guardian_action ?? '—'}</p>
           {selected.state && (
             <p className="font-mono text-xs">State: {JSON.stringify(selected.state)}</p>
           )}
