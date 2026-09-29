@@ -14,7 +14,7 @@
   function findCardValue(labelText) {
     var spans = document.querySelectorAll("span.text-xs.font-label, span.font-label");
     for (var i = 0; i < spans.length; i++) {
-      if (spans[i].textContent.trim() === labelText) {
+      if (spans[i].textContent.trim().toLowerCase() === labelText.toLowerCase()) {
         var card = spans[i].closest("div.bg-surface-container");
         if (!card) continue;
         var val = card.querySelector("div.text-2xl");
@@ -25,22 +25,35 @@
   }
 
   function findSectionList(headingText) {
-    var hs = document.querySelectorAll("h3");
+    var want = headingText.toLowerCase();
+    var hs = document.querySelectorAll("h1,h2,h3,h4");
     for (var i = 0; i < hs.length; i++) {
-      if (hs[i].textContent.trim() === headingText) {
-        var card = hs[i].closest("div.bg-surface-container");
-        if (!card) continue;
-        return card.querySelector("div.divide-y");
+      if (hs[i].textContent.trim().toLowerCase().indexOf(want) === -1) continue;
+      var node = hs[i].parentElement;
+      while (node && node !== document.body) {
+        var list = node.querySelector("div.divide-y");
+        if (list) return list;
+        node = node.parentElement;
       }
     }
     return null;
+  }
+  function clearToSignIn() {
+    ["Total Request Volume", "Failure Rate (Global)", "p95 Latency"].forEach(function (label) {
+      var el = findCardValue(label);
+      if (el) el.textContent = "--";
+    });
+    var list = findSectionList("Alert Rules");
+    if (list) list.innerHTML = '<div class="p-3.5 text-xs text-on-surface-variant">Sign in to load alert rules.</div>';
+    var tbody = findRoutesTbody();
+    if (tbody) tbody.innerHTML = '<tr><td class="py-3 px-4 text-xs text-on-surface-variant" colspan="7">Sign in to load per-route traffic.</td></tr>';
   }
 
   function findRoutesTbody() {
     var ths = document.querySelectorAll("th");
     for (var i = 0; i < ths.length; i++) {
-      if (ths[i].textContent.trim() === "Route Path") {
-        var table = ths.closest("table");
+      if (/route\s*path/i.test(ths[i].textContent)) {
+        var table = ths[i].closest("table");
         if (table) return table.querySelector("tbody");
       }
     }
@@ -52,6 +65,27 @@
       ? "bg-emerald-500/20 text-emerald-400"
       : "bg-rose-500/20 text-rose-400 font-bold";
     return '<span class="px-2 py-0.5 rounded text-[10px] font-mono ' + cls + '">' + R.esc(text) + "</span>";
+  }
+
+  function setTrend(label, text) {
+    var want = label.toLowerCase();
+    var spans = document.querySelectorAll("span");
+    for (var i = 0; i < spans.length; i++) {
+      if (spans[i].textContent.trim().toLowerCase() !== want) continue;
+      var card = spans[i].closest("div.bg-surface-container");
+      if (!card) continue;
+      var val = card.querySelector("div.text-2xl");
+      if (!val) continue;
+      var trend = val.nextElementSibling;
+      if (trend) {
+        trend.innerHTML = "";
+        var s = document.createElement("span");
+        s.className = "text-xs text-on-surface-variant";
+        s.textContent = text;
+        trend.appendChild(s);
+      }
+      return;
+    }
   }
 
   function render(snapshot) {
@@ -76,6 +110,9 @@
     set("Total Request Volume", String(total));
     set("Failure Rate (Global)", R.num(failRate, 3) + "%");
     set("p95 Latency", R.num(p95max, 1) + "ms");
+    setTrend("Total Request Volume", "live total, this server process");
+    setTrend("Failure Rate (Global)", "across " + total + " request(s)");
+    setTrend("p95 Latency", "max across routes");
     var firingEl = findCardValue("Alert Evaluation Engine");
     if (!firingEl) {
       // Fourth card shows "N / M" — find by label then value.
@@ -87,7 +124,24 @@
         }
       }
     }
-    if (firingEl) firingEl.textContent = firing + " / " + alerts.length;
+    if (firingEl) {
+      firingEl.textContent = firing + " / " + alerts.length;
+      var fcard = firingEl.closest("div.bg-surface-container");
+      var sub = fcard ? fcard.querySelector("div.flex.items-center.gap-2, div.flex.items-center.gap-1") : null;
+      if (sub) {
+        sub.innerHTML = "";
+        var a = document.createElement("span");
+        a.className = "text-xs font-medium";
+        a.style.color = firing ? "#f87171" : "#34d399";
+        a.textContent = firing + " firing";
+        var b = document.createElement("span");
+        b.className = "text-xs text-on-surface-variant";
+        b.textContent = "· " + (alerts.length - firing) + " ok";
+        sub.appendChild(a);
+        sub.appendChild(document.createTextNode(" "));
+        sub.appendChild(b);
+      }
+    }
 
     // Alerts list.
     var list = findSectionList("Alert Rules Evaluation Matrix");
@@ -149,6 +203,7 @@
       render(snapshot);
     } catch (e) {
       if (R.isAuthError(e)) {
+        clearToSignIn();
         var auth = $("auth-alert-card");
         if (auth) auth.style.display = "";
         R.showAuth("operations telemetry", function () { poll(true); });

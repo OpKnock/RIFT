@@ -115,5 +115,30 @@
   }
 
   window.triggerFetch = realTriggerFetch;
-  document.addEventListener("DOMContentLoaded", realTriggerFetch);
+  // Header actions: Verify re-pulls live telemetry; Deploy Override has no
+  // engine endpoint in this research build, so it says so in the terminal.
+  function wireHeaderButtons() {
+    var terms = $("terminal-dynamic-logs");
+    function note(text) {
+      if (!terms) return;
+      var div = document.createElement("div");
+      div.className = "text-primary";
+      div.textContent = "[" + new Date().toLocaleTimeString() + "] " + text;
+      terms.appendChild(div);
+    }
+    Array.prototype.forEach.call(document.querySelectorAll("button"), function (b) {
+      var label = (b.textContent || "").trim();
+      if (/^verify snapshot/i.test(label)) {
+        b.addEventListener("click", function () { note("manual verify: re-fetching telemetry..."); realTriggerFetch(); });
+      } else if (/deploy override/i.test(label)) {
+        b.addEventListener("click", function () {
+          note("deploy skipped: no deployment endpoint in this build (decision support only, never autonomous action).");
+        });
+      }
+    });
+  }
+  document.addEventListener("DOMContentLoaded", function () {
+    realTriggerFetch();
+    wireHeaderButtons();
+  });
 })();

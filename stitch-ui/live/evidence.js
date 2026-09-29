@@ -66,6 +66,11 @@
       var badge = document.getElementById("guardian-badge");
       badge.innerText = verdict;
       badge.className = badgeClass(verdict);
+      var bars = document.querySelectorAll(".cal-bar");
+      for (var bi = 0; bi < bars.length; bi++) {
+        var h = risk === null ? 8 : Math.max(8, Math.min(100, risk * (0.55 + bi * 0.06)));
+        bars[bi].style.height = h + "%";
+      }
       window.renderDivergenceTable(dayIndex);
     }
     if (cache[dayIndex] !== undefined) { paint(cache[dayIndex]); return; }

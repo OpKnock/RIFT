@@ -30,7 +30,7 @@
   function expTbody() {
     var ths = document.querySelectorAll("th");
     for (var i = 0; i < ths.length; i++) {
-      if (ths[i].textContent.trim() === "Experiment Name") {
+      if (/experiment\s*name/i.test(ths[i].textContent)) {
         var tb = ths[i].closest("table");
         if (tb) return tb.querySelector("tbody");
       }
@@ -40,7 +40,7 @@
   function benchTbody() {
     var ths = document.querySelectorAll("th");
     for (var i = 0; i < ths.length; i++) {
-      if (ths[i].textContent.trim() === "Model Variant") {
+      if (/model\s*variant/i.test(ths[i].textContent)) {
         var tb = ths[i].closest("table");
         if (tb) return tb.querySelector("tbody");
       }
@@ -52,6 +52,11 @@
     R.get("/api/experiments/templates").then(function (body) {
       var templates = (body && body.templates) || [];
       var tb = expTbody();
+      document.querySelectorAll("div,span,p").forEach(function (el) {
+        if (/^Showing \d+ of \d+ experiments$/.test(el.textContent.trim())) {
+          el.textContent = "Showing " + templates.length + " template(s) from the engine";
+        }
+      });
       if (tb) {
         tb.innerHTML = templates.length ? templates.map(function (t) {
           var spec = t.spec || {};
@@ -64,7 +69,11 @@
         }).join("") : '<tr><td class="py-2.5 px-3 text-on-surface-variant" colspan="5">No templates registered.</td></tr>';
       }
     }).catch(function (e) {
-      if (R.isAuthError(e)) R.showAuth("experiment templates", loadTemplates);
+      if (R.isAuthError(e)) {
+        var tb = expTbody();
+        if (tb) tb.innerHTML = '<tr><td class="py-2.5 px-3 text-on-surface-variant" colspan="5">Sign in to load experiment templates.</td></tr>';
+        R.showAuth("experiment templates", loadTemplates);
+      }
     });
   }
 

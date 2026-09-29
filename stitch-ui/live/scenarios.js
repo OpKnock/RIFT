@@ -10,7 +10,7 @@
   function boundsTbody() {
     var ths = document.querySelectorAll("th");
     for (var i = 0; i < ths.length; i++) {
-      if (ths[i].textContent.trim() === "Variable Name") {
+      if (/variable\s*name/i.test(ths[i].textContent)) {
         var tb = ths[i].closest("table");
         if (tb) return tb.querySelector("tbody");
       }
