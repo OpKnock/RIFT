@@ -1,431 +1,426 @@
 {
- "phases": [
-  {
-   "blockers": [
-    "none \u2014 additive, tested, reviewed in diff"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "scripts/validate_migrations.py",
-     "scripts/secret_scan.py",
-     "scripts/check_versions.py"
-    ],
-    "tests": [
-     "tests/test_core.py"
-    ]
-   },
-   "id": 0,
-   "name": "Hardened foundation",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "real device APIs (Bluetooth/wearable vendor integrations)"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/health/observations.py",
-     "src/rift/health/timeline.py",
-     "src/rift/health/sources.py",
-     "backend/supabase/migrations/007_observations.sql"
-    ],
-    "tests": [
-     "tests/test_health_platform.py"
-    ]
-   },
-   "id": 1,
-   "name": "Canonical clinical data platform",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "live clinical-source integration (hospital FHIR endpoint + credentials)"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/health/adapters.py",
-     "src/rift/health/terminology.py",
-     "src/rift/health/fhir_clinical.py"
-    ],
-    "tests": [
-     "tests/test_health_platform.py"
-    ]
-   },
-   "id": 2,
-   "name": "Real FHIR ingestion",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "non-LOINC code systems (SNOMED/RxNorm)",
-    "prospective mapping review workflow"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/health/terminology.py"
-    ],
-    "tests": [
-     "tests/test_health_platform.py"
-    ]
-   },
-   "id": 3,
-   "name": "Terminology service",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "real patient/site timezone handling",
-    "EHR timeline merge at scale"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/health/timeline.py",
-     "src/rift/health/wearable.py",
-     "src/rift/health/estimation.py",
-     "src/rift/health/drift.py"
-    ],
-    "tests": [
-     "tests/test_health_platform.py"
-    ]
-   },
-   "id": 4,
-   "name": "Multi-timescale patient timeline",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "validated learned estimator on real data"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/health/timeline.py",
-     "src/rift/health/baseline.py",
-     "src/rift/health/estimation.py"
-    ],
-    "tests": [
-     "tests/test_health_pipeline.py"
-    ]
-   },
-   "id": 5,
-   "name": "Real twin state estimation",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "weight fitting on real governed data (deliberately absent on synthetic)",
-    "benchmark models on real cohorts"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/health/training.py"
-    ],
-    "tests": [
-     "tests/test_health_training.py"
-    ]
-   },
-   "id": 6,
-   "name": "Model training and experiment platform",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "migration 006/007 live Supabase apply",
-    "registry API + human approver workflow in prod"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [
-     "/api/twin/evidence"
-    ],
-    "files": [
-     "src/rift/health/model_registry.py",
-     "backend/supabase/migrations/006_model_registry.sql"
-    ],
-    "tests": [
-     "tests/test_health_platform.py",
-     "tests/test_health_training.py"
-    ]
-   },
-   "id": 7,
-   "name": "Production model registry 2.0",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "validated model uncertainty on real data"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [
-     "/api/twin/demo",
-     "/api/twin/evidence"
-    ],
-    "files": [
-     "src/rift/health/risk.py",
-     "src/rift/health/robustness.py",
-     "src/rift/health/twin.py"
-    ],
-    "tests": [
-     "tests/test_health_foresight.py"
-    ]
-   },
-   "id": 8,
-   "name": "Proper uncertainty engine",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "retraining review loop (human approval)"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/health/guardian.py",
-     "src/rift/health/drift.py"
-    ],
-    "tests": [
-     "tests/test_health_foresight.py"
-    ]
-   },
-   "id": 9,
-   "name": "Distribution shift and OOD engine",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "validated evaluation on real decisional costs (synthetic costs only)"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/health/decision.py"
-    ],
-    "tests": [
-     "tests/test_health_platform.py",
-     "tests/test_health_training.py"
-    ]
-   },
-   "id": 10,
-   "name": "Real decision engine",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "real EHR timestamp alignment for counterfactual provenance at scale"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/health/foresight.py"
-    ],
-    "tests": [
-     "tests/test_health_foresight.py"
-    ]
-   },
-   "id": 11,
-   "name": "Decision-aware counterfactual engine",
-   "status": "COMPLETE"
-  },
-{
-    "blockers": [
-      "full classical benchmark comparison (MILP/CP-SAT) on same instances",
-      "statistical + practical significance demonstration for quantum advantage"
-    ],
-    "deployment_state": "not-applicable",
-    "evidence": {
-      "endpoints": [],
-      "files": [
-        "src/rift/optimizer.py",
-        "src/rift/qaoa.py",
-        "src/rift/qpu.py"
+  "phases": [
+    {
+      "blockers": [
+        "none \u2014 additive, tested, reviewed in diff"
       ],
-      "tests": [
-        "tests/test_qaoa.py",
-        "tests/test_qpu_aer.py"
-      ]
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "scripts/validate_migrations.py",
+          "scripts/secret_scan.py",
+          "scripts/check_versions.py"
+        ],
+        "tests": [
+          "tests/test_core.py"
+        ]
+      },
+      "id": 0,
+      "name": "Hardened foundation",
+      "status": "COMPLETE"
     },
-    "id": 12,
-    "name": "Robust optimization 2.0",
-    "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "human governance sign-off on finding stream"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/health/guardian.py",
-     "src/rift/health/drift.py"
-    ],
-    "tests": [
-     "tests/test_health_foresight.py"
-    ]
-   },
-   "id": 13,
-   "name": "Guardian 2.0",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "real multi-patient cohort for subgroup external validation"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [
-     "/api/twin/evidence"
-    ],
-    "files": [
-     "src/rift/health/evidence.py",
-     "src/rift/health/evaluate.py",
-     "src/rift/health/subgroups.py"
-    ],
-    "tests": [
-     "tests/test_evidence_bundle.py",
-     "tests/test_health_evidence.py"
-    ]
-   },
-   "id": 14,
-   "name": "Evidence and validation platform",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "real clinical public dataset to replace synthetic example (format demo only)"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/health/cohort.py",
-     "src/rift/health/subgroups.py",
-     "data/public_example.csv",
-     "data/README.md"
-    ],
-    "tests": [
-     "tests/test_health_training.py"
-    ]
-   },
-   "id": 15,
-   "name": "Real external and subgroup validation",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "live deployment with prospective outcome stream"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/health/prospective.py"
-    ],
-    "tests": [
-     "tests/test_health_training.py"
-    ]
-   },
-   "id": 16,
-   "name": "Prospective and streaming evaluation",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "live Supabase project apply + auth integration"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "backend/supabase/migrations/001_initial.sql",
-     "backend/supabase/migrations/006_model_registry.sql",
-     "backend/supabase/migrations/007_observations.sql"
-    ],
-    "tests": [
-     "tests/test_schema_consistency.py"
-    ]
-   },
-   "id": 17,
-   "name": "Production data and audit platform",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "live alert delivery (PagerDuty/Slack)"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "src/rift/health/monitoring.py"
-    ],
-    "tests": [
-     "tests/test_health_platform.py"
-    ]
-   },
-   "id": 18,
-   "name": "Monitoring and MLOps",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "Figma-first redesign still ahead, dashboard functional now"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-    "files": [
-     "frontend/src/App.tsx",
-     "frontend/src/main.tsx",
-     "frontend/playwright.config.ts",
-     "frontend/e2e/app.e2e.ts"
-    ],
-    "tests": [
-     "tests/test_frontend_serving.py",
-     "tests/test_health_api.py"
-    ]
-   },
-   "id": 19,
-   "name": "Complete product UX",
-   "status": "COMPLETE"
-  },
-  {
-   "blockers": [
-    "staging/production envs + TLS/secrets still external"
-   ],
-   "deployment_state": "not-applicable",
-   "evidence": {
-    "endpoints": [],
-   "files": [
-    ".github/workflows/test.yml",
-    "deployment/docker/Dockerfile",
-    "Dockerfile.dev",
-    "docs/deployment.md"
-   ],
-    "tests": [
-     "tests/test_schema_consistency.py"
-    ]
-   },
-   "id": 20,
-   "name": "Production deployment and governance",
-   "status": "COMPLETE"
-  }
- ]
+    {
+      "blockers": [
+        "real device APIs (Bluetooth/wearable vendor integrations)"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/health/observations.py",
+          "src/rift/health/timeline.py",
+          "src/rift/health/sources.py",
+          "backend/supabase/migrations/007_observations.sql"
+        ],
+        "tests": [
+          "tests/test_health_platform.py"
+        ]
+      },
+      "id": 1,
+      "name": "Canonical clinical data platform",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "live clinical-source integration (hospital FHIR endpoint + credentials)"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/health/adapters.py",
+          "src/rift/health/terminology.py",
+          "src/rift/health/fhir_clinical.py"
+        ],
+        "tests": [
+          "tests/test_health_platform.py"
+        ]
+      },
+      "id": 2,
+      "name": "Real FHIR ingestion",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "non-LOINC code systems (SNOMED/RxNorm)",
+        "prospective mapping review workflow"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/health/terminology.py"
+        ],
+        "tests": [
+          "tests/test_health_platform.py"
+        ]
+      },
+      "id": 3,
+      "name": "Terminology service",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "real patient/site timezone handling",
+        "EHR timeline merge at scale"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/health/timeline.py",
+          "src/rift/health/wearable.py",
+          "src/rift/health/estimation.py",
+          "src/rift/health/drift.py"
+        ],
+        "tests": [
+          "tests/test_health_platform.py"
+        ]
+      },
+      "id": 4,
+      "name": "Multi-timescale patient timeline",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "validated learned estimator on real data"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/health/timeline.py",
+          "src/rift/health/baseline.py",
+          "src/rift/health/estimation.py"
+        ],
+        "tests": [
+          "tests/test_health_pipeline.py"
+        ]
+      },
+      "id": 5,
+      "name": "Real twin state estimation",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "weight fitting on real governed data (deliberately absent on synthetic)",
+        "benchmark models on real cohorts"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/health/training.py"
+        ],
+        "tests": [
+          "tests/test_health_training.py"
+        ]
+      },
+      "id": 6,
+      "name": "Model training and experiment platform",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "migration 006/007 live Supabase apply",
+        "registry API + human approver workflow in prod"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [
+          "/api/twin/evidence"
+        ],
+        "files": [
+          "src/rift/health/model_registry.py",
+          "backend/supabase/migrations/006_model_registry.sql"
+        ],
+        "tests": [
+          "tests/test_health_platform.py",
+          "tests/test_health_training.py"
+        ]
+      },
+      "id": 7,
+      "name": "Production model registry 2.0",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "validated model uncertainty on real data"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [
+          "/api/twin/demo",
+          "/api/twin/evidence"
+        ],
+        "files": [
+          "src/rift/health/risk.py",
+          "src/rift/health/robustness.py",
+          "src/rift/health/twin.py"
+        ],
+        "tests": [
+          "tests/test_health_foresight.py"
+        ]
+      },
+      "id": 8,
+      "name": "Proper uncertainty engine",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "retraining review loop (human approval)"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/health/guardian.py",
+          "src/rift/health/drift.py"
+        ],
+        "tests": [
+          "tests/test_health_foresight.py"
+        ]
+      },
+      "id": 9,
+      "name": "Distribution shift and OOD engine",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "validated evaluation on real decisional costs (synthetic costs only)"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/health/decision.py"
+        ],
+        "tests": [
+          "tests/test_health_platform.py",
+          "tests/test_health_training.py"
+        ]
+      },
+      "id": 10,
+      "name": "Real decision engine",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "real EHR timestamp alignment for counterfactual provenance at scale"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/health/foresight.py"
+        ],
+        "tests": [
+          "tests/test_health_foresight.py"
+        ]
+      },
+      "id": 11,
+      "name": "Decision-aware counterfactual engine",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "full classical benchmark comparison (MILP/CP-SAT) on same instances",
+        "statistical + practical significance demonstration for quantum advantage"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/optimizer.py",
+          "src/rift/qaoa.py",
+          "src/rift/qpu.py"
+        ],
+        "tests": [
+          "tests/test_qaoa.py",
+          "tests/test_qpu_aer.py"
+        ]
+      },
+      "id": 12,
+      "name": "Robust optimization 2.0",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "human governance sign-off on finding stream"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/health/guardian.py",
+          "src/rift/health/drift.py"
+        ],
+        "tests": [
+          "tests/test_health_foresight.py"
+        ]
+      },
+      "id": 13,
+      "name": "Guardian 2.0",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "real multi-patient cohort for subgroup external validation"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [
+          "/api/twin/evidence"
+        ],
+        "files": [
+          "src/rift/health/evidence.py",
+          "src/rift/health/evaluate.py",
+          "src/rift/health/subgroups.py"
+        ],
+        "tests": [
+          "tests/test_evidence_bundle.py",
+          "tests/test_health_evidence.py"
+        ]
+      },
+      "id": 14,
+      "name": "Evidence and validation platform",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "real clinical public dataset to replace synthetic example (format demo only)"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/health/cohort.py",
+          "src/rift/health/subgroups.py",
+          "data/public_example.csv",
+          "data/README.md"
+        ],
+        "tests": [
+          "tests/test_health_training.py"
+        ]
+      },
+      "id": 15,
+      "name": "Real external and subgroup validation",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "live deployment with prospective outcome stream"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/health/prospective.py"
+        ],
+        "tests": [
+          "tests/test_health_training.py"
+        ]
+      },
+      "id": 16,
+      "name": "Prospective and streaming evaluation",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "live Supabase project apply + auth integration"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "backend/supabase/migrations/001_initial.sql",
+          "backend/supabase/migrations/006_model_registry.sql",
+          "backend/supabase/migrations/007_observations.sql"
+        ],
+        "tests": [
+          "tests/test_schema_consistency.py"
+        ]
+      },
+      "id": 17,
+      "name": "Production data and audit platform",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "live alert delivery (PagerDuty/Slack)"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          "src/rift/health/monitoring.py"
+        ],
+        "tests": [
+          "tests/test_health_platform.py"
+        ]
+      },
+      "id": 18,
+      "name": "Monitoring and MLOps",
+      "status": "COMPLETE"
+    },
+    {
+      "blockers": [
+        "React UI removed from repo; premium UI built in Stitch project RIFT Premium (projects/2823646106770459890), pending export into deployment"
+      ],
+      "deployment_state": "api-only image; UI served from Stitch",
+      "evidence": {
+        "endpoints": [],
+        "files": [],
+        "tests": [
+          "tests/test_frontend_serving.py",
+          "tests/test_health_api.py"
+        ]
+      },
+      "id": 19,
+      "name": "Complete product UX",
+      "status": "PARTIAL"
+    },
+    {
+      "blockers": [
+        "staging/production envs + TLS/secrets still external"
+      ],
+      "deployment_state": "not-applicable",
+      "evidence": {
+        "endpoints": [],
+        "files": [
+          ".github/workflows/test.yml",
+          "deployment/docker/Dockerfile",
+          "Dockerfile.dev",
+          "docs/deployment.md"
+        ],
+        "tests": [
+          "tests/test_schema_consistency.py"
+        ]
+      },
+      "id": 20,
+      "name": "Production deployment and governance",
+      "status": "COMPLETE"
+    }
+  ]
 }

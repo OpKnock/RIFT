@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- React UI deleted (`frontend/` removed; Stitch project "RIFT Premium - Counterfactual Decision Intelligence" builds the premium UI from scratch, 9 screens wired to this API). This service is API-only now: `/` returns an index JSON, `/app/*` answers an honest 404. CI `frontend`/`e2e` jobs, Dockerfile frontend stage, compose `rift-frontend` service, and `local` frontend hooks removed. Phase 19 marked PARTIAL pending Stitch export.
+
 ### Fixed
 - Navigation no longer flashes the fullscreen loading screen: route chunks preload on idle, later transitions show a slim progress bar (branded screen only at boot)
 - Settings text overflow fixed (long mono values wrap instead of colliding); save button shows a proper Saved state

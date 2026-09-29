@@ -5,11 +5,7 @@ __pycache__/
 .venv/
 venv/
 .env
-.pytest_cache/
-frontend/node_modules
-frontend/dist
-frontend/.git
-frontend/.gitignore
+.pytest_cache
 *.log
 *.log.*
 npm-debug.log*
@@ -28,4 +24,3 @@ coverage
 .turbo
 dist-ssr
 *.local
-frontend/src/probe-line.tsx

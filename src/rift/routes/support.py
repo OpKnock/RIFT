@@ -6,7 +6,6 @@ rift.api re-exports what it still uses; no state is duplicated.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from pathlib import Path
 from rift import __version__ as ENGINE_VERSION
 from rift.auth import owner_mismatch
 from rift.benchmark import benchmark_suite
@@ -40,9 +39,6 @@ from rift.uncertainty import normalized_risk_entropy
 from rift.verifier import verify_under_perturbations
 import os
 import uuid
-
-
-FRONTEND_DIST = Path(__file__).resolve().parents[3] / "frontend-dist"
 
 
 PERTURBATIONS = [
@@ -290,14 +286,14 @@ def _mirror_run_to_archive(experiment_id: str, spec: "ExperimentSpec",
 
 
 def _cors_allowed_origins() -> list[str]:
-    """Explicit CORS allow-list (no wildcard). Defaults cover local dev.
+    """Explicit CORS allow-list (no wildcard). Empty by default.
 
-    Override with RIFT_CORS_ORIGINS as a comma-separated list, e.g.
-    "https://app.example.com". Fronted production deployments may
+    Override with RIFT_CORS_ORIGINS as a comma-separated list, e.g. the
+    origin serving the Stitch UI. Fronted production deployments may
     alternatively terminate CORS at the edge and leave this empty — an
     empty list disables CORS headers entirely.
     """
-    raw = os.getenv("RIFT_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
+    raw = os.getenv("RIFT_CORS_ORIGINS", "")
     return [o.strip() for o in raw.split(",") if o.strip()]
 
 

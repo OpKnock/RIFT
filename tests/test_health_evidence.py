@@ -169,14 +169,11 @@ def test_no_overclaim_language_in_health_surface():
         "statistically calibrated",
     ]
     negated = re.compile(r"\b(without|never|not|no|nothing|n't|vs\.?|rather than|instead of)\b", re.IGNORECASE)
-    roots = [Path("src/rift/health"), Path("frontend/src"), Path("docs/patient-twin.md")]
+    roots = [Path("src/rift/health"), Path("docs/patient-twin.md")]
     hits = []
     for root in roots:
         if root.is_file():
             files = [root]
-        elif root.name == "src" and root.parent.name == "frontend":
-            files = [p for p in root.rglob("*.tsx") if ".test." not in p.name]
-            files += [p for p in root.rglob("*.ts") if ".test." not in p.name and ".d.ts" not in p.name]
         else:
             files = list(root.glob("*.py"))
         for path in files:

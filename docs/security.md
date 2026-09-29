@@ -23,7 +23,7 @@
 - Oversized payloads get 413; malformed JSON gets 400; invalid UUIDs get 400.
 - Cross-user reads/writes denied via `owner_mismatch` (403) when stored `user_id` differs.
 - Optional `RIFT_API_TOKEN` bearer gate (401 when mismatched).
-- Security headers on all responses; CSP on the served page; CORS is an explicit origin allow-list (`RIFT_CORS_ORIGINS`, default `http://localhost:5173,http://127.0.0.1:5173`) — no wildcard; disallowed origins get no ACAO headers.
+- Security headers on all responses; CORS is an explicit origin allow-list (`RIFT_CORS_ORIGINS`, empty by default = same-origin only) — no wildcard; disallowed origins get no ACAO headers. Set it to the origin serving the Stitch UI.
 - Secret scan in CI (`scripts/secret_scan.py`); migration safety gate (`scripts/validate_migrations.py`).
 - Frontend renders only via `escapeHtml`; no embedded keys in `web/`.
 

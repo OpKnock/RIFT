@@ -58,7 +58,7 @@ from .uncertainty import normalized_risk_entropy
 from .verifier import verify_under_perturbations
 
 from .routes import routes_auth, routes_billing, routes_core, routes_experiments, routes_operations, routes_twin
-from .routes.support import FRONTEND_DIST, PERTURBATIONS, POLICY_VARIABLES, _ClientGone, _SEEN_WEBHOOK_KEYS, _apply_subscription_update, _bounded_float, _cors_allowed_origins, _cors_headers, _is_not_found_error, _is_valid_uuid, _mirror_experiment_to_archive, _mirror_run_to_archive, _publish_event, _remember_webhook_key, _resolve_experiment, _resolve_run, _run_from_row, _seen_webhook_key, _spec_from_experiment_row, configured_scenario, scenario_payload
+from .routes.support import PERTURBATIONS, POLICY_VARIABLES, _ClientGone, _SEEN_WEBHOOK_KEYS, _apply_subscription_update, _bounded_float, _cors_allowed_origins, _cors_headers, _is_not_found_error, _is_valid_uuid, _mirror_experiment_to_archive, _mirror_run_to_archive, _publish_event, _remember_webhook_key, _resolve_experiment, _resolve_run, _run_from_row, _seen_webhook_key, _spec_from_experiment_row, configured_scenario, scenario_payload
 
 
 def _client_ip(handler: BaseHTTPRequestHandler) -> str:
@@ -98,9 +98,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("X-Request-ID", request_id)
         for key, value in (extra_headers or {}).items():
             self.send_header(key, str(value))
-        # Explicit allow-list CORS (no wildcard): the dev UI runs
-        # cross-origin (Vite :5173 -> API :8080). Production may set
-        # RIFT_CORS_ORIGINS or terminate CORS at the edge instead.
+        # Explicit allow-list CORS (no wildcard): browser UIs calling
+        # cross-origin need their origin in RIFT_CORS_ORIGINS.
+        # Production may set RIFT_CORS_ORIGINS or terminate CORS at the edge instead.
         for key, value in _cors_headers(self.headers.get("Origin")).items():
             self.send_header(key, value)
         self.end_headers()

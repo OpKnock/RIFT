@@ -9,7 +9,7 @@ removed and a `/` → `/app/` redirect added):
 
 | module               | routes                                                        |
 |----------------------|---------------------------------------------------------------|
-| `routes_core`        | `/` (302 → `/app/`), `/api/health`, `/api/meta`, `/api/demo`, `/api/events/stream`, `/metrics`, `/api/persistence/status`, `/app/*` |
+| `routes_core`        | `/` (API index JSON), `/api/health`, `/api/meta`, `/api/demo`, `/api/events/stream`, `/metrics`, `/api/persistence/status`, `/app/*` (404: UI removed) |
 | `routes_auth`        | `/api/auth/session`, `/api/auth/logout`, `/api/auth/session-info` |
 | `routes_billing`     | `/api/billing/status`, `/api/billing/entitlement`, `/api/billing/checkout`, `/api/billing/webhook` |
 | `routes_experiments` | `/api/experiments…`, `/api/runs…` (22 routes: CRUD, runs, execute, versions, compare, import, scheduler, …) |
@@ -58,9 +58,8 @@ tests and readers. The single home for mutable state (e.g.
 `_SEEN_WEBHOOK_KEYS`) is `rift.routes.support`; `rift.api` holds a
 re-exported reference to the same object.
 
-`FRONTEND_DIST` is anchored one level deeper here (`parents[3]` instead of
-`parents[2]`) so it resolves to the identical directory; verified equal at
-split time.
+`FRONTEND_DIST` was removed with the React UI (Stitch builds the premium UI
+now); `/` serves an API index JSON and `/app/*` answers an honest 404.
 
 ## Provenance
 

@@ -33,11 +33,6 @@ check_prereqs() {
     command -v docker >/dev/null || missing+=("docker")
     command -v docker-compose >/dev/null || missing+=("docker-compose")
     command -v python3 >/dev/null || missing+=("python3")
-    # Node/npm are optional on the host: the frontend runs inside its
-    # container (npm run dev), so a Docker-only developer without Node
-    # must still be able to start the stack.
-    command -v node >/dev/null || warn "node not found on host (ok: frontend runs in-container)"
-    command -v npm >/dev/null || warn "npm not found on host (ok: frontend runs in-container)"
 
     if [ ${#missing[@]} -gt 0 ]; then
         error "Missing prerequisites: ${missing[*]}"
@@ -69,13 +64,15 @@ IBM_QPU_TOKEN=${IBM_QPU_TOKEN:-}
 QUANTUM_BACKEND=statevector-simulator
 
 # Security (canonical names — must match what src/rift reads)
-# Service token: LEAVE EMPTY for local development (open dev mode — the UI
-# works out of the box with no login). Set a strong random value to switch
-# the API into service-token mode; browsers then exchange it once via
-# POST /api/auth/session for an HttpOnly cookie (see Settings → API Token).
+# Service token: LEAVE EMPTY for local development (open dev mode — the
+# Stitch UI works out of the box with no login). Set a strong random value
+# to switch the API into service-token mode; browsers then exchange it once
+# via POST /api/auth/session for an HttpOnly cookie.
 RIFT_API_TOKEN=${RIFT_API_TOKEN:-}
 RIFT_WEBHOOK_SECRET=dev-webhook-secret-change-in-production
-RIFT_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+# CORS: explicit allow-list, no wildcards. Set to the origin that serves the
+# Stitch UI (its preview/share URL); empty = same-origin only.
+RIFT_CORS_ORIGINS=${RIFT_CORS_ORIGINS:-}
 
 # Billing (optional, Lemon Squeezy; RIFT_-prefixed canonical)
 RIFT_LEMON_SQUEEZY_API_KEY=${RIFT_LEMON_SQUEEZY_API_KEY:-}
@@ -121,7 +118,7 @@ services:
       - RIFT_SUPABASE_KEY=${RIFT_SUPABASE_KEY:-}
       - RIFT_SUPABASE_JWT_SECRET=${RIFT_SUPABASE_JWT_SECRET:-}
       - RIFT_SUPABASE_JWT_AUD=${RIFT_SUPABASE_JWT_AUD:-}
-      - RIFT_CORS_ORIGINS=${RIFT_CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      - RIFT_CORS_ORIGINS=${RIFT_CORS_ORIGINS:-}
       - LOG_LEVEL=DEBUG
       - LOG_FORMAT=json
     volumes:
@@ -141,27 +138,6 @@ services:
       timeout: 15s
       retries: 30
       start_period: 90s
-
-  rift-frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
-    ports:
-      - "5173:5173"
-    environment:
-      - VITE_API_URL=http://localhost:8080/api
-      - VITE_WS_URL=ws://localhost:8080
-      - VITE_API_TARGET=http://rift-api:8080
-    volumes:
-      - ./frontend/src:/app/src:ro
-      - ./frontend/public:/app/public:ro
-      - ./frontend/index.html:/app/index.html:ro
-      - ./frontend/package.json:/app/package.json:ro
-      - ./frontend/vite.config.ts:/app/vite.config.ts:ro
-      - ./frontend/tailwind.config.js:/app/tailwind.config.js:ro
-      - ./frontend/postcss.config.js:/app/postcss.config.js:ro
-    command: npm run dev -- --host 0.0.0.0
-    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -250,26 +226,6 @@ EOF
     success "Generated Dockerfile.dev"
 }
 
-# Generate frontend Dockerfile.dev
-gen_frontend_dockerfile_dev() {
-    cat > "${RIFT_ROOT}/frontend/Dockerfile.dev" <<'EOF'
-FROM node:20-alpine
-
-WORKDIR /app
-
-# Install deps
-COPY package.json package-lock.json* ./
-RUN npm ci
-
-# Expose Vite dev server
-EXPOSE 5173
-
-# Dev server with hot reload
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
-EOF
-    success "Generated frontend/Dockerfile.dev"
-}
-
 # Start services
 start() {
     log "Starting RIFT local environment..."
@@ -279,7 +235,6 @@ start() {
     # Generate configs if missing
     [ -f "${ENV_FILE}" ] || gen_env
     [ -f "${RIFT_ROOT}/Dockerfile.dev" ] || gen_dockerfile_dev
-    [ -f "${RIFT_ROOT}/frontend/Dockerfile.dev" ] || gen_frontend_dockerfile_dev
     # The compose file is fully generated: refresh it when it predates the
     # generator (backup first) so stale copies can't pin old behavior.
     if ! grep -q "GEN=2" "${COMPOSE_FILE}" 2>/dev/null; then
@@ -341,19 +296,11 @@ start() {
         return 1
     fi
 
-    # Verify Frontend (the bundle lives under /app/; the Vite root alone
-    # proves nothing about the real application URL).
-    if curl -sf "http://localhost:5173/app/" >/dev/null; then
-        success "RIFT Frontend is running at http://localhost:5173/app/"
-    else
-        warn "Frontend may still be starting"
-    fi
-
     # Show status
     docker-compose -f "${COMPOSE_FILE}" ps
     success "RIFT local environment started!"
     log "API: http://localhost:8080"
-    log "Frontend: http://localhost:5173/app/"
+    log "UI: Stitch project 'RIFT Premium - Counterfactual Decision Intelligence' (connects to this API)"
     log "Prometheus: http://localhost:9090"
     log "Grafana: http://localhost:3000 (admin/admin)"
 }
@@ -390,10 +337,6 @@ reset() {
     # Remove generated configs
     rm -f "${ENV_FILE}"
     rm -f "${COMPOSE_FILE}"
-
-    # Remove node_modules and dist
-    rm -rf "${RIFT_ROOT}/frontend/node_modules"
-    rm -rf "${RIFT_ROOT}/frontend/dist"
 
     # Remove Python cache
     find "${RIFT_ROOT}/src" -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
@@ -453,13 +396,6 @@ health() {
         warn "Grafana: Not responding"
     fi
 
-    # Frontend (real application URL, not the Vite root)
-    if curl -sf "http://localhost:5173/app/" >/dev/null 2>&1; then
-        success "Frontend: Running"
-    else
-        warn "Frontend: Not responding"
-    fi
-
     # Disk space
     local disk_avail=$(df -h "${RIFT_ROOT}" | awk 'NR==2 {print $4}')
     log "Disk available: ${disk_avail}"
@@ -488,17 +424,6 @@ test() {
     else
         error "Python tests failed"
         return 1
-    fi
-
-    # Frontend tests (if configured)
-    if [ -f "${RIFT_ROOT}/frontend/package.json" ] && grep -q '"test"' "${RIFT_ROOT}/frontend/package.json"; then
-        log "Running Frontend tests..."
-        if docker-compose -f "${COMPOSE_FILE}" exec -T rift-frontend npm test -- --run; then
-            success "Frontend tests passed"
-        else
-            error "Frontend tests failed"
-            return 1
-        fi
     fi
 
     success "All tests passed!"
@@ -557,7 +482,6 @@ diag() {
     echo "Docker: $(docker --version)"
     echo "Docker Compose: $(docker-compose --version)"
     echo "Python: $(python3 --version)"
-    echo "Node: $(node --version 2>/dev/null || echo 'not installed on host (in-container only)')"
 
     echo ""
     echo "=== Docker Status ==="
@@ -649,7 +573,6 @@ main() {
             gen_env
             gen_compose
             gen_dockerfile_dev
-            gen_frontend_dockerfile_dev
             success "Generated all config files"
             ;;
         help|*)
@@ -659,12 +582,12 @@ RIFT Local Deployment Manager
 Usage: ./local.sh <command> [args]
 
 Commands:
-  start       Start all services (API, Frontend, Redis, Prometheus, Grafana)
+  start       Start all services (API, Redis, Prometheus, Grafana)
   stop        Stop all services
   restart     Restart all services
   reset       Reset to clean state (removes volumes, DB, logs, cache)
   health      Run health checks
-  test        Run test suite (Python + Frontend)
+  test        Run test suite (Python)
   demo        Run API demo
   logs [svc]  Show logs (optional: service name)
   shell [svc] Open shell in container (default: rift-api)

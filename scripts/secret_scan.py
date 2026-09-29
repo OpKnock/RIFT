@@ -1,6 +1,6 @@
 """CI: fail when credential-shaped strings are committed.
 
-Scans source, docs, workflows, and frontend for live-secret patterns.
+Scans source, docs, and workflows for live-secret patterns.
 Env examples must keep values empty. This is a tripwire, not a full
 secret manager: false positives should be allow-listed explicitly.
 """

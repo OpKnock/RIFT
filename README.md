@@ -104,21 +104,16 @@ Key variables:
 pip install -r constraints.txt
 pip install -e .
 
-# Install frontend deps
-cd frontend && npm ci
-
 # Run API locally
 python -m rift.api
 
-# Run frontend dev server
-cd frontend && npm run dev
-
 # Run tests
 python -m pytest tests/ -x -q
-
-# Type check
-cd frontend && npx tsc --noEmit
 ```
+
+The web UI is built in Stitch (project "RIFT Premium - Counterfactual
+Decision Intelligence", 9 screens) and talks to this API over HTTP.
+This repo ships the engine API only.
 
 ## Docker
 
@@ -127,8 +122,8 @@ cd frontend && npx tsc --noEmit
 ./local.sh start
 
 # Services:
-# - API: http://localhost:8080 (production UI bundled at /app, / redirects there)
-# - Frontend: http://localhost:5173/app/ (dev server; bundle lives under /app)
+# - API: http://localhost:8080 (`/` returns the API index JSON)
+# - UI: Stitch project "RIFT Premium" (connects to the API above)
 # - Prometheus: http://localhost:9090
 # - Grafana: http://localhost:3000 (admin/admin)
 ```
