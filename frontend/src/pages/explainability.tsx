@@ -99,13 +99,13 @@ export function Explainability() {
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50 sm:col-span-2">
               <p className="text-secondary-500">Risk Interval</p>
               <p className="font-mono font-medium">
-                {(e.risk.interval[0] * 100).toFixed(1)}% – {(e.risk.interval[1] * 100).toFixed(1)}%
+                {nf(e.risk?.interval?.[0] ? e.risk.interval[0] * 100 : undefined, 1)}% – {nf(e.risk?.interval?.[1] ? e.risk.interval[1] * 100 : undefined, 1)}%
               </p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50 sm:col-span-2">
               <p className="text-secondary-500">Guardian Action</p>
-              <Badge variant={e.guardian.action === 'WITHHOLD' ? 'error' : e.guardian.action === 'WARN' ? 'warning' : 'success'} className="text-base">
-                {e.guardian.action}
+              <Badge variant={e.guardian?.action === 'WITHHOLD' ? 'error' : e.guardian?.action === 'WARN' ? 'warning' : 'success'} className="text-base">
+                {e.guardian?.action ?? '—'}
               </Badge>
             </div>
           </div>
@@ -116,7 +116,7 @@ export function Explainability() {
         <div className="p-6">
           <h2 className="font-medium text-secondary-900 dark:text-white mb-4">Top Reasons</h2>
           <ul className="space-y-2">
-            {e.reasons.map((r, i) => (
+            {(e.reasons || []).map((r, i) => (
               <li key={i} className="text-sm text-secondary-700 dark:text-secondary-300 p-2 rounded bg-secondary-50 dark:bg-secondary-800/50">
                 {r}
               </li>
@@ -125,7 +125,7 @@ export function Explainability() {
         </div>
       </Card>
 
-      {e.guardian.rejections.length > 0 && (
+      {e.guardian?.rejections?.length > 0 && (
         <Card>
           <div className="p-6">
             <h2 className="font-medium text-secondary-900 dark:text-white mb-4">Guardian Rejections</h2>
@@ -138,7 +138,7 @@ export function Explainability() {
         </Card>
       )}
 
-      {e.guardian.flags.length > 0 && (
+      {e.guardian?.flags?.length > 0 && (
         <Card>
           <div className="p-6">
             <h2 className="font-medium text-secondary-900 dark:text-white mb-4">Guardian Flags</h2>
@@ -154,7 +154,7 @@ export function Explainability() {
   )
 
   const assumptionExplorer = () => {
-    const ranking = e.futures.robust_ranking || []
+    const ranking = e.futures?.robust_ranking || []
     return (
       <div className="space-y-4">
         <Card>
@@ -186,7 +186,7 @@ export function Explainability() {
           <div className="p-6">
             <h2 className="font-medium text-secondary-900 dark:text-white mb-4">Imputed Fields</h2>
             <div className="flex flex-wrap gap-2">
-              {(e.futures.imputed_fields || []).map((f: string, i: number) => (
+              {(e.futures?.imputed_fields || []).map((f: string, i: number) => (
                 <Badge key={i} variant="secondary">{f}</Badge>
               ))}
             </div>
@@ -202,7 +202,7 @@ export function Explainability() {
         <div className="p-6">
           <h2 className="font-medium text-secondary-900 dark:text-white mb-4">Prediction Provenance</h2>
           <div className="grid grid-cols-2 gap-4 text-sm">
-            {Object.entries(e.provenance).map(([k, v]) => (
+            {Object.entries(e.provenance || {}).map(([k, v]) => (
               <div key={k} className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
                 <p className="text-secondary-500 font-mono text-xs">{k}</p>
                 <p className="font-mono text-xs break-all">{typeof v === 'string' ? v : JSON.stringify(v)}</p>
@@ -222,27 +222,27 @@ export function Explainability() {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Model ID</p>
-              <p className="font-mono">{e.provenance.model_id}</p>
+              <p className="font-mono">{e.provenance?.model_id ?? '—'}</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Weights Digest</p>
-              <p className="font-mono break-all">{e.provenance.weights_digest}</p>
+              <p className="font-mono break-all">{e.provenance?.weights_digest ?? '—'}</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Schema Version</p>
-              <p className="font-mono">{e.provenance.schema_version}</p>
+              <p className="font-mono">{e.provenance?.schema_version ?? '—'}</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Calibration</p>
-              <p className="font-mono">{e.provenance.calibration_id}</p>
+              <p className="font-mono">{e.provenance?.calibration_id ?? '—'}</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Engine</p>
-              <p className="font-mono">{e.provenance.engine}</p>
+              <p className="font-mono">{e.provenance?.engine ?? '—'}</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Input Hash</p>
-              <p className="font-mono break-all">{e.provenance.input_hash}</p>
+              <p className="font-mono break-all">{e.provenance?.input_hash ?? '—'}</p>
             </div>
           </div>
         </div>
@@ -293,35 +293,35 @@ export function Explainability() {
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Prediction ID</p>
-              <p className="font-mono break-all">{e.provenance.prediction_id}</p>
+              <p className="font-mono break-all">{e.provenance?.prediction_id ?? '—'}</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Model ID</p>
-              <p className="font-mono">{e.provenance.model_id}</p>
+              <p className="font-mono">{e.provenance?.model_id ?? '—'}</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Weights Digest</p>
-              <p className="font-mono break-all">{e.provenance.weights_digest}</p>
+              <p className="font-mono break-all">{e.provenance?.weights_digest ?? '—'}</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Schema Version</p>
-              <p className="font-mono">{e.provenance.schema_version}</p>
+              <p className="font-mono">{e.provenance?.schema_version ?? '—'}</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Calibration ID</p>
-              <p className="font-mono">{e.provenance.calibration_id}</p>
+              <p className="font-mono">{e.provenance?.calibration_id ?? '—'}</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Input Hash</p>
-              <p className="font-mono break-all">{e.provenance.input_hash}</p>
+              <p className="font-mono break-all">{e.provenance?.input_hash ?? '—'}</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">EHR Hash</p>
-              <p className="font-mono break-all">{e.provenance.ehr_hash}</p>
+              <p className="font-mono break-all">{e.provenance?.ehr_hash ?? '—'}</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Baseline Hash</p>
-              <p className="font-mono break-all">{e.provenance.baseline_hash}</p>
+              <p className="font-mono break-all">{e.provenance?.baseline_hash ?? '—'}</p>
             </div>
           </div>
         </div>
@@ -335,17 +335,17 @@ export function Explainability() {
         <div className="p-6">
           <h2 className="font-medium text-secondary-900 dark:text-white mb-4">Guardian Verification</h2>
           <div className="flex items-center gap-3 mb-4">
-            <Badge variant={e.guardian.action === 'WITHHOLD' ? 'error' : e.guardian.action === 'WARN' ? 'warning' : 'success'} className="text-base">
-              Action: {e.guardian.action}
+            <Badge variant={e.guardian?.action === 'WITHHOLD' ? 'error' : e.guardian?.action === 'WARN' ? 'warning' : 'success'} className="text-base">
+              Action: {e.guardian?.action ?? '—'}
             </Badge>
             <span className="text-sm text-secondary-600 dark:text-secondary-400">
-              {e.guardian.display_allowed ? 'Display ALLOWED' : 'Display WITHHELD'}
+              {e.guardian?.display_allowed ? 'Display ALLOWED' : 'Display WITHHELD'}
             </span>
           </div>
           <div className="space-y-2">
             <h3 className="font-medium">Stage Gates</h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {Object.entries(e.guardian.stages || {}).map(([stage, info]: [string, any]) => (
+              {Object.entries(e.guardian?.stages || {}).map(([stage, info]: [string, any]) => (
                 <div key={stage} className={`p-3 rounded-lg ${info.passed ? 'bg-success-50 dark:bg-success-900/20' : 'bg-error-50 dark:bg-error-900/20'} border ${info.passed ? 'border-success-200' : 'border-error-200'}`}>
                   <div className="font-medium">{stage}</div>
                   <Badge variant={info.passed ? 'success' : 'error'}>
@@ -358,7 +358,7 @@ export function Explainability() {
               ))}
             </div>
           </div>
-          {e.guardian.findings && e.guardian.findings.length > 0 && (
+          {e.guardian?.findings?.length > 0 && (
             <div className="mt-4 space-y-2">
               <h3 className="font-medium">All Findings</h3>
               {e.guardian.findings.map((f: any, i: number) => (
