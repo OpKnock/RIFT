@@ -51,7 +51,13 @@ function loadHistory(): HistoryEntry[] {
   try {
     const raw = localStorage.getItem(HISTORY_KEY)
     const list = raw ? JSON.parse(raw) : []
-    return Array.isArray(list) ? list : []
+    if (!Array.isArray(list)) return []
+    // Backfill entries written before violations were recorded so the
+    // table never crashes on stale localStorage.
+    return list.map((h) => ({
+      ...h,
+      violations: Array.isArray(h.violations) ? h.violations : [],
+    }))
   } catch {
     return []
   }

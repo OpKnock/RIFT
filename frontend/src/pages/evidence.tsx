@@ -414,11 +414,54 @@ export function Evidence() {
       </Card>
 
       <Card>
-        <div className="p-6">
-          <h2 className="text-lg font-semibold text-secondary-900 dark:text-white mb-3">Frozen evidence bundle</h2>
+        <div className="p-6 space-y-3">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <h2 className="text-lg font-semibold text-secondary-900 dark:text-white">Frozen evidence bundle</h2>
+            {!loading && !error && !!data && (
+              <Button variant="outline" size="sm" onClick={download}>Download JSON</Button>
+            )}
+          </div>
           {loading && <p className="text-sm text-secondary-500">Loading evidence…</p>}
           {error && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{error}</p>}
-          {!loading && !error && <pre className="text-xs overflow-x-auto bg-secondary-50 dark:bg-secondary-800 p-4 rounded-lg">{JSON.stringify(data, null, 2)}</pre>}
+          {!loading && !error && !!data && (() => {
+            const b = data as Record<string, unknown>
+            const meta = (b.meta || {}) as Record<string, unknown>
+            const model = (meta.model || {}) as Record<string, unknown>
+            const ext = (b.external_validation || {}) as Record<string, unknown>
+            const stressRows = ((b.stress || {}) as Record<string, unknown>).rows
+            const num = (v: unknown, dp = 3) => nf(typeof v === 'number' ? v : undefined, dp)
+            const facts: Array<[string, string]> = [
+              ['Engine', `${String(meta.engine || '—')} ${String(meta.engine_version || '')}`.trim()],
+              ['Dataset', String(meta.dataset || '—')],
+              ['Calibration', String(meta.calibration || '—')],
+              ['Windows', `fit ${String(b.calibration_window || '—')} · held-out ${String(b.held_out_window || '—')}`],
+              ['Days evaluated', String(b.days_evaluated ?? '—')],
+              ['Sensitivity / specificity', `${num(b.sensitivity)} / ${num(b.specificity)}`],
+              ['Event agreement', num(b.event_agreement)],
+              ['Brier score', num(b.brier)],
+              ['Interval coverage', num(b.interval_coverage)],
+              ['Mean onset lag', typeof b.mean_onset_lag === 'number' ? `${num(b.mean_onset_lag, 1)} d` : '—'],
+              ['External validation', `${String(ext.status || '—')} · ${String(ext.days_evaluated ?? '?')} days, ${String(ext.events ?? '?')} events`],
+              ['Stress rows', Array.isArray(stressRows) ? String(stressRows.length) : '—'],
+              ['Model', String(model.model_id || '—')],
+              ['Weights verified', String(meta.weights_verified ?? '—')],
+              ['Deployment gate', String(meta.deployment_gate || '—')],
+            ]
+            return (
+              <>
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  {facts.map(([k, v]) => (
+                    <div key={k}><dt className="text-secondary-500">{k}</dt><dd className="font-mono text-xs break-words">{v}</dd></div>
+                  ))}
+                </dl>
+                <p className="text-xs text-secondary-500">Outcome rule: {String(b.outcome_rule || '—')}</p>
+                <details>
+                  <summary className="text-sm font-medium text-secondary-600 dark:text-secondary-400 cursor-pointer">Raw bundle JSON</summary>
+                  <pre className="text-xs overflow-x-auto bg-secondary-50 dark:bg-secondary-800 p-4 rounded-lg mt-2 max-h-96 overflow-y-auto">{JSON.stringify(data, null, 2)}</pre>
+                </details>
+              </>
+            )
+          })()}
         </div>
       </Card>
     </div>
