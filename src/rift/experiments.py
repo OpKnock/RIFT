@@ -43,7 +43,7 @@ from .limits import (
     check_scenario_state,
 )
 
-SUPPORTED_SCENARIOS = ("smart-building-emergency", "traffic-optimization")
+SUPPORTED_SCENARIOS = ("smart-building-emergency", "traffic-optimization", "powergrid-emergency")
 SUPPORTED_OPTIMIZERS = ("exact", "qaoa-expectation", "qaoa-cvar")
 SUPPORTED_BACKENDS = ("statevector-simulator", "none")
 VALID_STATUSES = ("created", "configured", "running", "succeeded", "failed", "cancelled")

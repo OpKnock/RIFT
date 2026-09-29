@@ -38,6 +38,12 @@ SCENARIO_BOUNDS = {
     "flow_rate": (0.0, 5000.0),
     "queue_length": (0.0, 200.0),
     "avg_wait_time": (0.0, 300.0),
+    # powergrid-emergency domain (see src/rift/domains/powergrid/domain.py)
+    "demand_mw": (0.0, 2000.0),
+    "supply_mw": (0.0, 2000.0),
+    "frequency_hz": (45.0, 55.0),
+    "reserve_pct": (0.0, 100.0),
+    "shed_mw": (0.0, 600.0),
 }
 
 

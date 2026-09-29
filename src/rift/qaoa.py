@@ -50,16 +50,28 @@ def _expectation(state:list[complex], energies:list[float])->float:
 def _cvar(state:list[complex], energies:list[float], alpha:float)->float:
     return cvar_from_distribution(energies,[abs(a)**2 for a in state],alpha)
 
-def simulate_qaoa(qubo: QUBO, p:int=1, grid_steps:int=5, iterations:int=3, objective:str="expectation", alpha:float=0.25) -> QAOAResult:
+def simulate_qaoa(qubo: QUBO, p:int=1, grid_steps:int=5, iterations:int=3, objective:str="expectation", alpha:float=0.25, accelerator: str = "off") -> QAOAResult:
     if not qubo.variables: raise ValueError("QUBO must contain at least one variable")
     if len(qubo.variables)>12: raise ValueError("Statevector simulator is limited to 12 qubits")
     if p<1 or grid_steps<2 or iterations<1: raise ValueError("Invalid QAOA configuration")
     if objective not in ("expectation","cvar"): raise ValueError("objective must be expectation or cvar")
     if not 0 < alpha <= 1: raise ValueError("alpha must be in (0,1]")
-    energies=_energies(qubo); n=len(qubo.variables)
+    from .accelerate import resolve_accelerator
+    resolved = resolve_accelerator(accelerator)
+    if resolved["use_torch"]:
+        from .accelerate import torch_energies, torch_qaoa_state
+        device = resolved["device"]
+        energies = torch_energies(qubo, device=device)
+        def _run_state(e, bs, gs):
+            return torch_qaoa_state(e, n, bs, gs, device=device)
+    else:
+        energies=_energies(qubo)
+        def _run_state(e, bs, gs):
+            return _state(e, n, bs, gs)
+    n=len(qubo.variables)
     betas=[pi/4]*p; gammas=[0.1]*p
     def score(bs,gs):
-        state=_state(energies,n,tuple(bs),tuple(gs))
+        state=_run_state(energies,tuple(bs),tuple(gs))
         return _expectation(state,energies) if objective=="expectation" else _cvar(state,energies,alpha)
     best=score(betas,gammas); evaluations=1
     for _ in range(iterations):
@@ -75,13 +87,13 @@ def simulate_qaoa(qubo: QUBO, p:int=1, grid_steps:int=5, iterations:int=3, objec
                     evaluations+=1
                     if val<local_best[0]: local_best=(val,value)
                 best=local_best[0]; current[layer]=local_best[1]
-    state=_state(energies,n,tuple(betas),tuple(gammas))
+    state=_run_state(energies,tuple(betas),tuple(gammas))
     probabilities=[abs(a)**2 for a in state]
     # Report the most probable measured state, plus its exact energy.
     measured=max(range(len(probabilities)),key=lambda i: probabilities[i])
     assignment=dict(zip(qubo.variables,((measured>>j)&1 for j in range(n))))
     return QAOAResult(assignment,energies[measured],best,probabilities[measured],p,evaluations,"qaoa-statevector-simulator",tuple(betas+gammas))
 
-def qaoa_minimize(qubo:QUBO, p:int=1, grid_steps:int=5, iterations:int=3, objective:str="expectation", alpha:float=0.25)->OptimizationResult:
-    r=simulate_qaoa(qubo,p,grid_steps,iterations,objective,alpha)
+def qaoa_minimize(qubo:QUBO, p:int=1, grid_steps:int=5, iterations:int=3, objective:str="expectation", alpha:float=0.25, accelerator: str = "off")->OptimizationResult:
+    r=simulate_qaoa(qubo,p,grid_steps,iterations,objective,alpha,accelerator=accelerator)
     return OptimizationResult(r.assignment,r.energy,r.method)

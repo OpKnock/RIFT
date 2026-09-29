@@ -166,6 +166,7 @@ def get_api_health(h, request_id, timer, path, query):
 def get_api_meta(h, request_id, timer, path, query):
     """Route if path == "/api/meta": (moved verbatim from api.py do_GET)."""
     from rift.qpu import backend_status
+    from rift.accelerate import accelerator_report
     qb = backend_status()
     h._send(200, json.dumps({
         "engine": "rift",
@@ -177,6 +178,7 @@ def get_api_meta(h, request_id, timer, path, query):
                          "billing", "guardian", "events"],
         "optimizers": ["exact", "qaoa-expectation", "qaoa-cvar"],
         "backends": ["statevector-simulator"],
+        "accelerator": accelerator_report(),
         "limits": describe_limits(),
         "auth": {"service_token_configured": service_token_configured() is not None},
     }), request_id=request_id)
