@@ -17,6 +17,10 @@ interface EvidenceBundle {
   provenance: Record<string, any>
 }
 
+function nf(v: number | null | undefined, dp = 3): string {
+  return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(dp) : '—'
+}
+
 export function Explainability() {
   const [evidence, setEvidence] = useState<EvidenceBundle | null>(null)
   const [loading, setLoading] = useState(true)
@@ -86,11 +90,11 @@ export function Explainability() {
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Predicted Risk</p>
-              <p className="font-mono font-medium">{(e.risk.risk * 100).toFixed(1)}%</p>
+              <p className="font-mono font-medium">{nf(e.risk?.risk ? e.risk.risk * 100 : undefined, 1)}%</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
               <p className="text-secondary-500">Uncertainty</p>
-              <p className="font-mono font-medium">±{(e.risk.uncertainty * 100).toFixed(1)}%</p>
+              <p className="font-mono font-medium">±{nf(e.risk?.uncertainty ? e.risk.uncertainty * 100 : undefined, 1)}%</p>
             </div>
             <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50 sm:col-span-2">
               <p className="text-secondary-500">Risk Interval</p>
@@ -165,8 +169,8 @@ export function Explainability() {
                   <span className="font-mono">Policy: {JSON.stringify(r.policy)}</span>
                 </div>
                 <div className="text-sm space-y-1">
-                  <p><span className="text-secondary-500">Nominal Risk: </span>{r.nominal_risk?.toFixed(3)}</p>
-                  <p><span className="text-secondary-500">Worst-case Risk: </span>{r.worst_case_risk?.toFixed(3)}</p>
+                  <p><span className="text-secondary-500">Nominal Risk: </span>{nf(r.nominal_risk, 3)}</p>
+                  <p><span className="text-secondary-500">Worst-case Risk: </span>{nf(r.worst_case_risk, 3)}</p>
                   <details className="mt-2">
                     <summary className="text-secondary-600 dark:text-secondary-400 cursor-pointer">Assumption Ledger</summary>
                     <pre className="text-xs mt-2 p-2 bg-secondary-100 dark:bg-secondary-800 rounded overflow-x-auto">

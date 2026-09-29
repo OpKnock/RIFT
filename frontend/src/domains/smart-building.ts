@@ -1,7 +1,8 @@
 import type { DomainDriver, DomainParams } from '@/domains/types'
 
 export function defaultParams(): DomainParams {
-  return { crowd: 1200, smoke: 4, capacity: 60, blockB: false }
+  // Align with reference scenario initial_state.corridor_capacity = 520
+  return { crowd: 430, smoke: 3, capacity: 520, blockB: false }
 }
 
 export const driver: DomainDriver = {

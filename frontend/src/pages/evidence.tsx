@@ -57,6 +57,10 @@ function loadSnaps(): StoredSnapshot[] {
   }
 }
 
+function nf(v: number | null | undefined, dp = 3): string {
+  return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(dp) : '—'
+}
+
 export function Evidence() {
   const [data, setData] = useState<unknown>(null)
   const [loading, setLoading] = useState(true)
@@ -228,12 +232,12 @@ export function Evidence() {
           {!twinLoading && !twinError && twin && (
             <div className="space-y-4">
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                <div><dt className="text-secondary-500">24h risk</dt><dd className="font-mono text-lg">{typeof twin.risk?.risk === 'number' ? twin.risk.risk.toFixed(3) : '—'}</dd></div>
+                <div><dt className="text-secondary-500">24h risk</dt><dd className="font-mono text-lg">{nf(twin.risk?.risk)}</dd></div>
                 <div><dt className="text-secondary-500">Event predicted</dt><dd className="font-mono">{String(twin.risk?.event_predicted ?? '—')}</dd></div>
                 <div><dt className="text-secondary-500">Guardian</dt><dd><Badge variant={twin.guardian?.display_allowed ? 'success' : 'error'}>{twin.guardian?.action || (twin.guardian?.display_allowed ? 'ALLOW' : 'WITHHOLD')}</Badge></dd></div>
                 <div><dt className="text-secondary-500">Calibration</dt><dd className="font-mono text-xs">{twin.risk?.calibration || '—'}</dd></div>
                 <div><dt className="text-secondary-500">Patient</dt><dd className="font-mono text-xs">{twin.patient_id || '—'}</dd></div>
-                <div><dt className="text-secondary-500">Freshness / confidence</dt><dd className="font-mono text-xs">quality {twin.risk?.input_quality ?? '—'} · jitter {typeof twin.risk?.measurement_jitter === 'number' ? twin.risk.measurement_jitter.toFixed(3) : '—'} · uncertainty {typeof twin.risk?.uncertainty === 'number' ? twin.risk.uncertainty.toFixed(3) : '—'} · state quality {twin.state?.data_quality ?? '—'} · stale {twin.state?.stale_days ?? '—'}d · origin {twin.state?.provenance || '—'}</dd></div>
+                <div><dt className="text-secondary-500">Freshness / confidence</dt><dd className="font-mono text-xs">quality {twin.risk?.input_quality ?? '—'} · jitter {nf(twin.risk?.measurement_jitter)} · uncertainty {nf(twin.risk?.uncertainty)} · state quality {twin.state?.data_quality ?? '—'} · stale {twin.state?.stale_days ?? '—'}d · origin {twin.state?.provenance || '—'}</dd></div>
                 <div className="sm:col-span-2"><dt className="text-secondary-500">Dataset (source)</dt><dd className="text-xs">{twin.meta?.dataset || '—'}</dd></div>
                 <div className="sm:col-span-2"><dt className="text-secondary-500">Safety</dt><dd className="text-xs">{twin.meta?.safety || '—'}</dd></div>
                 <div className="sm:col-span-2"><dt className="text-secondary-500">Provenance</dt><dd className="font-mono text-xs break-all">pred {String(twin.provenance?.prediction_id || '—').slice(0, 16)}… · model {String(twin.provenance?.model_id || '—')} · weights {String(twin.provenance?.weights_digest || '—').slice(0, 16)}… · {String(twin.provenance?.calibration_id || '')}</dd></div>
@@ -250,7 +254,7 @@ export function Evidence() {
                         {twin.trajectories.slice(0, 6).map((t, i) => (
                           <tr key={i}>
                             <td className="font-mono text-xs">{JSON.stringify(t.policy)}</td>
-                            <td className="font-mono text-xs">{t.path.map((p) => `${p.day}:${p.risk.toFixed(2)}`).join(' → ')}</td>
+                            <td className="font-mono text-xs">{t.path.map((p) => `${p.day}:${nf(p.risk, 2)}`).join(' → ')}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -274,7 +278,7 @@ export function Evidence() {
                   <ul className="space-y-1 text-sm">
                     {snaps.map((s) => (
                       <li key={s.id} className="flex items-center justify-between gap-2 font-mono text-xs p-2 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
-                        <span>day {s.day} · risk {s.risk === null ? '—' : s.risk.toFixed(3)} · {s.guardian}</span>
+                        <span>day {s.day} · risk {nf(s.risk)} · {s.guardian}</span>
                         <button className="text-error-600 hover:underline" onClick={() => deleteSnap(s.id)}>Delete</button>
                       </li>
                     ))}
@@ -287,7 +291,7 @@ export function Evidence() {
                           <select id={`twin-compare-${slot}`} value={compareIds[slot]} onChange={(e) => setCompareIds(slot === 0 ? [e.target.value, compareIds[1]] : [compareIds[0], e.target.value])} className="input">
                             <option value="">—</option>
                             {snaps.map((s) => (
-                              <option key={s.id} value={s.id}>day {s.day} · {s.risk === null ? '—' : s.risk.toFixed(3)}</option>
+                              <option key={s.id} value={s.id}>day {s.day} · {nf(s.risk)}</option>
                             ))}
                           </select>
                         </div>
@@ -305,7 +309,7 @@ export function Evidence() {
                           return (
                             <div key={label as string} className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50 space-y-1">
                               <p className="font-medium">Slot {label as string} · day {snap.day}</p>
-                              <p className="font-mono text-xs">risk {snap.risk === null ? '—' : snap.risk.toFixed(3)} · {snap.guardian} · quality {snap.quality ?? '—'}</p>
+                              <p className="font-mono text-xs">risk {nf(snap.risk)} · {snap.guardian} · quality {snap.quality ?? '—'}</p>
                             </div>
                           )
                         })}
@@ -330,8 +334,8 @@ export function Evidence() {
                         {scan.map((r) => (
                           <tr key={r.day} className={r.flagged ? 'bg-warning-50 dark:bg-warning-900/20' : ''}>
                             <td className="font-mono">{r.day}</td>
-                            <td className="font-mono">{r.risk === null ? '—' : r.risk.toFixed(3)}</td>
-                            <td className="font-mono">{r.delta === null ? '—' : (r.delta >= 0 ? '+' : '') + r.delta.toFixed(3)}</td>
+                            <td className="font-mono">{nf(r.risk)}</td>
+                            <td className="font-mono">{r.delta === null ? '—' : (r.delta >= 0 ? '+' : '') + nf(r.delta, 3)}</td>
                             <td className="font-mono">{r.event === null ? '—' : String(r.event)}</td>
                             <td><Badge variant={r.guardian === 'WITHHOLD' ? 'error' : 'secondary'}>{r.guardian}</Badge></td>
                           </tr>
@@ -397,8 +401,8 @@ export function Evidence() {
                       <tr key={i}>
                         <td className="font-mono">{r.noise_magnitude}</td>
                         <td className="font-mono">{r.days}</td>
-                        <td className="font-mono">{r.agreement === null ? '—' : r.agreement.toFixed(3)}</td>
-                        <td className="font-mono">{r.mean_uncertainty === null ? '—' : r.mean_uncertainty.toFixed(4)}</td>
+                        <td className="font-mono">{nf(r.agreement, 3)}</td>
+                        <td className="font-mono">{nf(r.mean_uncertainty, 4)}</td>
                       </tr>
                     ))}
                   </tbody>

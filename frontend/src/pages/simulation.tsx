@@ -14,6 +14,10 @@ import { demoParamsSchema, formatZodError } from '@/contracts/v1'
 import { detectEngineKind, labelOf } from '@/utils/data-kind'
 import { api, apiErrorMessage, type DemoPayload, type EngineMeta } from '@/services/api'
 
+function nf(v: number | null | undefined, dp = 3): string {
+  return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(dp) : '—'
+}
+
 interface RunParams {
   crowd: number
   smoke: number
@@ -29,6 +33,7 @@ interface HistoryEntry {
   robustCount: number
   classicalEnergy: number
   classicalMethod: string
+  violations: string[]
 }
 
 interface SweepCell {
@@ -55,7 +60,7 @@ function loadHistory(): HistoryEntry[] {
 function reasonFor(r: DemoPayload['robust'][number]): string {
   const parts: string[] = []
   parts.push(r.feasible_under_all ? 'Feasible under every declared perturbation.' : 'Rejected: infeasible under at least one perturbation.')
-  parts.push(`Robustness gap ${r.robustness_gap.toFixed(2)}.`)
+  parts.push(`Robustness gap ${nf(r.robustness_gap, 2)}.`)
   const worst = Object.entries(r.worst_perturbation || {})
   if (worst.length > 0) {
     parts.push(`Worst perturbation: ${worst.map(([k, v]) => `${k}=${v}`).join(', ')}.`)
@@ -70,10 +75,10 @@ const TEMPLATES = driver.templates()
 export function Simulation() {
   const [meta, setMeta] = useState<EngineMeta | null>(null)
   const [metaError, setMetaError] = useState<string | null>(null)
-  const [crowd, setCrowd] = useState('1200')
-  const [smoke, setSmoke] = useState('4')
-  const [capacity, setCapacity] = useState('60')
-  const [blockB, setBlockB] = useState(false)
+  const [crowd, setCrowd] = useState(String(DEFAULTS.crowd))
+  const [smoke, setSmoke] = useState(String(DEFAULTS.smoke))
+  const [capacity, setCapacity] = useState(String(DEFAULTS.capacity))
+  const [blockB, setBlockB] = useState(DEFAULTS.blockB)
   const [running, setRunning] = useState(false)
   const [phase, setPhase] = useState('')
   const [elapsed, setElapsed] = useState(0)
@@ -184,6 +189,8 @@ export function Simulation() {
   }
 
   const recordHistory = (params: RunParams, payload: DemoPayload) => {
+    const violations = payload.guardian.checks
+      .flatMap(c => c.violations || [])
     const entry: HistoryEntry = {
       key: `${params.crowd}|${params.smoke}|${params.capacity}|${params.blockB ? 1 : 0}|${payload.reproducibility.engine_version}`,
       time: new Date().toISOString(),
@@ -192,6 +199,7 @@ export function Simulation() {
       robustCount: payload.robust.length,
       classicalEnergy: payload.robust_optimization.classical.energy,
       classicalMethod: payload.robust_optimization.classical.method,
+      violations,
     }
     setHistory((prev) => {
       const next = [entry, ...prev.filter((h) => h.key !== entry.key)].slice(0, HISTORY_MAX)
@@ -507,7 +515,7 @@ export function Simulation() {
                   </Badge>
                   <span className="text-xs text-secondary-500">{result.guardian.scope}</span>
                   <span className="text-xs text-secondary-500 font-mono">round-trip {elapsed} ms</span>
-                  <span className="text-xs text-secondary-500">risk entropy {result.uncertainty.risk_entropy.toFixed(3)}</span>
+                  <span className="text-xs text-secondary-500">risk entropy {nf(result.uncertainty?.risk_entropy, 3)}</span>
                   {cacheHit && <Badge variant="secondary">CACHE HIT — identical inputs + engine version</Badge>}
                   <button
                     onClick={() => { clearDemoCache() }}
@@ -569,7 +577,7 @@ export function Simulation() {
                   <p className="text-sm text-secondary-600 dark:text-secondary-400">
                     {result.futures.length} futures enumerated · {validCount} valid · {result.futures.length - validCount} pruned as infeasible.
                     {distStats && (
-                      <> Score distribution: min <span className="font-mono">{distStats.min.toFixed(1)}</span>, mean <span className="font-mono">{distStats.mean.toFixed(1)}</span>, max <span className="font-mono">{distStats.max.toFixed(1)}</span>.</>
+                      <> Score distribution: min <span className="font-mono">{nf(distStats.min, 1)}</span>, mean <span className="font-mono">{nf(distStats.mean, 1)}</span>, max <span className="font-mono">{distStats.max.toFixed(1)}</span>.</>
                     )}
                   </p>
                   {result.futures.length - validCount > 0 && (
@@ -577,7 +585,7 @@ export function Simulation() {
                       <summary className="cursor-pointer text-secondary-600 dark:text-secondary-400">Show pruned policies</summary>
                       <ul className="font-mono text-xs mt-1 space-y-0.5">
                         {result.futures.filter((f) => !f.valid).map((f, i) => (
-                          <li key={i}>{JSON.stringify(f.policy)} → score {f.score.toFixed(1)}</li>
+                          <li key={i}>{JSON.stringify(f.policy)} → score {nf(f.score, 1)}</li>
                         ))}
                       </ul>
                     </details>
@@ -597,9 +605,9 @@ export function Simulation() {
                         {result.robust.map((r, i) => (
                           <tr key={i}>
                             <td className="font-mono text-xs">{JSON.stringify(r.policy)}</td>
-                            <td className="font-mono">{r.score.toFixed(2)}</td>
-                            <td className="font-mono">{r.worst_case_score.toFixed(2)}</td>
-                            <td className="font-mono">{r.robustness_gap.toFixed(2)}</td>
+                            <td className="font-mono">{nf(r.score, 2)}</td>
+                            <td className="font-mono">{nf(r.worst_case_score, 2)}</td>
+                            <td className="font-mono">{nf(r.robustness_gap, 2)}</td>
                             <td>{r.feasible_under_all ? 'yes' : 'no'}</td>
                             <td>{paretoFlags[i] ? <Badge variant="success">non-dominated</Badge> : <span className="text-xs text-secondary-500">dominated</span>}</td>
                             <td className="text-xs max-w-xs">{reasonFor(r)}</td>
@@ -637,7 +645,7 @@ export function Simulation() {
                   {delta && !deltaBusy && (
                     <div className="text-sm mt-2 p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
                       <p className="font-medium">{delta.label}</p>
-                      <p className="font-mono">Δ best nominal: {delta.dNominal === null ? 'n/a (empty ranking on one side)' : (delta.dNominal >= 0 ? '+' : '') + delta.dNominal.toFixed(2)}</p>
+                      <p className="font-mono">Δ best nominal: {delta.dNominal === null ? 'n/a (empty ranking on one side)' : (delta.dNominal >= 0 ? '+' : '') + nf(delta.dNominal, 2)}</p>
                       <p>Guardian: {delta.guardianBefore ? 'PASSED' : 'FAILED'} → {delta.guardianAfter ? 'PASSED' : 'FAILED'}</p>
                     </div>
                   )}
@@ -653,7 +661,7 @@ export function Simulation() {
                     ].map((o) => (
                       <div key={o.label} className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
                         <p className="font-medium">{o.label}</p>
-                        <p className="font-mono">energy {o.r.energy.toFixed(3)}</p>
+                        <p className="font-mono">energy {nf(o.r.energy, 3)}</p>
                         <p className="font-mono text-xs text-secondary-500">{o.r.method}</p>
                         <p className="text-xs text-secondary-500 mt-1">{confidenceFor(o.r.method)}</p>
                       </div>
@@ -669,8 +677,8 @@ export function Simulation() {
                 <div>
                   <h3 className="font-medium text-secondary-900 dark:text-white mb-2">Scale check — multivariable projection ({result.multivariable.policy_count} policies)</h3>
                   <p className="text-xs text-secondary-500 mb-2">
-                    Exact optimum vs QAOA projection. Max gap {result.multivariable.projection_error.max_absolute_gap.toFixed(3)},
-                    mean gap {result.multivariable.projection_error.mean_absolute_gap.toFixed(3)} — gaps reported, never hidden.
+                    Exact optimum vs QAOA projection. Max gap {nf(result.multivariable?.projection_error?.max_absolute_gap, 3)},
+                    mean gap {nf(result.multivariable?.projection_error?.mean_absolute_gap, 3)} — gaps reported, never hidden.
                   </p>
                   <div className="table-container">
                     <table className="table">
@@ -679,8 +687,8 @@ export function Simulation() {
                         {result.multivariable.top_policies.map((p, i) => (
                           <tr key={i}>
                             <td className="font-mono text-xs">{JSON.stringify(p.assignment)}</td>
-                            <td className="font-mono">{p.nominal_cost.toFixed(2)}</td>
-                            <td className="font-mono">{p.robust_cost.toFixed(2)}</td>
+                            <td className="font-mono">{nf(p.nominal_cost, 2)}</td>
+                            <td className="font-mono">{nf(p.robust_cost, 2)}</td>
                             <td>{p.feasible ? 'yes' : 'no'}</td>
                           </tr>
                         ))}
@@ -698,8 +706,8 @@ export function Simulation() {
                         {result.benchmark.map((b) => (
                           <tr key={b.method}>
                             <td className="font-mono text-xs">{b.method}</td>
-                            <td className="font-mono">{b.energy.toFixed(3)}</td>
-                            <td className="font-mono">{b.runtime_ms.toFixed(1)} ms</td>
+                            <td className="font-mono">{nf(b.energy, 3)}</td>
+                            <td className="font-mono">{nf(b.runtime_ms, 1)} ms</td>
                             <td className="text-xs">{b.note}</td>
                           </tr>
                         ))}
@@ -723,15 +731,15 @@ export function Simulation() {
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm mb-2">
                         <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
                           <p className="text-xs text-secondary-500">Survival rate</p>
-                          <p className="font-mono font-medium">{rate === null ? 'n/a' : `${(rate * 100).toFixed(0)}% (${feasible}/${result.robust.length})`}</p>
+                          <p className="font-mono font-medium">{rate === null ? 'n/a' : `${nf(rate ? rate * 100 : undefined, 0)}% (${feasible}/${result.robust.length})`}</p>
                         </div>
                         <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
                           <p className="text-xs text-secondary-500">Worst degradation (gap)</p>
-                          <p className="font-mono font-medium">{worstDegradation === null ? 'n/a' : worstDegradation.toFixed(2)}</p>
+                          <p className="font-mono font-medium">{worstDegradation === null ? 'n/a' : nf(worstDegradation, 2)}</p>
                         </div>
                         <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
                           <p className="text-xs text-secondary-500">Cost of robustness</p>
-                          <p className="font-mono font-medium">{margin === null ? 'n/a' : (margin >= 0 ? '+' : '') + margin.toFixed(2)}</p>
+                          <p className="font-mono font-medium">{margin === null ? 'n/a' : (margin >= 0 ? '+' : '') + nf(margin, 2)}</p>
                         </div>
                         <div className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50">
                           <p className="text-xs text-secondary-500">Fragile decisions</p>
@@ -933,15 +941,16 @@ export function Simulation() {
             <>
               <div className="table-container">
                 <table className="table">
-                  <thead><tr><th>Time</th><th>Inputs</th><th>Guardian</th><th>Policies</th><th>Energy</th><th>Method</th></tr></thead>
+                  <thead><tr><th>Time</th><th>Inputs</th><th>Guardian</th><th>Violations</th><th>Policies</th><th>Energy</th><th>Method</th></tr></thead>
                   <tbody>
                     {history.map((h) => (
                       <tr key={h.key + h.time}>
                         <td className="text-xs">{new Date(h.time).toLocaleTimeString()}</td>
                         <td className="font-mono text-xs">{h.params.crowd}, {h.params.smoke}, {h.params.capacity}{h.params.blockB ? ', blocked' : ''}</td>
                         <td><Badge variant={h.guardianPassed ? 'success' : 'error'}>{h.guardianPassed ? 'PASSED' : 'FAILED'}</Badge></td>
+                        <td className="text-xs max-w-xs truncate" title={h.violations.join('; ')}>{h.violations.join('; ') || '—'}</td>
                         <td className="font-mono">{h.robustCount}</td>
-                        <td className="font-mono">{h.classicalEnergy.toFixed(2)}</td>
+                        <td className="font-mono">{nf(h.classicalEnergy, 2)}</td>
                         <td className="font-mono text-xs">{h.classicalMethod}</td>
                       </tr>
                     ))}
@@ -961,14 +970,17 @@ export function Simulation() {
                   </div>
                 ))}
               </div>
-              {comparePair[0] && comparePair[1] && (
+{comparePair[0] && comparePair[1] && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                   {comparePair.map((h, i) => h && (
                     <div key={i} className="p-3 rounded-lg bg-secondary-50 dark:bg-secondary-800/50 space-y-1">
-                      <p className="font-medium">Slot {i === 0 ? 'A' : 'B'} · {new Date(h.time).toLocaleTimeString()}</p>
+                      <p className="font-medium">Slot {i === 0 ? 'A' : 'B'} � {new Date(h.time).toLocaleTimeString()}</p>
                       <p className="font-mono text-xs">inputs {h.params.crowd}, {h.params.smoke}, {h.params.capacity}{h.params.blockB ? ', blocked' : ''}</p>
                       <p>Guardian: <Badge variant={h.guardianPassed ? 'success' : 'error'}>{h.guardianPassed ? 'PASSED' : 'FAILED'}</Badge></p>
-                      <p className="font-mono">policies {h.robustCount} · energy {h.classicalEnergy.toFixed(2)} ({h.classicalMethod})</p>
+                      {h.violations.length > 0 && (
+                        <p className="text-xs text-error-600 dark:text-error-400">Violations: {h.violations.join('; ')}</p>
+                      )}
+                      <p className="font-mono">policies {h.robustCount} � energy {nf(h.classicalEnergy, 2)} ({h.classicalMethod})</p>
                     </div>
                   ))}
                 </div>
