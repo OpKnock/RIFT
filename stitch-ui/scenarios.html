@@ -7,38 +7,7 @@
 <!-- Tailwind CSS v3 -->
 <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
 <!-- Tailwind Theme Config -->
-<script id="tailwind-config">
-      tailwind.config = {
-        darkMode: "class",
-        theme: {
-          extend: {
-            colors: {},
-            borderRadius: {
-              DEFAULT: "0.25rem",
-              lg: "0.5rem",
-              xl: "0.75rem",
-              full: "9999px"
-            },
-            spacing: {},
-            fontFamily: {
-              headline: [
-                "Space Grotesk"
-              ],
-              display: [
-                "Space Grotesk"
-              ],
-              body: [
-                "Inter"
-              ],
-              label: [
-                "Public Sans"
-              ]
-            },
-            fontSize: {}
-          },
-        },
-      }
-    </script>
+<script src="./theme.js"></script>
 <!-- Google Fonts & Material Symbols -->
 <link href="https://fonts.googleapis.com" rel="preconnect"/>
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
@@ -47,13 +16,13 @@
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
 <style>
       body {
-        background-color: #0c0e12;
+        background-color: var(--rift-surface, #090d16);
         color: #e2e8f0;
       }
     </style>
   <script src="./rift-live.js"></script>
 </head>
-<body class="bg-[#0c0e12] text-slate-100 font-body antialiased selection:bg-primary selection:text-white">
+<body class="bg-surface text-on-surface font-body antialiased selection:bg-primary selection:text-white">
 <!-- SIDEBAR NAV (JSON: SideNavBar) -->
 <aside class="fixed top-0 left-0 h-screen w-64 flex flex-col justify-between shrink-0 bg-surface dark:bg-surface border-r border-outline-variant dark:border-outline-variant z-30">
 <div class="h-full flex flex-col justify-between p-4">
