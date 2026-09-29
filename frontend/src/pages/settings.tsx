@@ -148,7 +148,7 @@ export function Settings() {
               <p className="text-sm text-secondary-500">Used to pre-fill reviewer IDs on approvals. Stored only here — the server never sees it except inside review payloads you submit.</p>
               <Input label="Display name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="e.g. operator-1" />
               <div className="flex items-center gap-3">
-                <Button onClick={saveProfile}><Save className="w-4 h-4 mr-2" />Save{savedTick ? 'd ✓' : ''}</Button>
+                <Button onClick={saveProfile}><Save className="w-4 h-4 mr-2" />{savedTick ? 'Saved' : 'Save'}</Button>
               </div>
             </div>
           </Card>
@@ -161,10 +161,10 @@ export function Settings() {
               {statusError && <p className="text-sm text-error-600 dark:text-error-400" role="alert">{statusError}</p>}
               {health && meta && !statusError && (
                 <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                  <div><dt className="text-secondary-500">Auth mode</dt><dd className="font-mono">{meta.auth.service_token_configured ? 'service-token (bearer-gated)' : 'open dev mode (no gate)'}</dd></div>
-                  <div><dt className="text-secondary-500">Persistence</dt><dd className="font-mono">{health.persistence.configured ? 'configured' : 'not configured'}</dd></div>
-                  <div><dt className="text-secondary-500">Billing</dt><dd className="font-mono">{health.billing.configured ? 'configured' : 'not configured'} ({health.billing.provider})</dd></div>
-                  <div><dt className="text-secondary-500">Engine</dt><dd className="font-mono">v{health.version} · {health.quantum_backend}</dd></div>
+                  <div className="min-w-0"><dt className="text-secondary-500">Auth mode</dt><dd className="font-mono break-all">{meta.auth.service_token_configured ? 'service-token (bearer-gated)' : 'open dev mode (no gate)'}</dd></div>
+                  <div className="min-w-0"><dt className="text-secondary-500">Persistence</dt><dd className="font-mono break-all">{health.persistence.configured ? 'configured' : 'not configured'}</dd></div>
+                  <div className="min-w-0"><dt className="text-secondary-500">Billing</dt><dd className="font-mono break-all">{health.billing.configured ? 'configured' : 'not configured'} ({health.billing.provider})</dd></div>
+                  <div className="min-w-0"><dt className="text-secondary-500">Engine</dt><dd className="font-mono break-all">v{health.version} · {health.quantum_backend}</dd></div>
                 </dl>
               )}
               <div className="text-sm text-secondary-500 space-y-1 pt-2 border-t border-secondary-100 dark:border-secondary-800">
@@ -299,7 +299,8 @@ export function Settings() {
                 <Button variant="outline" onClick={() => setConfirmClear(true)}>Clear local data</Button>
               </div>
               <p className="text-sm text-secondary-500">
-                First-touch attribution: <span className="font-mono">{utm ? `utm_source=${utm.utm_source || '—'} utm_medium=${utm.utm_medium || '—'} utm_campaign=${utm.utm_campaign || '—'}` : 'no UTM parameters recorded'}</span>.
+                First-touch attribution:{' '}
+                <span className="font-mono break-all">{utm ? `utm_source=${utm.utm_source || '—'} utm_medium=${utm.utm_medium || '—'} utm_campaign=${utm.utm_campaign || '—'}` : 'no UTM parameters recorded'}</span>.
                 Captured once from the landing URL, stored only here, included in the export above.
               </p>
               <ConfirmDialog
