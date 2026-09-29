@@ -10,38 +10,7 @@
 <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Public+Sans:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<script id="tailwind-config">
-    tailwind.config = {
-      darkMode: "class",
-      theme: {
-        extend: {
-          colors: {
-            surface: "#0f172a",
-            "surface-container": "#1e293b",
-            "surface-container-high": "#334155",
-            primary: "#0891b2",
-            "on-surface": "#f8fafc",
-            "on-surface-variant": "#94a3b8",
-            "outline-variant": "#334155",
-            "primary-container": "#164e63",
-            "on-primary-container": "#a5f3fc"
-          },
-          borderRadius: {
-            DEFAULT: "0.25rem",
-            lg: "0.5rem",
-            xl: "0.75rem",
-            full: "9999px"
-          },
-          fontFamily: {
-            headline: ["Space Grotesk"],
-            display: ["Space Grotesk"],
-            body: ["Inter"],
-            label: ["Public Sans"]
-          }
-        },
-      },
-    }
-  </script>
+<script src="./theme.js"></script>
   <script src="./rift-live.js"></script>
 </head>
 <body class="bg-surface text-on-surface font-body min-h-screen flex flex-col antialiased selection:bg-primary selection:text-white">

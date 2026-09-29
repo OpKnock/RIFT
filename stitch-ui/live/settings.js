@@ -72,7 +72,54 @@
 
   document.addEventListener("DOMContentLoaded", function () {
     R.sessionInfo().then(renderSession).catch(function () {});
+    injectThemePicker();
   });
+
+  // Color-theme picker: the other two Stitch palettes, listed here so the
+  // whole app stays one theme (default Console) with opt-in alternatives.
+  function injectThemePicker() {
+    if (!window.RIFT_THEME || document.getElementById("rift-theme-picker")) return;
+    var tab = document.getElementById("tab-content-appearance");
+    if (!tab) return;
+    var card = tab.querySelector("div.bg-surface-container");
+    if (!card) return;
+    var wrap = document.createElement("div");
+    wrap.id = "rift-theme-picker";
+    wrap.className = "flex flex-col gap-3 pt-2";
+    var title = document.createElement("h3");
+    title.className = "font-headline text-sm font-semibold";
+    title.textContent = "Color theme (all screens)";
+    var sub = document.createElement("p");
+    sub.className = "text-xs text-on-surface-variant";
+    sub.textContent = "One shared theme across the app. Console is the default; the other two are the palettes individual screens shipped with.";
+    var grid = document.createElement("div");
+    grid.className = "grid grid-cols-3 gap-4";
+    window.RIFT_THEME.names().forEach(function (name) {
+      var meta = window.RIFT_THEME.meta(name);
+      var b = document.createElement("button");
+      b.setAttribute("data-theme-pick", name);
+      b.setAttribute("aria-pressed", "false");
+      b.className = "p-4 rounded-lg border bg-surface-container-high flex flex-col items-center gap-2 font-medium text-sm hover:border-primary";
+      b.style.borderWidth = "1px";
+      b.innerHTML =
+        '<span style="display:flex;gap:4px;">' +
+        '<span style="width:22px;height:22px;border-radius:6px;background:' + meta.swatch[0] + ';border:1px solid #334155;"></span>' +
+        '<span style="width:22px;height:22px;border-radius:6px;background:' + meta.swatch[1] + ';"></span></span>' +
+        "<span></span>";
+      b.lastChild.textContent = meta.label + (name === "console" ? " (default)" : "");
+      var d = document.createElement("span");
+      d.className = "text-[11px] text-on-surface-variant";
+      d.textContent = meta.desc;
+      b.appendChild(d);
+      b.addEventListener("click", function () { window.RIFT_THEME.apply(name); });
+      grid.appendChild(b);
+    });
+    wrap.appendChild(title);
+    wrap.appendChild(sub);
+    wrap.appendChild(grid);
+    card.appendChild(wrap);
+    window.RIFT_THEME.apply(window.RIFT_THEME.current());
+  }
 })();
 
 window.switchTab = function (tabId) {
