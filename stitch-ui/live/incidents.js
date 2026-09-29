@@ -28,7 +28,7 @@
   function incidentsTbody() {
     var ths = document.querySelectorAll("th");
     for (var i = 0; i < ths.length; i++) {
-      if (ths[i].textContent.trim() === "INCIDENT ID") {
+      if (/incident\s*id/i.test(ths[i].textContent)) {
         var tb = ths[i].closest("table");
         if (tb) return tb.querySelector("tbody");
       }
@@ -99,14 +99,40 @@
     });
   }
 
+  function clearToSignIn() {
+    var tb = incidentsTbody();
+    if (tb) tb.innerHTML = '<tr><td class="p-4 text-xs text-on-surface-variant" colspan="6">Sign in to load incidents.</td></tr>';
+    var grid = decisionsGrid();
+    if (grid) grid.innerHTML = '<div class="text-xs text-on-surface-variant p-4 md:col-span-2">Sign in to load the decision queue.</div>';
+  }
   async function authed(fn) {
     try { await fn(); }
     catch (e) {
-      if (R.isAuthError(e)) R.showAuth("incidents and decisions", function () { refreshAll(); });
+      if (R.isAuthError(e)) {
+        clearToSignIn();
+        R.showAuth("incidents and decisions", function () { refreshAll(); });
+      }
       else toast("Request failed", e.message || "error", true);
     }
   }
 
+  function hideFakeBanner() {
+    // Stitch's static amber banner fabricates telemetry claims
+    // (fallback caches, expiry timestamps). Only real errors may show.
+    var divs = document.querySelectorAll("div");
+    for (var i = 0; i < divs.length; i++) {
+      if (/fallback telemetry caches/i.test(divs[i].textContent.slice(0, 300))) {
+        var card = divs[i].closest("div.bg-surface-container, div.rounded-xl");
+        if (card) card.style.display = "none";
+      }
+    }
+  }
+  function fixTabCounts() {
+    var incBtn = document.getElementById("tab-incidents-btn");
+    if (incBtn) incBtn.innerHTML = incBtn.innerHTML.replace(/\d+/, String(incidents.length));
+    var decBtn = document.getElementById("tab-decisions-btn");
+    if (decBtn) decBtn.innerHTML = decBtn.innerHTML.replace(/\d+/, String(decisions.length));
+  }
   function refreshAll() {
     window.fetchIncidentsAPI();
     window.fetchDecisionsAPI();
@@ -117,6 +143,7 @@
       incidents = await R.get("/api/operations/incidents");
       if (!Array.isArray(incidents)) incidents = [];
       renderIncidents();
+      fixTabCounts();
       toast("GET /api/operations/incidents", incidents.length + " incident(s) loaded.");
     });
   };
@@ -125,6 +152,7 @@
       return R.get("/api/operations/decisions").then(function (list) {
         decisions = Array.isArray(list) ? list : [];
         renderDecisions();
+        fixTabCounts();
         toast("GET /api/operations/decisions", decisions.length + " decision(s) in queue.");
       });
     });
@@ -174,6 +202,7 @@
   };
 
   document.addEventListener("DOMContentLoaded", function () {
+    hideFakeBanner();
     refreshAll();
     setInterval(function () {
       var decView = document.getElementById("view-decisions");

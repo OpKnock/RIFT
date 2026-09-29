@@ -163,6 +163,87 @@
     }).catch(function () { /* topbar keeps Stitch defaults offline */ });
   });
 
+  // Hide the page-level scrollbar (inner panels keep their own).
+  try {
+    var rootCss = document.createElement("style");
+    rootCss.textContent = "html{scrollbar-width:none;-ms-overflow-style:none}" +
+      "html::-webkit-scrollbar{width:0 !important;height:0 !important;display:none !important}" +
+      "body::-webkit-scrollbar{width:0 !important;height:0 !important}";
+    document.head.appendChild(rootCss);
+  } catch (e) {}
+
+  // Account menu (top-right avatar). Stitch rendered it dead; this makes it
+  // open a real menu: display name, session state, settings links, sign out.
+  function setupAccountMenu() {
+    var header = document.querySelector("header");
+    if (!header) return null;
+    var avatar = null;
+    var cands = header.querySelectorAll("div.rounded-full");
+    for (var i = 0; i < cands.length; i++) {
+      var el = cands[i];
+      if (/\bLR\b/.test(el.textContent) || el.querySelector("img")) { avatar = el; break; }
+    }
+    if (!avatar) {
+      avatar = document.createElement("button");
+      avatar.id = "rift-avatar";
+      avatar.setAttribute("aria-label", "Account");
+      avatar.style.cssText = "width:28px;height:28px;border-radius:9999px;background:#1f2937;border:1px solid #374151;color:#0891b2;font-size:12px;font-weight:700;margin-left:4px;cursor:pointer;";
+      avatar.textContent = "R";
+      var cluster = header.querySelector("div.flex.items-center.gap-2, div.flex.items-center.gap-3");
+      (cluster || header).appendChild(avatar);
+    } else if (avatar.tagName !== "BUTTON") {
+      avatar.style.cursor = "pointer";
+      avatar.setAttribute("role", "button");
+      avatar.setAttribute("tabindex", "0");
+      avatar.setAttribute("aria-label", "Account");
+    }
+    var menu = document.createElement("div");
+    menu.id = "rift-account-menu";
+    menu.style.cssText = "display:none;position:fixed;z-index:10000;min-width:250px;background:#0b1220;border:1px solid #1e293b;border-radius:12px;padding:14px;font-family:Inter,system-ui,sans-serif;color:#e2e8f0;box-shadow:0 12px 40px rgba(0,0,0,.5);";
+    menu.innerHTML =
+      '<div id="rift-acct-name" style="font-size:14px;font-weight:600;">Research User</div>' +
+      '<div id="rift-acct-sess" style="font-size:12px;color:#94a3b8;margin:2px 0 10px;">checking session...</div>' +
+      '<div style="display:flex;flex-direction:column;gap:6px;">' +
+      '<a href="./settings.html" style="font-size:13px;color:#e2e8f0;text-decoration:none;background:#111827;border:1px solid #1e293b;border-radius:8px;padding:7px 10px;">Profile settings</a>' +
+      '<a href="./settings.html" style="font-size:13px;color:#e2e8f0;text-decoration:none;background:#111827;border:1px solid #1e293b;border-radius:8px;padding:7px 10px;">API token</a>' +
+      '<button id="rift-acct-out" style="font-size:13px;color:#f87171;background:transparent;border:1px solid #334155;border-radius:8px;padding:7px 10px;cursor:pointer;text-align:left;">Sign out</button>' +
+      "</div>";
+    document.body.appendChild(menu);
+    function refresh() {
+      var name = null;
+      try { name = localStorage.getItem("rift_display_name"); } catch (e) {}
+      var nEl = document.getElementById("rift-acct-name");
+      if (nEl && name) nEl.textContent = name;
+      sessionInfo().then(function (info) {
+        var sEl = document.getElementById("rift-acct-sess");
+        if (!sEl) return;
+        sEl.textContent = (info && info.user_id)
+          ? "signed in as " + info.user_id + " (" + (info.mechanism || "session") + ")"
+          : "not signed in (open dev or token required)";
+      });
+    }
+    function toggle() {
+      if (menu.style.display === "block") { menu.style.display = "none"; return; }
+      refresh();
+      var r = avatar.getBoundingClientRect();
+      menu.style.top = (r.bottom + 8 + window.scrollY) + "px";
+      menu.style.left = Math.max(8, r.right - 250 + window.scrollX) + "px";
+      menu.style.display = "block";
+    }
+    avatar.addEventListener("click", function (e) { e.stopPropagation(); toggle(); });
+    if (avatar.tagName !== "BUTTON") {
+      avatar.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } });
+    }
+    document.addEventListener("click", function (e) {
+      if (menu.style.display === "block" && !menu.contains(e.target)) menu.style.display = "none";
+    });
+    document.getElementById("rift-acct-out").addEventListener("click", function () {
+      post("/api/auth/logout", {}).catch(function () {}).then(function () { window.location.reload(); });
+    });
+  }
+  if (document.readyState !== "loading") setupAccountMenu();
+  else document.addEventListener("DOMContentLoaded", setupAccountMenu);
+
   window.RIFT = {
     API: API, api: api, get: get, post: post, num: num, esc: esc,
     showAuth: showAuth, hideAuth: hideAuth, sessionInfo: sessionInfo,
