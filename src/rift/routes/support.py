@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from rift import __version__ as ENGINE_VERSION
 from rift.auth import owner_mismatch
+from rift.accelerate import default_accelerator
 from rift.benchmark import benchmark_suite
 from rift.billing import (
     BillingNotConfigured,
@@ -394,9 +395,9 @@ def scenario_payload(scenario: Scenario):
     ]
 
     robust_qubo = build_robust_qubo(scenario, q.variables, perturbations)
-    classical_robust = exact_minimize(robust_qubo)
-    quantum_robust = QuantumOptimizer().solve(robust_qubo)
-    cvar_robust = QuantumOptimizer().solve(
+    classical_robust = exact_minimize(robust_qubo, accelerator=default_accelerator())
+    quantum_robust = QuantumOptimizer(accelerator=default_accelerator()).solve(robust_qubo)
+    cvar_robust = QuantumOptimizer(accelerator=default_accelerator()).solve(
         robust_qubo, objective="cvar", alpha=0.25
     )
     bench = benchmark_suite(q)

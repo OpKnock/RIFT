@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Tensor acceleration (`src/rift/accelerate.py`, `RIFT_ACCELERATOR=off|auto|cpu|cuda`): bitwise-identical torch kernels for exact enumeration and the QAOA statevector path, with CPU fallback and honest `/api/meta` reporting (measured CPU-torch on 12 vars: exact 40→10ms, QAOA 652→461ms; CUDA activates with a CUDA torch build)
+- Third domain `powergrid-emergency` (emergency load-shedding: demand/supply/frequency/reserve state, shed+peaker policy, statutory-band guardian rules, template, registry wiring, 7 tests)
+- Neural state estimation (`src/rift/neural.py`, numpy-only MLP): deterministic surrogates trained on scenario rollouts with hull-based abstention back to the analytical transition and per-prediction provenance; clinical twin untouched (8 tests)
+
 ### Removed
 - React UI deleted (`frontend/` removed; Stitch project "RIFT Premium - Counterfactual Decision Intelligence" builds the premium UI from scratch, 9 screens wired to this API). This service is API-only now: `/` returns an index JSON, `/app/*` answers an honest 404. CI `frontend`/`e2e` jobs, Dockerfile frontend stage, compose `rift-frontend` service, and `local` frontend hooks removed. Phase 19 marked PARTIAL pending Stitch export.
 

@@ -43,6 +43,9 @@ def build_scenario(spec: ExperimentSpec):
     elif spec.scenario_name == "traffic-optimization":
         from .domains.traffic.domain import create_traffic_scenario
         scenario = create_traffic_scenario({"initial_state": dict(spec.initial_state)})
+    elif spec.scenario_name == "powergrid-emergency":
+        from .domains.powergrid.domain import create_powergrid_scenario
+        scenario = create_powergrid_scenario({"initial_state": dict(spec.initial_state)})
     else:
         raise ValueError(f"unsupported scenario_name: {spec.scenario_name!r}")
     known = set(scenario.initial_state)

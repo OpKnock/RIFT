@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from .counterfactual import Future, generate_futures
 from .models import Scenario
 from .optimizer import OptimizationResult, QUBO, exact_minimize, QuantumOptimizer
+from .accelerate import default_accelerator
 from .robust import rank_robust_candidates
 from .robust_qubo import build_robust_qubo
 from .verifier import VerificationResult, verify_under_perturbations
@@ -35,15 +36,15 @@ def run_experiment(
         else None
     )
     if robust_qubo:
-        best = exact_minimize(robust_qubo)
-        quantum = QuantumOptimizer().solve(robust_qubo)
-        cvar_quantum = QuantumOptimizer().solve(
+        best = exact_minimize(robust_qubo, accelerator=default_accelerator())
+        quantum = QuantumOptimizer(accelerator=default_accelerator()).solve(robust_qubo)
+        cvar_quantum = QuantumOptimizer(accelerator=default_accelerator()).solve(
             robust_qubo, objective="cvar", alpha=0.25
         )
     else:
-        best = exact_minimize(qubo)
-        quantum = QuantumOptimizer().solve(qubo)
-        cvar_quantum = QuantumOptimizer().solve(
+        best = exact_minimize(qubo, accelerator=default_accelerator())
+        quantum = QuantumOptimizer(accelerator=default_accelerator()).solve(qubo)
+        cvar_quantum = QuantumOptimizer(accelerator=default_accelerator()).solve(
             qubo, objective="cvar", alpha=0.25
         )
 
