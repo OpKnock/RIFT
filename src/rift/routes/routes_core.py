@@ -1,7 +1,7 @@
 """Route handlers (split verbatim from api.py; see package README)."""
 from __future__ import annotations
 
-from .support import FRONTEND_DIST, _ClientGone, _cors_headers, configured_scenario, scenario_payload
+from .support import _ClientGone, _cors_headers, configured_scenario, scenario_payload
 from rift import __version__ as ENGINE_VERSION
 from rift.settings import billing_status, get_billing_config, supabase_status
 from datetime import datetime, timezone
@@ -13,20 +13,17 @@ import time
 
 
 def get_root(h, request_id, timer, path, query):
-    """Route if path == "/": unified frontend entry (redirects to /app/)."""
-    # The React bundle lives under /app (vite base + router basename);
-    # the API root redirects there so ingress `/` and `/app` resolve to
-    # one canonical UI instead of a 404 at the production root.
-    h.send_response(302)
-    h.send_header("Location", "/app/")
-    h.send_header("Content-Length", "0")
-    h.send_header("Cache-Control", "no-store")
-    if request_id:
-        h.send_header("X-Request-ID", request_id)
-    for key, value in _cors_headers(h.headers.get("Origin")).items():
-        h.send_header(key, value)
-    h.end_headers()
-    h._finish(timer, request_id, "GET", path, 302)
+    """Route if path == "/": API index (the React UI was removed; Stitch builds the premium UI)."""
+    # API-only service now: `/` describes the engine instead of
+    # redirecting to a bundle that no longer ships in this repo.
+    h._send(200, json.dumps({
+        "service": "rift-engine",
+        "engine_version": ENGINE_VERSION,
+        "health": "/api/health",
+        "meta": "/api/meta",
+        "ui": "premium UI is built in the Stitch project 'RIFT Premium - Counterfactual Decision Intelligence'",
+    }), request_id=request_id)
+    h._finish(timer, request_id, "GET", path, 200)
     return True
 
 
@@ -57,7 +54,7 @@ def get_api_events_stream(h, request_id, timer, path, query):
     """Route if path == "/api/events/stream": (moved verbatim from api.py do_GET)."""
     # Server-Sent Events over plain HTTP (no WebSocket upgrade on
     # the stdlib server). Auth-gated like the monitor endpoint.
-    # Query: ?topics=a,b (defaults to the frontend topic set).
+    # Query: ?topics=a,b (defaults to the UI topic set).
     # Each connection occupies one server thread until the client
     # disconnects; sized for local/dev fan-out, not internet scale.
     _, ok = h._identity(request_id)
@@ -211,54 +208,13 @@ def get_api_demo(h, request_id, timer, path, query):
 
 
 def get_app_app(h, request_id, timer, path, query):
-    """Route if path == "/app" or path.startswith("/app/"): (moved verbatim from api.py do_GET)."""
-    # Canonical React product UI (production image builds it into
-    # frontend-dist/; local dev serves it from Vite on :5173).
-    # SPA fallback: unknown sub-paths serve index.html so
-    # BrowserRouter deep links don't 404 on refresh/direct nav.
-    dist = FRONTEND_DIST.resolve()
-    rel = path[len("/app"):].lstrip("/") or "index.html"
-    target = (dist / rel).resolve()
-    if dist not in target.parents and target != dist:
-        h._send(404, json.dumps({"error": "not found"}), request_id=request_id)
-        h._finish(timer, request_id, "GET", path, 404, "validation")
-        return True
-    if not target.is_file():
-        target = dist / "index.html"
-    if not target.is_file():
-        h._send(404, json.dumps({"error": "frontend not built"}), request_id=request_id)
-        h._finish(timer, request_id, "GET", path, 404, "not_found")
-        return True
-    ctype = {
-        ".html": "text/html; charset=utf-8",
-        ".js": "text/javascript; charset=utf-8",
-        ".css": "text/css; charset=utf-8",
-        ".json": "application/json",
-        ".svg": "image/svg+xml",
-        ".png": "image/png",
-        ".ico": "image/x-icon",
-        ".webmanifest": "application/manifest+json",
-    }.get(target.suffix, "application/octet-stream")
-    raw = target.read_bytes()
-    h.send_response(200)
-    h.send_header("Content-Type", ctype)
-    h.send_header("Content-Length", str(len(raw)))
-    h.send_header("Cache-Control", "no-store" if target.suffix == ".html" else "public, max-age=31536000, immutable")
-    h.send_header("X-Content-Type-Options", "nosniff")
-    h.send_header("X-Frame-Options", "DENY")
-    h.send_header("Referrer-Policy", "no-referrer")
-    if target.suffix == ".html":
-        # Google Fonts (referenced by index.html) are explicitly allowed;
-        # everything else stays same-origin.
-        h.send_header("Content-Security-Policy", "default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; img-src 'self' data:; connect-src 'self'")
-    if request_id:
-        h.send_header("X-Request-ID", request_id)
-    for key, value in _cors_headers(h.headers.get("Origin")).items():
-        h.send_header(key, value)
-    h.end_headers()
-    try:
-        h.wfile.write(raw)
-    except (BrokenPipeError, ConnectionResetError):
-        pass
-    h._finish(timer, request_id, "GET", path, 200)
+    """Route if path == "/app" or path.startswith("/app/"): UI removed (Stitch builds it now)."""
+    # The React UI was deleted from this repo; the premium UI lives in
+    # the Stitch project. No filesystem access here at all (nothing to
+    # traverse), just an honest JSON 404 so old bookmarks fail loudly.
+    h._send(404, json.dumps({
+        "error": "web UI removed",
+        "detail": "The React UI was removed from this repo. The premium UI is built in Stitch ('RIFT Premium - Counterfactual Decision Intelligence'). This service is API-only.",
+    }), request_id=request_id)
+    h._finish(timer, request_id, "GET", path, 404, "not_found")
     return True

@@ -11,12 +11,12 @@ pip install -e ".[dev]" -c constraints.txt
 rift serve                       # http://127.0.0.1:8080
 ```
 
-## Production UI entry (`/app`)
+## Service root (`/`)
 
-The React bundle is served by the API under `/app` (vite base + router
-basename); `/` 302-redirects to `/app/`, so ingress `/` and `/app` resolve
-to one canonical UI. Deep links (`/app/runs/…`) serve `index.html` via SPA
-fallback. Dev server: `http://localhost:5173/app/`.
+The API is UI-less: `/` returns an index JSON (`service`, `engine_version`,
+`health`, `meta`). `/app/*` answers `404 {"error": "web UI removed"}` — the
+premium UI is built in the Stitch project "RIFT Premium - Counterfactual
+Decision Intelligence" and calls this API over HTTP.
 
 ## Health & discovery (always open)
 

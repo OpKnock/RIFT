@@ -23,15 +23,14 @@ RIFT is a research prototype: decision support only, human-in-the-loop required,
 | Core engine (domain-neutral) | `src/rift/` (`engine.py`, `optimizer.py`, `qaoa.py`, `robust*.py`, `verifier.py`) | Deterministic computation; no HTTP, no database |
 | Domain models | `src/rift/scenarios.py`, `src/rift/health/` | Scenario definitions, transitions, bounds; the engine stays generic |
 | Platform services | `src/rift/api.py`, `supabase_store.py`, `billing.py`, `monitoring` | HTTP, persistence, billing boundary, telemetry |
-| Presentation | `frontend/` | Consumes the REST contract only; never reimplements engine math |
+| Presentation | Stitch project "RIFT Premium" (9 screens) | Consumes the REST contract only; never reimplements engine math |
 
-The frontend must never duplicate engine logic. Anything it displays comes from a live response or is
+The UI must never duplicate engine logic. Anything it displays comes from a live response or is
 explicitly labeled local/demo.
 
 ## Extension points (inventory, not promises)
 
-- **Domains**: add a driver under `frontend/src/domains/` implementing `DomainDriver`, and — separately —
-  a backend scenario plus transition model. One side without the other is not a domain.
+- **Domains**: add a backend scenario plus transition model; the Stitch UI reads bounds from `GET /api/meta`, never hardcodes. One side without the other is not a domain.
 - **Optimizers**: `SUPPORTED_OPTIMIZERS` in `src/rift/experiments.py`; UI reads them from `GET /api/meta`, never hardcodes.
 - **Data adapters**: `src/rift/health/adapters.py` + provenance envelope; UI surfaces dataset/safety strings verbatim.
 - **Calibration methods**: `src/rift/health/evaluate.py`; UI renders whichever methods the bundle reports.
@@ -43,6 +42,5 @@ explicitly labeled local/demo.
 
 ## Versioning
 
-Engine version (`ENGINE_VERSION`, currently 1.0.0), contract version (`frontend/src/contracts/v1.ts`,
-`CONTRACT_VERSION = 'v1'`), experiment fingerprints (SHA-256 over canonical spec JSON). The UI warns when
+Engine version (`ENGINE_VERSION`, currently 1.0.0), experiment fingerprints (SHA-256 over canonical spec JSON). The UI warns when
 the live engine version differs from its expected version.
