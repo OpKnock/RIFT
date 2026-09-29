@@ -1,0 +1,405 @@
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RIFT // Evidence Console</title>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=Public+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            surface: "#0f172a",
+            "surface-container": "#1e293b",
+            "surface-container-high": "#334155",
+            primary: "#06b6d4",
+            "primary-container": "#0891b2",
+            "on-primary": "#ffffff",
+            "on-primary-container": "#e0f2fe",
+            "on-surface": "#f8fafc",
+            "on-surface-variant": "#94a3b8",
+            "outline-variant": "#334155",
+            error: "#f43f5e",
+            success: "#10b981",
+            warning: "#f59e0b"
+          },
+          borderRadius: {
+            DEFAULT: "0.25rem",
+            lg: "0.5rem",
+            xl: "0.75rem",
+            full: "9999px"
+          },
+          fontFamily: {
+            headline: ["Space Grotesk"],
+            display: ["Space Grotesk"],
+            body: ["Inter"],
+            label: ["Public Sans"]
+          }
+        },
+      },
+    }
+  </script>
+  <script src="./rift-live.js"></script>
+</head>
+<body class="bg-surface text-on-surface font-body min-h-screen flex flex-col antialiased selection:bg-primary selection:text-on-primary">
+<!-- SideNavBar -->
+<aside class="fixed top-0 left-0 h-screen w-64 flex flex-col justify-between shrink-0 bg-surface dark:bg-surface border-r border-outline-variant dark:border-outline-variant p-4 z-50">
+<div class="flex flex-col gap-6">
+<div class="flex items-center gap-3 px-3 py-2">
+<div class="w-8 h-8 rounded bg-primary/20 flex items-center justify-center text-primary font-headline font-bold">R</div>
+<div>
+<h1 class="font-headline text-lg font-bold tracking-widest text-primary dark:text-primary">RIFT</h1>
+<p class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Counterfactual Intelligence</p>
+</div>
+</div>
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./dashboard.html">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label text-xs uppercase tracking-wider">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./scenarios.html">
+<span class="material-symbols-outlined">alt_route</span>
+<span class="font-label text-xs uppercase tracking-wider">Scenarios</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./simulation.html">
+<span class="material-symbols-outlined">model_training</span>
+<span class="font-label text-xs uppercase tracking-wider">Simulation</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./runs.html">
+<span class="material-symbols-outlined">play_circle</span>
+<span class="font-label text-xs uppercase tracking-wider">Runs</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./experiments.html">
+<span class="material-symbols-outlined">science</span>
+<span class="font-label text-xs uppercase tracking-wider">Experiments</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-surface-container-high dark:bg-surface-container-high text-primary dark:text-primary font-medium border-l-2 border-primary active:scale-[0.98]" href="./evidence.html">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">find_in_page</span>
+<span class="font-label text-xs uppercase tracking-wider">Evidence</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./incidents.html">
+<span class="material-symbols-outlined">warning</span>
+<span class="font-label text-xs uppercase tracking-wider">Incidents</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./explainability.html">
+<span class="material-symbols-outlined">psychology</span>
+<span class="font-label text-xs uppercase tracking-wider">Explainability</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./settings.html">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label text-xs uppercase tracking-wider">Settings</span>
+</a>
+</nav>
+</div>
+<div class="flex flex-col gap-3">
+<button class="w-full py-2.5 px-4 bg-primary text-on-primary font-headline font-semibold text-xs tracking-wider uppercase rounded-lg hover:bg-primary-container transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">add</span> New Run
+      </button>
+<div class="pt-3 border-t border-outline-variant flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:text-on-surface font-medium text-xs" href="#">
+<span class="material-symbols-outlined text-sm">menu_book</span> Documentation
+        </a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant hover:text-on-surface font-medium text-xs" href="#">
+<span class="material-symbols-outlined text-sm">terminal</span> Terminal
+        </a>
+</div>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<div class="pl-64 flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="sticky top-0 right-0 w-full z-40 bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline-variant">
+<div class="flex justify-between items-center px-6 py-2.5 w-full">
+<div class="flex items-center gap-6">
+<span class="font-headline text-sm font-bold uppercase tracking-wider text-primary dark:text-primary">RIFT // Engine Status</span>
+<div class="flex items-center gap-4 text-xs font-medium">
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span class="w-2 h-2 rounded-full bg-success inline-block">
+<span class="text-on-surface font-medium">Cluster-01: Online</span>
+</span></div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span>Engine: v0.9.4-rc</span>
+</div>
+<div class="flex items-center gap-1.5 text-on-surface-variant">
+<span>Latency: <strong class="text-primary" id="latency-metric">24ms</strong></span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-3 py-1.5 rounded bg-surface-container text-on-surface text-xs font-label uppercase tracking-wider hover:bg-surface-container-high transition-colors flex items-center gap-1.5" id="live-poll-btn" onclick="toggleLivePoll()">
+<span class="w-2 h-2 rounded-full bg-success" id="poll-indicator"></span> Live Poll: <span id="poll-state">ON</span>
+</button>
+<button class="px-3 py-1.5 rounded bg-surface-container text-on-surface text-xs font-label uppercase tracking-wider hover:bg-surface-container-high transition-colors">
+            Verify Snapshot
+          </button>
+<button class="px-3 py-1.5 rounded bg-primary text-on-primary text-xs font-label uppercase tracking-wider font-semibold hover:bg-primary-container transition-colors">
+            Deploy Override
+          </button>
+<div class="flex items-center gap-2 pl-3 border-l border-outline-variant">
+<button class="p-1.5 text-on-surface-variant hover:text-on-surface rounded transition-colors"><span class="material-symbols-outlined text-lg">notifications_active</span></button>
+<button class="p-1.5 text-on-surface-variant hover:text-on-surface rounded transition-colors"><span class="material-symbols-outlined text-lg">help_outline</span></button>
+<button class="p-1.5 text-on-surface-variant hover:text-on-surface rounded transition-colors"><span class="material-symbols-outlined text-lg">tune</span></button>
+<div class="w-7 h-7 rounded-full bg-surface-container-high flex items-center justify-center text-xs font-headline font-bold text-primary ml-1">LR</div>
+</div>
+</div>
+</div>
+</header>
+<!-- Canvas -->
+<main class="flex-1 p-8 flex flex-col gap-8 bg-surface">
+<!-- Breadcrumb -->
+<div class="flex items-center gap-2 text-xs font-label uppercase tracking-wider text-on-surface-variant">
+<span>Core</span>
+<span class="material-symbols-outlined text-xs">chevron_right</span>
+<span class="text-primary font-semibold">Evidence Console &amp; Patient-Twin Replay</span>
+</div>
+<!-- Patient-Twin Replay Section -->
+<section class="bg-surface-container rounded-xl p-6 border border-outline-variant flex flex-col gap-6">
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+<div>
+<h2 class="font-headline text-xl font-bold text-on-surface flex items-center gap-3">
+              Patient-Twin Replay Matrix
+              <span class="px-2.5 py-0.5 rounded text-xs font-label uppercase tracking-wider bg-success/20 text-success border border-success/30" id="guardian-badge">VERIFIED</span>
+</h2>
+<p class="text-xs text-on-surface-variant mt-1">Simulating counterfactual trajectories across temporal axes. Drag scrubber to analyze state divergence.</p>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-3 py-2 rounded bg-surface-container-high hover:bg-surface-container-high/80 text-on-surface text-xs font-label uppercase tracking-wider transition-colors flex items-center gap-2 border border-outline-variant" onclick="openCompareModal()">
+<span class="material-symbols-outlined text-sm">compare</span> Compare Snapshots (<span id="snapshot-count">0</span>)
+            </button>
+<button class="px-3 py-2 rounded bg-primary text-on-primary text-xs font-label uppercase tracking-wider font-semibold hover:bg-primary-container transition-colors flex items-center gap-2" onclick="captureSnapshot()">
+<span class="material-symbols-outlined text-sm">camera</span> Capture Snapshot
+            </button>
+</div>
+</div>
+<!-- Scrubber Control & Metrics -->
+<div class="grid grid-cols-1 lg:grid-cols-4 gap-6 bg-surface p-4 rounded-lg border border-outline-variant">
+<div class="lg:col-span-3 flex flex-col justify-center gap-4">
+<div class="flex justify-between items-center text-xs font-label uppercase tracking-wider text-on-surface-variant">
+<span>Timeline Axis: Day <strong class="text-primary text-sm" id="current-day-label">0</strong> / 13</span>
+<span id="timestamp-readout">T+00:00:00 UTC</span>
+</div>
+<input class="w-full accent-primary bg-surface-container-high h-2 rounded-lg cursor-pointer" id="day-slider" max="13" min="0" oninput="updateReplayState(this.value)" step="1" type="range" value="0"/>
+<div class="flex justify-between text-[10px] text-on-surface-variant font-mono">
+<span>D0 (Baseline)</span>
+<span>D3</span>
+<span>D6</span>
+<span>D9</span>
+<span>D13 (Critical Horizon)</span>
+</div>
+</div>
+<div class="flex flex-col justify-center border-l lg:border-l-0 lg:border-t-0 pl-4 lg:pl-6 border-outline-variant gap-2">
+<span class="text-xs font-label uppercase tracking-wider text-on-surface-variant">Dynamic Risk Score</span>
+<div class="flex items-baseline gap-2">
+<span class="font-headline text-3xl font-bold text-primary" id="risk-score-val">12.4%</span>
+<span class="text-xs text-success font-medium" id="risk-delta-badge">--</span>
+</div>
+<div class="w-full bg-surface-container-high h-1.5 rounded-full overflow-hidden">
+<div class="bg-primary h-full transition-all duration-300" id="risk-bar" style="width: 12.4%;"></div>
+</div>
+</div>
+</div>
+<!-- Calibration Curves & Vector Graphs -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="bg-surface p-4 rounded-lg border border-outline-variant flex flex-col gap-3">
+<div class="flex justify-between items-center">
+<h3 class="font-headline text-sm font-semibold">Counterfactual Probability Calibration</h3>
+<span class="text-xs text-on-surface-variant font-mono">AUC: 0.942</span>
+</div>
+<div class="h-40 w-full bg-surface-container rounded flex items-end justify-between p-4 relative overflow-hidden">
+<!-- Simulated Calibration Bars -->
+<div class="w-1/12 bg-primary/40 rounded-t h-[20%] transition-all duration-300 cal-bar" data-idx="0"></div>
+<div class="w-1/12 bg-primary/50 rounded-t h-[35%] transition-all duration-300 cal-bar" data-idx="1"></div>
+<div class="w-1/12 bg-primary/60 rounded-t h-[30%] transition-all duration-300 cal-bar" data-idx="2"></div>
+<div class="w-1/12 bg-primary/70 rounded-t h-[45%] transition-all duration-300 cal-bar" data-idx="3"></div>
+<div class="w-1/12 bg-primary rounded-t h-[60%] transition-all duration-300 cal-bar" data-idx="4"></div>
+<div class="w-1/12 bg-primary rounded-t h-[55%] transition-all duration-300 cal-bar" data-idx="5"></div>
+<div class="w-1/12 bg-warning rounded-t h-[75%] transition-all duration-300 cal-bar" data-idx="6"></div>
+<div class="w-1/12 bg-warning rounded-t h-[80%] transition-all duration-300 cal-bar" data-idx="7"></div>
+<div class="w-1/12 bg-error rounded-t h-[90%] transition-all duration-300 cal-bar" data-idx="8"></div>
+<div class="w-1/12 bg-error rounded-t h-[95%] transition-all duration-300 cal-bar" data-idx="9"></div>
+</div>
+<div class="flex justify-between text-xs text-on-surface-variant">
+<span>0.0 (Low Risk)</span>
+<span>Confidence Threshold (0.75)</span>
+<span>1.0 (Critical)</span>
+</div>
+</div>
+<div class="bg-surface p-4 rounded-lg border border-outline-variant flex flex-col gap-3">
+<div class="flex justify-between items-center">
+<h3 class="font-headline text-sm font-semibold">Vector Divergence Velocity</h3>
+<span class="text-xs text-on-surface-variant font-mono">Vector: V-99X</span>
+</div>
+<div class="h-40 w-full bg-surface-container rounded p-4 flex items-center justify-center relative">
+<div class="absolute inset-0 flex items-center justify-center opacity-20">
+<div class="w-32 h-32 rounded-full border border-primary"></div>
+<div class="w-24 h-24 rounded-full border border-primary absolute"></div>
+</div>
+<div class="text-center z-10 flex flex-col gap-1">
+<span class="font-headline text-2xl font-bold text-primary" id="vector-velocity-val">0.042 ms^-1</span>
+<span class="text-xs text-on-surface-variant font-label uppercase tracking-wider">Stability Index: Optimal</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Tables Grid: Divergence Scan & Noise Stress -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<!-- Divergence Scan Table -->
+<div class="bg-surface-container rounded-xl p-6 border border-outline-variant flex flex-col gap-4">
+<div class="flex justify-between items-center">
+<h3 class="font-headline text-base font-bold text-on-surface">Divergence Scan Matrix</h3>
+<span class="text-xs text-on-surface-variant font-mono">Live Stream</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left text-xs">
+<thead class="text-on-surface-variant font-label uppercase tracking-wider border-b border-outline-variant">
+<tr>
+<th class="pb-3 font-medium">Day</th>
+<th class="pb-3 font-medium">Risk Delta</th>
+<th class="pb-3 font-medium">Divergence Event</th>
+<th class="pb-3 font-medium">Guardian Verdict</th>
+<th class="pb-3 font-medium">Vector Signature</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant font-mono" id="divergence-table-body">
+<!-- Dynamically populated via JS -->
+</tbody>
+</table>
+</div>
+</div>
+<!-- Noise Stress Table -->
+<div class="bg-surface-container rounded-xl p-6 border border-outline-variant flex flex-col gap-4">
+<div class="flex justify-between items-center">
+<h3 class="font-headline text-base font-bold text-on-surface">Noise Stress Perturbation Testing</h3>
+<span class="text-xs text-on-surface-variant font-mono">Robustness Check</span>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left text-xs">
+<thead class="text-on-surface-variant font-label uppercase tracking-wider border-b border-outline-variant">
+<tr>
+<th class="pb-3 font-medium">Noise Vector</th>
+<th class="pb-3 font-medium">Perturbation</th>
+<th class="pb-3 font-medium">Resilience Metric</th>
+<th class="pb-3 font-medium">Status</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant font-mono">
+<tr>
+<td class="py-3 text-primary">NV-Alpha (Gaussian)</td>
+<td class="py-3">+15% sigma</td>
+<td class="py-3">0.914</td>
+<td class="py-3"><span class="px-2 py-0.5 rounded text-[10px] bg-success/20 text-success">PASSED</span></td>
+</tr>
+<tr>
+<td class="py-3 text-primary">NV-Beta (Poisson)</td>
+<td class="py-3">--</td>
+<td class="py-3">0.882</td>
+<td class="py-3"><span class="px-2 py-0.5 rounded text-[10px] bg-success/20 text-success">PASSED</span></td>
+</tr>
+<tr>
+<td class="py-3 text-primary">NV-Gamma (Adversarial)</td>
+<td class="py-3">0.05 epsilon</td>
+<td class="py-3">0.741</td>
+<td class="py-3"><span class="px-2 py-0.5 rounded text-[10px] bg-warning/20 text-warning">DEGRADED</span></td>
+</tr>
+<tr>
+<td class="py-3 text-primary">NV-Delta (Latency Drift)</td>
+<td class="py-3">+120ms</td>
+<td class="py-3">--</td>
+<td class="py-3"><span class="px-2 py-0.5 rounded text-[10px] bg-outline-variant text-on-surface-variant">NULL</span></td>
+</tr>
+<tr>
+<td class="py-3 text-primary">NV-Epsilon (Missingness)</td>
+<td class="py-3">30% drop</td>
+<td class="py-3">0.805</td>
+<td class="py-3"><span class="px-2 py-0.5 rounded text-[10px] bg-success/20 text-success">PASSED</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+</div>
+<!-- Frozen Bundle Summary Cards & Evidence Export -->
+<section class="bg-surface-container rounded-xl p-6 border border-outline-variant flex flex-col gap-6">
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+<div>
+<h2 class="font-headline text-lg font-bold text-on-surface">Frozen Bundle Summary &amp; Evidence Export</h2>
+<p class="text-xs text-on-surface-variant mt-1">Cryptographically hashed model artifacts and validation metrics ready for regulatory submission.</p>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-3 py-2 rounded bg-surface-container-high hover:bg-surface-container-high/80 text-on-surface text-xs font-label uppercase tracking-wider transition-colors flex items-center gap-2 border border-outline-variant" onclick="toggleJsonInspector()">
+<span class="material-symbols-outlined text-sm">code</span> <span id="json-toggle-label">Inspect Raw JSON</span>
+</button>
+<button class="px-3 py-2 rounded bg-primary text-on-primary text-xs font-label uppercase tracking-wider font-semibold hover:bg-primary-container transition-colors flex items-center gap-2" onclick="downloadBundle()">
+<span class="material-symbols-outlined text-sm">download</span> Download Bundle (.rift)
+            </button>
+</div>
+</div>
+<!-- Summary Cards Grid -->
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-9 gap-3">
+<div class="bg-surface p-3 rounded-lg border border-outline-variant flex flex-col gap-1">
+<span class="text-[10px] font-label uppercase tracking-wider text-on-surface-variant">Engine</span>
+<span class="font-headline font-bold text-xs text-primary truncate">v0.9.4-rc</span>
+</div>
+<div class="bg-surface p-3 rounded-lg border border-outline-variant flex flex-col gap-1">
+<span class="text-[10px] font-label uppercase tracking-wider text-on-surface-variant">Dataset</span>
+<span class="font-headline font-bold text-xs text-on-surface truncate">MIMIC-IV-Ext</span>
+</div>
+<div class="bg-surface p-3 rounded-lg border border-outline-variant flex flex-col gap-1">
+<span class="text-[10px] font-label uppercase tracking-wider text-on-surface-variant">Sensitivity</span>
+<span class="font-headline font-bold text-xs text-success">0.928</span>
+</div>
+<div class="bg-surface p-3 rounded-lg border border-outline-variant flex flex-col gap-1">
+<span class="text-[10px] font-label uppercase tracking-wider text-on-surface-variant">Specificity</span>
+<span class="font-headline font-bold text-xs text-success">0.895</span>
+</div>
+<div class="bg-surface p-3 rounded-lg border border-outline-variant flex flex-col gap-1">
+<span class="text-[10px] font-label uppercase tracking-wider text-on-surface-variant">Brier Score</span>
+<span class="font-headline font-bold text-xs text-primary">0.074</span>
+</div>
+<div class="bg-surface p-3 rounded-lg border border-outline-variant flex flex-col gap-1">
+<span class="text-[10px] font-label uppercase tracking-wider text-on-surface-variant">Ext Validation</span>
+<span class="font-headline font-bold text-xs text-on-surface">Passed (3 Sites)</span>
+</div>
+<div class="bg-surface p-3 rounded-lg border border-outline-variant flex flex-col gap-1">
+<span class="text-[10px] font-label uppercase tracking-wider text-on-surface-variant">Model</span>
+<span class="font-headline font-bold text-xs text-on-surface">CF-Transformer</span>
+</div>
+<div class="bg-surface p-3 rounded-lg border border-outline-variant flex flex-col gap-1">
+<span class="text-[10px] font-label uppercase tracking-wider text-on-surface-variant">Weights</span>
+<span class="font-headline font-bold text-xs text-on-surface font-mono">sha256:8f4a</span>
+</div>
+<div class="bg-surface p-3 rounded-lg border border-outline-variant flex flex-col gap-1">
+<span class="text-[10px] font-label uppercase tracking-wider text-on-surface-variant">Deployment</span>
+<span class="font-headline font-bold text-xs text-success">Gate-Alpha</span>
+</div>
+</div>
+<!-- Collapsible Raw JSON Inspector -->
+<div class="hidden bg-surface p-4 rounded-lg border border-outline-variant font-mono text-xs text-on-surface-variant overflow-x-auto max-h-96" id="json-inspector-container">
+<pre class="text-primary" id="raw-json-output"></pre>
+</div>
+</section>
+</main>
+</div>
+<!-- Snapshot Compare Modal / Drawer -->
+<div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center hidden" id="snapshot-modal">
+<div class="bg-surface-container border border-outline-variant rounded-xl p-6 w-full max-w-2xl flex flex-col gap-6 shadow-2xl">
+<div class="flex justify-between items-center">
+<h3 class="font-headline text-lg font-bold text-on-surface">Captured Snapshot A/B Comparison Slots</h3>
+<button class="p-1 rounded text-on-surface-variant hover:text-on-surface" onclick="closeCompareModal()"><span class="material-symbols-outlined">close</span></button>
+</div>
+<div class="flex flex-col gap-3 max-h-80 overflow-y-auto" id="snapshot-slots-list">
+<!-- Populated dynamically -->
+</div>
+<div class="flex justify-end gap-3 pt-4 border-t border-outline-variant">
+<button class="px-4 py-2 rounded bg-surface hover:bg-surface-container-high text-error text-xs font-label uppercase tracking-wider transition-colors" onclick="clearSnapshots()">Clear All</button>
+<button class="px-4 py-2 rounded bg-primary text-on-primary text-xs font-label uppercase tracking-wider font-semibold" onclick="closeCompareModal()">Close</button>
+</div>
+</div>
+</div>
+
+  <script src="./live/evidence.js"></script>
+</body></html>

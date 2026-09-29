@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RIFT Console // Settings</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Public+Sans:wght@400;500;600;700&amp;family=Space+Grotesk:wght@500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            surface: "#0f172a",
+            "surface-container": "#1e293b",
+            "surface-container-high": "#334155",
+            primary: "#0891b2",
+            "on-surface": "#f8fafc",
+            "on-surface-variant": "#94a3b8",
+            "outline-variant": "#334155",
+            "primary-container": "#164e63",
+            "on-primary-container": "#a5f3fc"
+          },
+          borderRadius: {
+            DEFAULT: "0.25rem",
+            lg: "0.5rem",
+            xl: "0.75rem",
+            full: "9999px"
+          },
+          fontFamily: {
+            headline: ["Space Grotesk"],
+            display: ["Space Grotesk"],
+            body: ["Inter"],
+            label: ["Public Sans"]
+          }
+        },
+      },
+    }
+  </script>
+  <script src="./rift-live.js"></script>
+</head>
+<body class="bg-surface text-on-surface font-body min-h-screen flex flex-col antialiased selection:bg-primary selection:text-white">
+<!-- SideNavBar -->
+<aside class="fixed top-0 left-0 h-screen w-64 flex flex-col justify-between shrink-0 bg-surface dark:bg-surface border-r border-outline-variant dark:border-outline-variant p-4 z-50">
+<div class="flex flex-col gap-6">
+<div class="flex items-center gap-3 px-3 py-2">
+<span class="material-symbols-outlined text-primary text-2xl" data-icon="model_training">model_training</span>
+<div class="flex flex-col">
+<span class="font-headline text-lg font-bold tracking-widest text-primary dark:text-primary">RIFT</span>
+<span class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Counterfactual Intelligence</span>
+</div>
+</div>
+<nav class="flex flex-col gap-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./dashboard.html">
+<span class="material-symbols-outlined text-xl" data-icon="dashboard">dashboard</span>
+<span class="font-body text-sm">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./scenarios.html">
+<span class="material-symbols-outlined text-xl" data-icon="alt_route">alt_route</span>
+<span class="font-body text-sm">Scenarios</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./simulation.html">
+<span class="material-symbols-outlined text-xl" data-icon="model_training">model_training</span>
+<span class="font-body text-sm">Simulation</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./runs.html">
+<span class="material-symbols-outlined text-xl" data-icon="play_circle">play_circle</span>
+<span class="font-body text-sm">Runs</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./experiments.html">
+<span class="material-symbols-outlined text-xl" data-icon="science">science</span>
+<span class="font-body text-sm">Experiments</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./evidence.html">
+<span class="material-symbols-outlined text-xl" data-icon="find_in_page">find_in_page</span>
+<span class="font-body text-sm">Evidence</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./incidents.html">
+<span class="material-symbols-outlined text-xl" data-icon="warning">warning</span>
+<span class="font-body text-sm">Incidents</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98]" href="./explainability.html">
+<span class="material-symbols-outlined text-xl" data-icon="psychology">psychology</span>
+<span class="font-body text-sm">Explainability</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-surface-container-high dark:bg-surface-container-high text-primary dark:text-primary font-medium border-l-2 border-primary transition-colors duration-150 active:scale-[0.98]" href="./settings.html">
+<span class="material-symbols-outlined text-xl" data-icon="settings" style="font-variation-settings: 'FILL' 1;">settings</span>
+<span class="font-body text-sm">Settings</span>
+</a>
+</nav>
+</div>
+<div class="flex flex-col gap-4">
+<button class="w-full bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-lg text-sm transition-colors flex items-center justify-center gap-2 shadow-sm">
+<span class="material-symbols-outlined text-sm" data-icon="add">add</span>
+        New Run
+      </button>
+<div class="flex flex-col gap-1 border-t border-outline-variant pt-3">
+<a class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-on-surface-variant font-medium text-xs hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined text-base" data-icon="menu_book">menu_book</span>
+          Documentation
+        </a>
+<a class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-on-surface-variant font-medium text-xs hover:text-on-surface transition-colors" href="#">
+<span class="material-symbols-outlined text-base" data-icon="terminal">terminal</span>
+          Terminal
+        </a>
+</div>
+</div>
+</aside>
+<!-- Main Wrapper to clear SideNavBar -->
+<div class="pl-64 flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="sticky top-0 right-0 w-full z-40 bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline-variant flex justify-between items-center px-6 py-2.5">
+<div class="flex items-center gap-6">
+<span class="font-headline text-sm font-bold uppercase tracking-wider text-primary dark:text-primary">RIFT // Engine Status</span>
+<div class="flex items-center gap-4 text-xs font-medium">
+<span class="text-on-surface-variant flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Cluster-01: Online
+          </span>
+<span class="text-on-surface-variant">Engine: v0.9.4-rc</span>
+<span class="text-on-surface-variant">Latency: 24ms</span>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<button class="px-3 py-1.5 rounded-lg border border-outline-variant text-xs font-medium hover:border-primary text-on-surface-variant hover:text-on-surface transition-colors">Verify Snapshot</button>
+<button class="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors shadow-sm">Deploy Override</button>
+</div>
+<div class="h-4 w-px bg-outline-variant"></div>
+<div class="flex items-center gap-2 text-on-surface-variant">
+<button class="p-1.5 hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-lg" data-icon="notifications_active">notifications_active</span></button>
+<button class="p-1.5 hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-lg" data-icon="help_outline">help_outline</span></button>
+<button class="p-1.5 hover:text-on-surface transition-colors"><span class="material-symbols-outlined text-lg" data-icon="tune">tune</span></button>
+</div>
+<div class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Close up professional portrait of a lead researcher in a high tech laboratory wearing intelligent neural interface gear, cool cyan lighting, cinematic depth of field, corporate enterprise aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAoqmPQNIlGHIYql7cs4uahgkydvtYUxxJq_3IBOfJxF5K4FqzVCxRHW7bKlz7JdMEF0pJlM-7zr7vipSOZkXRRfOSZgdTijOrMwgYib0ZT3CRtHl92GA6bjMIwz8AOflJ-jbj8x0hO_qJIsJeNivx88_rSO2-ksTSedr52D7WhXLdeOYgACoPzlDqLmFacd1REJY3lWQlww0wjM9f4MFvnHh9A8eWLC9B9gZTE4xZJXQuzyc0rSK6IQHYrI8-Hbg6iJ-CwMuyQG5w"/>
+</div>
+</div>
+</header>
+<!-- Content Canvas -->
+<main class="flex-1 p-8 max-w-7xl w-full mx-auto flex flex-col gap-6">
+<!-- Page Header -->
+<div class="flex flex-col gap-1">
+<h1 class="font-headline text-2xl font-bold tracking-tight">Console Configuration</h1>
+<p class="font-body text-sm text-on-surface-variant">Manage global runtime parameters, authentication conduits, and secure telemetry feeds.</p>
+</div>
+<!-- Tab Bar Stacked ABOVE content -->
+<div class="flex items-center gap-2 border-b border-outline-variant overflow-x-auto pb-px">
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-primary text-primary flex items-center gap-2 transition-colors" id="btn-profile" onclick="switchTab('profile')">
+<span class="material-symbols-outlined text-lg" data-icon="person">person</span>
+          Profile
+        </button>
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-on-surface-variant hover:text-on-surface flex items-center gap-2 transition-colors" id="btn-security" onclick="switchTab('security')">
+<span class="material-symbols-outlined text-lg" data-icon="shield">shield</span>
+          Security
+        </button>
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-on-surface-variant hover:text-on-surface flex items-center gap-2 transition-colors" id="btn-notifications" onclick="switchTab('notifications')">
+<span class="material-symbols-outlined text-lg" data-icon="notifications">notifications</span>
+          Notifications
+        </button>
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-on-surface-variant hover:text-on-surface flex items-center gap-2 transition-colors" id="btn-appearance" onclick="switchTab('appearance')">
+<span class="material-symbols-outlined text-lg" data-icon="palette">palette</span>
+          Appearance
+        </button>
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-on-surface-variant hover:text-on-surface flex items-center gap-2 transition-colors" id="btn-api" onclick="switchTab('api')">
+<span class="material-symbols-outlined text-lg" data-icon="key">key</span>
+          API Token
+        </button>
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-on-surface-variant hover:text-on-surface flex items-center gap-2 transition-colors" id="btn-integrations" onclick="switchTab('integrations')">
+<span class="material-symbols-outlined text-lg" data-icon="integration_instructions">integration_instructions</span>
+          Integrations
+        </button>
+<button class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 border-transparent text-on-surface-variant hover:text-on-surface flex items-center gap-2 transition-colors" id="btn-data" onclick="switchTab('data')">
+<span class="material-symbols-outlined text-lg" data-icon="database">database</span>
+          Data and Privacy
+        </button>
+</div>
+<!-- TAB CONTENT CONTAINERS -->
+<!-- 1. PROFILE TAB -->
+<div class="tab-content flex flex-col gap-6" id="tab-content-profile">
+<div class="bg-surface-container rounded-xl p-6 border border-outline-variant flex flex-col gap-6">
+<div class="flex flex-col gap-1">
+<h2 class="font-headline text-lg font-semibold">Operator Identification</h2>
+<p class="text-xs text-on-surface-variant">Update your display moniker used across distributed RIFT telemetry logs and audit trails.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="flex flex-col gap-2">
+<label class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Display Name</label>
+<input class="bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-primary transition-colors" id="displayNameInput" placeholder="e.g. Dr. Aris Thorne" type="text"/>
+<span class="text-xs text-on-surface-variant">Saved instantly to browser local storage.</span>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Assigned Role</label>
+<input class="bg-surface/50 border border-outline-variant/50 rounded-lg px-3 py-2 text-sm text-on-surface-variant cursor-not-allowed" disabled="" type="text" value="Senior Counterfactual Architect"/>
+</div>
+</div>
+<div class="flex justify-end">
+<button class="bg-primary hover:bg-primary/90 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors shadow-sm" onclick="saveProfile()">Save Changes</button>
+</div>
+</div>
+</div>
+<!-- 2. SECURITY TAB -->
+<div class="tab-content hidden flex flex-col gap-6" id="tab-content-security">
+<div class="bg-surface-container rounded-xl p-6 border border-outline-variant flex flex-col gap-6">
+<div class="flex items-center justify-between">
+<div class="flex flex-col gap-1">
+<h2 class="font-headline text-lg font-semibold">Live Server Posture</h2>
+<p class="text-xs text-on-surface-variant">Real-time health telemetry queried directly from /api/health endpoint.</p>
+</div>
+<button class="px-3 py-1.5 rounded-lg border border-outline-variant hover:border-primary text-xs font-medium flex items-center gap-1.5 transition-colors" onclick="pollHealth()">
+<span class="material-symbols-outlined text-sm" data-icon="refresh">refresh</span>
+              Poll Now
+            </button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div class="bg-surface p-4 rounded-lg border border-outline-variant flex flex-col gap-1">
+<span class="text-xs text-on-surface-variant font-label uppercase">Status</span>
+<span class="text-lg font-headline font-semibold text-emerald-400 flex items-center gap-2" id="health-status">
+<span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span> Checking...
+              </span>
+</div>
+<div class="bg-surface p-4 rounded-lg border border-outline-variant flex flex-col gap-1">
+<span class="text-xs text-on-surface-variant font-label uppercase">Uptime</span>
+<span class="text-lg font-headline font-semibold" id="health-uptime">--</span>
+</div>
+<div class="bg-surface p-4 rounded-lg border border-outline-variant flex flex-col gap-1">
+<span class="text-xs text-on-surface-variant font-label uppercase">Active Nodes</span>
+<span class="text-lg font-headline font-semibold" id="health-nodes">--</span>
+</div>
+</div>
+</div>
+</div>
+<!-- 3. NOTIFICATIONS TAB -->
+<div class="tab-content hidden flex flex-col gap-6" id="tab-content-notifications">
+<div class="bg-surface-container rounded-xl p-6 border border-outline-variant flex flex-col gap-6">
+<div class="flex flex-col gap-1">
+<h2 class="font-headline text-lg font-semibold">Telemetry Event Routing</h2>
+<p class="text-xs text-on-surface-variant">Configure dispatch channels for anomalous counterfactual divergence warnings.</p>
+</div>
+<div class="flex flex-col gap-4">
+<div class="flex items-center justify-between p-4 rounded-lg bg-surface border border-outline-variant">
+<div class="flex flex-col gap-0.5">
+<span class="text-sm font-medium">Critical Divergence Alerts</span>
+<span class="text-xs text-on-surface-variant">Immediate push notifications when simulation error exceeds tolerance thresholds.</span>
+</div>
+<input checked="" class="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4 bg-surface" type="checkbox"/>
+</div>
+<div class="flex items-center justify-between p-4 rounded-lg bg-surface border border-outline-variant">
+<div class="flex flex-col gap-0.5">
+<span class="text-sm font-medium">Weekly Digest Reports</span>
+<span class="text-xs text-on-surface-variant">Automated summary of model accuracy and experiment throughput sent via secure mail.</span>
+</div>
+<input class="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4 bg-surface" type="checkbox"/>
+</div>
+</div>
+</div>
+</div>
+<!-- 4. APPEARANCE TAB -->
+<div class="tab-content hidden flex flex-col gap-6" id="tab-content-appearance">
+<div class="bg-surface-container rounded-xl p-6 border border-outline-variant flex flex-col gap-6">
+<div class="flex flex-col gap-1">
+<h2 class="font-headline text-lg font-semibold">Interface Theme</h2>
+<p class="text-xs text-on-surface-variant">Select the rendering profile for the RIFT workstation.</p>
+</div>
+<div class="grid grid-cols-3 gap-4">
+<button class="p-4 rounded-lg border border-primary bg-surface flex flex-col items-center gap-2 text-primary font-medium text-sm" onclick="setTheme('dark')">
+<span class="material-symbols-outlined text-2xl" data-icon="dark_mode">dark_mode</span>
+              Dark Ambient
+            </button>
+<button class="p-4 rounded-lg border border-outline-variant bg-surface-container-high text-on-surface-variant flex flex-col items-center gap-2 font-medium text-sm hover:border-primary" onclick="setTheme('light')">
+<span class="material-symbols-outlined text-2xl" data-icon="light_mode">light_mode</span>
+              Light Mode
+            </button>
+<button class="p-4 rounded-lg border border-outline-variant bg-surface-container-high text-on-surface-variant flex flex-col items-center gap-2 font-medium text-sm hover:border-primary" onclick="setTheme('system')">
+<span class="material-symbols-outlined text-2xl" data-icon="settings_system_daydream">settings_system_daydream</span>
+              System Default
+            </button>
+</div>
+</div>
+</div>
+<!-- 5. API TOKEN TAB -->
+<div class="tab-content hidden flex flex-col gap-6" id="tab-content-api">
+<div class="bg-surface-container rounded-xl p-6 border border-outline-variant flex flex-col gap-6">
+<div class="flex flex-col gap-1">
+<h2 class="font-headline text-lg font-semibold">Service Token Authentication</h2>
+<p class="text-xs text-on-surface-variant">Paste your RIFT enterprise service token to establish an active session state.</p>
+</div>
+<div class="flex flex-col gap-3">
+<label class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Service Token</label>
+<div class="flex gap-2">
+<input class="flex-1 bg-surface border border-outline-variant rounded-lg px-3 py-2 text-sm text-on-surface focus:outline-none focus:border-primary font-mono" id="apiTokenInput" placeholder="rift_sec_token_************************" type="password"/>
+<button class="bg-primary hover:bg-primary/90 text-white font-medium px-4 py-2 rounded-lg text-sm transition-colors shadow-sm flex items-center gap-2" onclick="exchangeToken()">
+<span class="material-symbols-outlined text-sm" data-icon="lock_open">lock_open</span>
+                Exchange
+              </button>
+</div>
+<span class="text-xs text-on-surface-variant" id="auth-status-msg">Status: Awaiting token input...</span>
+</div>
+<div class="hidden flex flex-col gap-4 border-t border-outline-variant pt-4" id="session-info-card">
+<h3 class="text-sm font-semibold">Active Session State</h3>
+<div class="grid grid-cols-2 gap-4 bg-surface p-4 rounded-lg border border-outline-variant">
+<div class="flex flex-col">
+<span class="text-xs text-on-surface-variant">Session ID</span>
+<span class="font-mono text-xs text-primary" id="session-id-val">sess_99482710492</span>
+</div>
+<div class="flex flex-col">
+<span class="text-xs text-on-surface-variant">Expires</span>
+<span class="font-mono text-xs">23h 59m remaining</span>
+</div>
+</div>
+<div>
+<button class="bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 font-medium px-4 py-2 rounded-lg text-sm transition-colors" onclick="logoutSession()">
+                Terminate Session
+              </button>
+</div>
+</div>
+</div>
+</div>
+<!-- 6. INTEGRATIONS TAB -->
+<div class="tab-content hidden flex flex-col gap-6" id="tab-content-integrations">
+<div class="bg-surface-container rounded-xl p-6 border border-outline-variant flex flex-col gap-6">
+<div class="flex flex-col gap-1">
+<h2 class="font-headline text-lg font-semibold">External Conduits</h2>
+<p class="text-xs text-on-surface-variant">Connect third-party ML training clusters and version control repositories.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+<div class="p-4 rounded-lg bg-surface border border-outline-variant flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-2xl text-primary" data-icon="hub">hub</span>
+<div class="flex flex-col">
+<span class="text-sm font-medium">Kubernetes Cluster-01</span>
+<span class="text-xs text-on-surface-variant">Connected via mTLS</span>
+</div>
+</div>
+<span class="text-xs bg-emerald-500/10 text-emerald-400 px-2 py-1 rounded">Active</span>
+</div>
+<div class="p-4 rounded-lg bg-surface border border-outline-variant flex items-center justify-between">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-2xl text-on-surface-variant" data-icon="code">code</span>
+<div class="flex flex-col">
+<span class="text-sm font-medium">GitHub Enterprise</span>
+<span class="text-xs text-on-surface-variant">Webhooks configured</span>
+</div>
+</div>
+<button class="text-xs border border-outline-variant px-3 py-1 rounded hover:border-primary transition-colors">Configure</button>
+</div>
+</div>
+</div>
+</div>
+<!-- 7. DATA AND PRIVACY TAB -->
+<div class="tab-content hidden flex flex-col gap-6" id="tab-content-data">
+<div class="bg-surface-container rounded-xl p-6 border border-outline-variant flex flex-col gap-6">
+<div class="flex flex-col gap-1">
+<h2 class="font-headline text-lg font-semibold">Telemetry &amp; Retention</h2>
+<p class="text-xs text-on-surface-variant">Control counterfactual model snapshot retention schedules and cryptographic scrubbing.</p>
+</div>
+<div class="flex flex-col gap-4">
+<div class="flex items-center justify-between p-4 rounded-lg bg-surface border border-outline-variant">
+<div class="flex flex-col gap-0.5">
+<span class="text-sm font-medium">Zero-Knowledge Log Scrubbing</span>
+<span class="text-xs text-on-surface-variant">Automatically anonymize all input tensors before persistence.</span>
+</div>
+<input checked="" class="rounded border-outline-variant text-primary focus:ring-primary h-4 w-4 bg-surface" type="checkbox"/>
+</div>
+<div class="p-4 rounded-lg bg-surface border border-outline-variant flex items-center justify-between">
+<div class="flex flex-col gap-0.5">
+<span class="text-sm font-medium">Purge All Local Cache</span>
+<span class="text-xs text-on-surface-variant">Clear cached model weights and intermediate state vectors from local storage.</span>
+</div>
+<button class="bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 font-medium px-3 py-1.5 rounded-lg text-xs transition-colors" onclick="localStorage.clear(); alert('Local cache purged.');">
+                Purge Now
+              </button>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+  <script src="./live/settings.js"></script>
+</body></html>

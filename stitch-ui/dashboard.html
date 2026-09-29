@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RIFT Counterfactual Intelligence</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;family=Public+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          colors: {
+            surface: "#090d16",
+            "surface-container": "#111827",
+            "surface-container-high": "#1f2937",
+            primary: "#06b6d4",
+            "on-surface": "#f3f4f6",
+            "on-surface-variant": "#9ca3af",
+            "outline-variant": "#374151"
+          },
+          borderRadius: {
+            DEFAULT: "0.25rem",
+            lg: "0.5rem",
+            xl: "0.75rem",
+            full: "9999px"
+          },
+          fontFamily: {
+            headline: ["Space Grotesk"],
+            display: ["Space Grotesk"],
+            body: ["Inter"],
+            label: ["Public Sans"]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    @keyframes shimmer {
+      0% { background-position: -200% 0; }
+      100% { background-position: 200% 0; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #1f2937 25%, #374151 50%, #1f2937 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #090d16;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #374151;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #4b5563;
+    }
+  </style>
+  <script src="./rift-live.js"></script>
+</head>
+<body class="bg-surface text-on-surface font-body antialiased min-h-screen flex flex-col md:flex-row overflow-x-hidden">
+<!-- SideNavBar -->
+<aside class="fixed top-0 left-0 h-screen w-64 flex flex-col justify-between shrink-0 bg-surface dark:bg-surface border-r border-outline-variant dark:border-outline-variant z-50 hidden md:flex">
+<div class="h-full flex flex-col justify-between p-4">
+<div class="space-y-6">
+<div class="flex items-center gap-3 px-3 py-2">
+<div class="w-8 h-8 rounded bg-primary/20 flex items-center justify-center text-primary font-headline font-bold">R</div>
+<div>
+<h1 class="font-headline text-lg font-bold tracking-widest text-primary dark:text-primary">RIFT</h1>
+<p class="font-label text-xs text-on-surface-variant uppercase tracking-wider">Counterfactual Intelligence</p>
+</div>
+</div>
+<nav class="space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg bg-surface-container-high dark:bg-surface-container-high text-primary dark:text-primary font-medium border-l-2 border-primary active:scale-[0.98] transition-transform duration-100 ease-in-out" href="./dashboard.html">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-label text-xs uppercase tracking-wider">Dashboard</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98] transition-transform duration-100 ease-in-out" href="./scenarios.html">
+<span class="material-symbols-outlined">alt_route</span>
+<span class="font-label text-xs uppercase tracking-wider">Scenarios</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98] transition-transform duration-100 ease-in-out" href="./simulation.html">
+<span class="material-symbols-outlined">model_training</span>
+<span class="font-label text-xs uppercase tracking-wider">Simulation</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98] transition-transform duration-100 ease-in-out" href="./runs.html">
+<span class="material-symbols-outlined">play_circle</span>
+<span class="font-label text-xs uppercase tracking-wider">Runs</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98] transition-transform duration-100 ease-in-out" href="./experiments.html">
+<span class="material-symbols-outlined">science</span>
+<span class="font-label text-xs uppercase tracking-wider">Experiments</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98] transition-transform duration-100 ease-in-out" href="./evidence.html">
+<span class="material-symbols-outlined">find_in_page</span>
+<span class="font-label text-xs uppercase tracking-wider">Evidence</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98] transition-transform duration-100 ease-in-out" href="./incidents.html">
+<span class="material-symbols-outlined">warning</span>
+<span class="font-label text-xs uppercase tracking-wider">Incidents</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98] transition-transform duration-100 ease-in-out" href="./explainability.html">
+<span class="material-symbols-outlined">psychology</span>
+<span class="font-label text-xs uppercase tracking-wider">Explainability</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 rounded-lg text-on-surface-variant dark:text-on-surface-variant font-medium hover:bg-surface-container dark:hover:bg-surface-container hover:text-on-surface dark:hover:text-on-surface transition-colors duration-150 active:scale-[0.98] transition-transform duration-100 ease-in-out" href="./settings.html">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label text-xs uppercase tracking-wider">Settings</span>
+</a>
+</nav>
+</div>
+<div class="space-y-4 pt-4 border-t border-outline-variant">
+<button class="w-full bg-primary text-surface font-headline font-bold py-2 px-4 rounded hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined">add</span>
+<span>New Run</span>
+</button>
+<div class="space-y-1">
+<a class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface text-xs font-label" href="#">
+<span class="material-symbols-outlined text-sm">menu_book</span>
+<span>Documentation</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-1.5 rounded-lg text-on-surface-variant hover:text-on-surface text-xs font-label" href="#">
+<span class="material-symbols-outlined text-sm">terminal</span>
+<span>Terminal</span>
+</a>
+</div>
+</div>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<div class="flex-1 md:ml-64 flex flex-col min-h-screen">
+<!-- TopNavBar -->
+<header class="sticky top-0 right-0 w-full z-40 bg-surface dark:bg-surface border-b border-outline-variant dark:border-outline-variant">
+<div class="flex justify-between items-center px-6 py-2.5 w-full">
+<div class="flex items-center gap-6">
+<span class="font-headline text-sm font-bold uppercase tracking-wider text-primary dark:text-primary">RIFT // Engine Status</span>
+<div class="hidden lg:flex items-center gap-4 text-xs font-label">
+<span class="text-primary font-medium flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+              Cluster-01: Online
+            </span>
+<span class="text-on-surface-variant font-medium flex items-center gap-1.5">
+              Engine: v0.9.4-rc
+            </span>
+<span class="text-on-surface-variant font-medium flex items-center gap-1.5">
+              Latency: 24ms
+            </span>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-3 py-1 bg-surface-container hover:bg-surface-container-high border border-outline-variant rounded text-xs font-label text-primary transition-colors flex items-center gap-1.5" id="retry-fetch-btn" onclick="triggerFetch()">
+<span class="material-symbols-outlined text-sm">refresh</span>
+            Retry Fetch
+          </button>
+<button class="px-3 py-1 bg-surface-container hover:bg-surface-container-high border border-outline-variant rounded text-xs font-label text-on-surface transition-colors">
+            Verify Snapshot
+          </button>
+<button class="px-3.5 py-1 bg-primary text-surface font-headline font-semibold text-xs rounded hover:bg-primary/90 transition-colors">
+            Deploy Override
+          </button>
+<div class="flex items-center gap-2 pl-3 border-l border-outline-variant">
+<button class="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-lg">notifications_active</span>
+</button>
+<button class="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-lg">help_outline</span>
+</button>
+<button class="p-1.5 text-on-surface-variant hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-lg">tune</span>
+</button>
+<div class="w-7 h-7 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center text-xs font-bold text-primary ml-1">
+              LR
+            </div>
+</div>
+</div>
+</div>
+</header>
+<!-- Dashboard Canvas -->
+<main class="flex-1 p-6 space-y-6 bg-surface">
+<!-- Top banner / error banner -->
+<div class="hidden p-4 rounded-lg bg-surface-container border border-outline-variant flex items-center justify-between" id="status-banner">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary" id="banner-icon">info</span>
+<p class="text-xs font-label text-on-surface" id="banner-text"></p>
+</div>
+<span class="text-[10px] font-mono px-2 py-0.5 rounded bg-surface-container-high text-primary" id="banner-badge"></span>
+</div>
+<!-- Engine Status Cards Grid (Bento Style) -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+<!-- Decision Topology Card -->
+<div class="bg-surface-container border border-outline-variant rounded-xl p-5 flex flex-col justify-between space-y-4 hover:border-primary/50 transition-all">
+<div class="flex justify-between items-start">
+<div>
+<p class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Topology</p>
+<h3 class="font-headline font-bold text-base text-on-surface mt-1">Decision Topology</h3>
+</div>
+<div class="p-2 rounded-lg bg-surface-container-high text-primary">
+<span class="material-symbols-outlined">alt_route</span>
+</div>
+</div>
+<div class="space-y-2">
+<div class="space-y-2" id="card-topology-loading">
+<div class="skeleton h-4 w-full rounded"></div>
+<div class="skeleton h-4 w-3/4 rounded"></div>
+</div>
+<div class="hidden space-y-1 font-mono text-xs" id="card-topology-content">
+<div class="flex justify-between text-on-surface-variant"><span>Nodes:</span> <span class="text-primary" id="topo-nodes">-</span></div>
+<div class="flex justify-between text-on-surface-variant"><span>Depth:</span> <span class="text-on-surface" id="topo-depth">-</span></div>
+<div class="flex justify-between text-on-surface-variant"><span>State:</span> <span class="text-primary" id="topo-state">-</span></div>
+</div>
+</div>
+<div class="pt-3 border-t border-outline-variant/50 flex justify-between items-center text-[11px] font-mono text-on-surface-variant">
+<span>Graph Ver: 4.8.2</span>
+<span class="text-primary">Synced</span>
+</div>
+</div>
+<!-- Optimization Engine Card -->
+<div class="bg-surface-container border border-outline-variant rounded-xl p-5 flex flex-col justify-between space-y-4 hover:border-primary/50 transition-all">
+<div class="flex justify-between items-start">
+<div>
+<p class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Optimizer</p>
+<h3 class="font-headline font-bold text-base text-on-surface mt-1">Optimization Engine</h3>
+</div>
+<div class="p-2 rounded-lg bg-surface-container-high text-primary">
+<span class="material-symbols-outlined">model_training</span>
+</div>
+</div>
+<div class="space-y-2">
+<div class="space-y-2" id="card-optimizer-loading">
+<div class="skeleton h-4 w-full rounded"></div>
+<div class="skeleton h-4 w-3/4 rounded"></div>
+</div>
+<div class="hidden space-y-1 font-mono text-xs" id="card-optimizer-content">
+<div class="flex justify-between text-on-surface-variant"><span>Algorithm:</span> <span class="text-primary" id="opt-algo">-</span></div>
+<div class="flex justify-between text-on-surface-variant"><span>Throughput:</span> <span class="text-on-surface" id="opt-throughput">-</span></div>
+<div class="flex justify-between text-on-surface-variant"><span>Convergence:</span> <span class="text-primary" id="opt-conv">-</span></div>
+</div>
+</div>
+<div class="pt-3 border-t border-outline-variant/50 flex justify-between items-center text-[11px] font-mono text-on-surface-variant">
+<span>Mode: Adaptive</span>
+<span class="text-primary">Active</span>
+</div>
+</div>
+<!-- Quantum Simulator Card -->
+<div class="bg-surface-container border border-outline-variant rounded-xl p-5 flex flex-col justify-between space-y-4 hover:border-primary/50 transition-all">
+<div class="flex justify-between items-start">
+<div>
+<p class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Simulator</p>
+<h3 class="font-headline font-bold text-base text-on-surface mt-1">Quantum Simulator</h3>
+</div>
+<div class="p-2 rounded-lg bg-surface-container-high text-primary">
+<span class="material-symbols-outlined">science</span>
+</div>
+</div>
+<div class="space-y-2">
+<div class="space-y-2" id="card-quantum-loading">
+<div class="skeleton h-4 w-full rounded"></div>
+<div class="skeleton h-4 w-3/4 rounded"></div>
+</div>
+<div class="hidden space-y-1 font-mono text-xs" id="card-quantum-content">
+<div class="flex justify-between text-on-surface-variant"><span>Qubits:</span> <span class="text-primary" id="q-qubits">-</span></div>
+<div class="flex justify-between text-on-surface-variant"><span>Coherence:</span> <span class="text-on-surface" id="q-coherence">-</span></div>
+<div class="flex justify-between text-on-surface-variant"><span>Fidelity:</span> <span class="text-primary" id="q-fidelity">-</span></div>
+</div>
+</div>
+<div class="pt-3 border-t border-outline-variant/50 flex justify-between items-center text-[11px] font-mono text-on-surface-variant">
+<span>Backend: QSim-V2</span>
+<span class="text-primary">Stable</span>
+</div>
+</div>
+<!-- SMT Invariant Engine Card -->
+<div class="bg-surface-container border border-outline-variant rounded-xl p-5 flex flex-col justify-between space-y-4 hover:border-primary/50 transition-all">
+<div class="flex justify-between items-start">
+<div>
+<p class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Verifier</p>
+<h3 class="font-headline font-bold text-base text-on-surface mt-1">SMT Invariant Engine</h3>
+</div>
+<div class="p-2 rounded-lg bg-surface-container-high text-primary">
+<span class="material-symbols-outlined">psychology</span>
+</div>
+</div>
+<div class="space-y-2">
+<div class="space-y-2" id="card-smt-loading">
+<div class="skeleton h-4 w-full rounded"></div>
+<div class="skeleton h-4 w-3/4 rounded"></div>
+</div>
+<div class="hidden space-y-1 font-mono text-xs" id="card-smt-content">
+<div class="flex justify-between text-on-surface-variant"><span>Solver:</span> <span class="text-primary" id="smt-solver">-</span></div>
+<div class="flex justify-between text-on-surface-variant"><span>Assertions:</span> <span class="text-on-surface" id="smt-assertions">-</span></div>
+<div class="flex justify-between text-on-surface-variant"><span>Status:</span> <span class="text-primary" id="smt-status">-</span></div>
+</div>
+</div>
+<div class="pt-3 border-t border-outline-variant/50 flex justify-between items-center text-[11px] font-mono text-on-surface-variant">
+<span>Bound: Strict</span>
+<span class="text-primary">Verified</span>
+</div>
+</div>
+</div>
+<!-- Main Operational Monitor & Alerts Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<!-- Alerts List / Evaluation Matrix (2 cols) -->
+<div class="lg:col-span-2 bg-surface-container border border-outline-variant rounded-xl p-6 flex flex-col space-y-4">
+<div class="flex justify-between items-center">
+<div>
+<h3 class="font-headline font-bold text-lg text-on-surface">Evaluation Matrix &amp; Safety Constraints</h3>
+<p class="font-label text-xs text-on-surface-variant mt-0.5">Real-time telemetry and violation checks across live daemon nodes</p>
+</div>
+<div class="flex items-center gap-2">
+<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-mono bg-primary/10 text-primary border border-primary/20">
+                Live Stream
+              </span>
+</div>
+</div>
+<!-- Table Container -->
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant text-[11px] font-label text-on-surface-variant uppercase tracking-wider">
+<th class="py-3 px-4">Rule / Constraint</th>
+<th class="py-3 px-4">Severity</th>
+<th class="py-3 px-4">Daemon Node</th>
+<th class="py-3 px-4">Status</th>
+<th class="py-3 px-4 text-right">Timestamp</th>
+</tr>
+</thead>
+<tbody class="font-mono text-xs divide-y divide-outline-variant/50" id="matrix-tbody">
+<!-- Loading Skeletons -->
+<tr class="matrix-skeleton">
+<td class="py-4 px-4"><div class="skeleton h-4 w-36 rounded"></div></td>
+<td class="py-4 px-4"><div class="skeleton h-4 w-16 rounded"></div></td>
+<td class="py-4 px-4"><div class="skeleton h-4 w-24 rounded"></div></td>
+<td class="py-4 px-4"><div class="skeleton h-4 w-20 rounded"></div></td>
+<td class="py-4 px-4 text-right"><div class="skeleton h-4 w-16 rounded ml-auto"></div></td>
+</tr>
+<tr class="matrix-skeleton">
+<td class="py-4 px-4"><div class="skeleton h-4 w-44 rounded"></div></td>
+<td class="py-4 px-4"><div class="skeleton h-4 w-16 rounded"></div></td>
+<td class="py-4 px-4"><div class="skeleton h-4 w-24 rounded"></div></td>
+<td class="py-4 px-4"><div class="skeleton h-4 w-20 rounded"></div></td>
+<td class="py-4 px-4 text-right"><div class="skeleton h-4 w-16 rounded ml-auto"></div></td>
+</tr>
+<tr class="matrix-skeleton">
+<td class="py-4 px-4"><div class="skeleton h-4 w-32 rounded"></div></td>
+<td class="py-4 px-4"><div class="skeleton h-4 w-16 rounded"></div></td>
+<td class="py-4 px-4"><div class="skeleton h-4 w-24 rounded"></div></td>
+<td class="py-4 px-4"><div class="skeleton h-4 w-20 rounded"></div></td>
+<td class="py-4 px-4 text-right"><div class="skeleton h-4 w-16 rounded ml-auto"></div></td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Terminal Telemetry Logs (1 col) -->
+<div class="bg-surface-container border border-outline-variant rounded-xl p-6 flex flex-col justify-between space-y-4">
+<div class="flex justify-between items-center">
+<h3 class="font-headline font-bold text-lg text-on-surface">Daemon Telemetry</h3>
+<span class="material-symbols-outlined text-primary text-sm">terminal</span>
+</div>
+<div class="bg-surface rounded-lg p-3 font-mono text-[11px] h-64 overflow-y-auto space-y-2 text-on-surface-variant border border-outline-variant/50" id="terminal-logs">
+<div class="text-primary">[00:00:01] RIFT-Daemon initialized v0.9.4-rc</div>
+<div class="text-on-surface-variant">[00:00:02] Establishing secure handshake with SMT engine...</div>
+<div class="text-on-surface-variant">[00:00:03] Fetching daemon health, metadata, and operational monitor...</div>
+<div id="terminal-dynamic-logs"></div>
+</div>
+<div class="pt-2 border-t border-outline-variant flex items-center justify-between text-xs font-label text-on-surface-variant">
+<span>Buffer: 100% stable</span>
+<span class="text-primary flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-primary animate-ping"></span>
+              Streaming
+            </span>
+</div>
+</div>
+</div>
+</main>
+</div>
+<!-- JavaScript for Live Data Fetching & UI State Management -->
+
+  <script src="./live/dashboard.js"></script>
+</body></html>
