@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Navigation no longer flashes the fullscreen loading screen: route chunks preload on idle, later transitions show a slim progress bar (branded screen only at boot)
+- Settings text overflow fixed (long mono values wrap instead of colliding); save button shows a proper Saved state
+- `local start` self-heals stale gated stacks (clears the old dev-default token, regenerates stale compose with backup) and prints the effective auth mode, so 401 walls are never a surprise
 - First-run UX: local stack defaults to open dev mode (no mystery token, no 401 walls); 401s now render a professional AuthRequired state with a direct link to token settings
 - Settings detects open-dev servers and says so instead of showing a useless token form; session state restores across reloads
 - 3D twin performance: no more per-frame React setState across 72 nodes, no unconfigured shadow passes, memoized meshes with stable hover callbacks
