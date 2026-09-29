@@ -244,6 +244,55 @@
   if (document.readyState !== "loading") setupAccountMenu();
   else document.addEventListener("DOMContentLoaded", setupAccountMenu);
 
+  // Collapsible sidebar + entrance stagger (one web polish).
+  // Desktop: hamburger collapses the rail (content goes full width).
+  // Mobile: hamburger slides the rail over as an overlay with a scrim.
+  // Preference persists in localStorage `rift-nav`.
+  function setupNav() {
+    var header = document.querySelector("header");
+    if (!header) return;
+    var btn = document.createElement("button");
+    btn.id = "rift-nav-toggle";
+    btn.setAttribute("aria-label", "Toggle navigation");
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:20px">menu</span>';
+    header.insertBefore(btn, header.firstChild);
+    var scrim = document.createElement("div");
+    scrim.id = "rift-scrim";
+    document.body.appendChild(scrim);
+    scrim.addEventListener("click", function () { document.body.classList.remove("rift-nav-open"); });
+    function isMobile() {
+      return window.matchMedia("(max-width: 767px)").matches;
+    }
+    btn.addEventListener("click", function () {
+      if (isMobile()) {
+        document.body.classList.toggle("rift-nav-open");
+      } else {
+        var collapsed = document.body.classList.toggle("rift-nav-collapsed");
+        try { localStorage.setItem("rift-nav", collapsed ? "collapsed" : "open"); } catch (e) {}
+      }
+    });
+    try {
+      if (localStorage.getItem("rift-nav") === "collapsed" && !isMobile()) {
+        document.body.classList.add("rift-nav-collapsed");
+      }
+    } catch (e) {}
+  }
+  function staggerEntrance() {
+    try {
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      var main = document.querySelector("main");
+      if (!main || main.classList.contains("rift-anim")) return;
+      var kids = main.children;
+      var n = Math.min(kids.length, 12);
+      for (var i = 0; i < n; i++) {
+        kids[i].style.animationDelay = Math.min(i * 60, 500) + "ms";
+      }
+      main.classList.add("rift-anim");
+    } catch (e) {}
+  }
+  if (document.readyState !== "loading") { setupNav(); staggerEntrance(); }
+  else document.addEventListener("DOMContentLoaded", function () { setupNav(); staggerEntrance(); });
+
   window.RIFT = {
     API: API, api: api, get: get, post: post, num: num, esc: esc,
     showAuth: showAuth, hideAuth: hideAuth, sessionInfo: sessionInfo,
