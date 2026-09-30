@@ -70,9 +70,99 @@
     });
   };
 
+  // Notification preferences: persisted; the critical toggle also drives
+  // real browser notifications when alert rules fire (opt-in, permission).
+  var alertTimer = null;
+  var lastFiringSeen = "";
+  function notifPrefs() {
+    try { return JSON.parse(localStorage.getItem("rift-notif-prefs") || "{}"); }
+    catch (e) { return {}; }
+  }
+  function saveNotifPrefs(p) {
+    try { localStorage.setItem("rift-notif-prefs", JSON.stringify(p)); } catch (e) {}
+  }
+  function wireNotifications() {
+    var tab = document.getElementById("tab-content-notifications");
+    if (!tab) return;
+    var boxes = tab.querySelectorAll('input[type="checkbox"]');
+    var prefs = notifPrefs();
+    boxes.forEach(function (box, i) {
+      var key = i === 0 ? "critical" : "digest";
+      if (prefs[key] !== undefined) box.checked = !!prefs[key];
+      box.addEventListener("change", function () {
+        var p = notifPrefs();
+        p[key] = box.checked;
+        saveNotifPrefs(p);
+        if (key === "critical" && box.checked && "Notification" in window) {
+          if (Notification.permission === "default") Notification.requestPermission().catch(function () {});
+          startAlertWatch();
+        }
+        if (key === "critical" && !box.checked && alertTimer) {
+          clearInterval(alertTimer);
+          alertTimer = null;
+        }
+        R.toast(key === "critical" ? "Critical alerts " + (box.checked ? "enabled" : "muted") + "."
+                                   : "Digest preference saved (delivery needs a mail backend).");
+      });
+    });
+    if (prefs.critical) startAlertWatch();
+  }
+  function startAlertWatch() {
+    if (alertTimer) return;
+    if (!("Notification" in window)) return;
+    alertTimer = setInterval(function () {
+      var prefs = notifPrefs();
+      if (!prefs.critical || Notification.permission !== "granted") return;
+      R.get("/api/ops/monitor").then(function (snap) {
+        var firing = (snap.alerts || []).filter(function (a) { return a.firing; });
+        var key = firing.map(function (a) { return a.rule; }).sort().join("|");
+        if (firing.length && key !== lastFiringSeen) {
+          lastFiringSeen = key;
+          try {
+            new Notification("RIFT: " + firing.length + " alert rule(s) firing", {
+              body: firing.map(function (a) { return a.rule; }).join(", "),
+            });
+          } catch (e) {}
+        }
+        if (!firing.length) lastFiringSeen = "";
+      }).catch(function () {});
+    }, 30000);
+  }
+  // Integrations: this build connects to nothing external; say so instead
+  // of showing fabricated "Connected via mTLS" rows.
+  function honestIntegrations() {
+    var tab = document.getElementById("tab-content-integrations");
+    if (!tab || tab.querySelector("[data-rift-int-note]")) return;
+    var grid = tab.querySelector("div.grid");
+    if (!grid) return;
+    grid.innerHTML = "";
+    var note = document.createElement("div");
+    note.setAttribute("data-rift-int-note", "1");
+    note.className = "p-4 rounded-lg bg-surface border border-outline-variant text-xs text-on-surface-variant md:col-span-2";
+    note.textContent = "No external integrations are connected in this build. Webhook and billing providers are server-side environment config, not UI connections.";
+    grid.appendChild(note);
+  }
+  // Purge: keep the real clear-all behavior, replace alert() with a toast.
+  function wirePurge() {
+    Array.prototype.forEach.call(document.querySelectorAll("button"), function (b) {
+      if (/^purge now/i.test((b.textContent || "").trim())) {
+        b.removeAttribute("onclick");
+        b.addEventListener("click", function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          try { localStorage.clear(); } catch (err) {}
+          R.toast("Local cache purged (all browser-stored RIFT data cleared).");
+        }, true);
+      }
+    });
+  }
+  window.riftVerify = function () { window.pollHealth(); };
   document.addEventListener("DOMContentLoaded", function () {
     R.sessionInfo().then(renderSession).catch(function () {});
     injectThemePicker();
+    wireNotifications();
+    honestIntegrations();
+    wirePurge();
   });
 
   // Color-theme picker: the other two Stitch palettes, listed here so the

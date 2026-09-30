@@ -293,9 +293,58 @@
   if (document.readyState !== "loading") { setupNav(); staggerEntrance(); }
   else document.addEventListener("DOMContentLoaded", function () { setupNav(); staggerEntrance(); });
 
+  // Global header chrome: Stitch left icon buttons + Verify/Deploy dead.
+  // bell -> live alerts page, help -> explainability, tune -> settings,
+  // Verify Snapshot -> this screen's live refresh, Deploy Override -> honest
+  // note (no deployment endpoint exists in this build).
+  function riftToast(msg) {
+    var el = document.getElementById("rift-toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "rift-toast";
+      el.style.cssText = "position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:10001;background:#0b1220;border:1px solid #1e293b;color:#e2e8f0;font-size:13px;font-family:Inter,system-ui,sans-serif;border-radius:10px;padding:10px 16px;box-shadow:0 12px 40px rgba(0,0,0,.5);display:none;max-width:88vw;";
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.display = "block";
+    clearTimeout(el._t);
+    el._t = setTimeout(function () { el.style.display = "none"; }, 4200);
+  }
+  function wireHeaderChrome() {
+    var header = document.querySelector("header");
+    if (!header) return;
+    header.querySelectorAll("button").forEach(function (b) {
+      if (b.id === "rift-nav-toggle" || b.id === "rift-avatar" || b._riftWired) return;
+      var label = (b.textContent || "").trim();
+      var icon = b.querySelector(".material-symbols-outlined");
+      var glyph = icon ? icon.textContent.trim() : "";
+      function go(url) {
+        b._riftWired = true;
+        b.addEventListener("click", function () { window.location.href = url; });
+      }
+      if (glyph === "notifications_active" || /alert/i.test(label)) go("./runs.html");
+      else if (glyph === "help_outline") go("./explainability.html");
+      else if (glyph === "tune") go("./settings.html");
+      else if (/^verify snapshot/i.test(label)) {
+        b._riftWired = true;
+        b.addEventListener("click", function () {
+          if (typeof window.riftVerify === "function") window.riftVerify();
+          else window.location.reload();
+        });
+      } else if (/deploy override/i.test(label)) {
+        b._riftWired = true;
+        b.addEventListener("click", function () {
+          riftToast("Deploy skipped: no deployment endpoint in this build (decision support only).");
+        });
+      }
+    });
+  }
+  if (document.readyState !== "loading") wireHeaderChrome();
+  else document.addEventListener("DOMContentLoaded", wireHeaderChrome);
+
   window.RIFT = {
     API: API, api: api, get: get, post: post, num: num, esc: esc,
-    showAuth: showAuth, hideAuth: hideAuth, sessionInfo: sessionInfo,
+    showAuth: showAuth, hideAuth: hideAuth, sessionInfo: sessionInfo, toast: riftToast,
     isAuthError: function (e) { return !!e && e.status === 401; },
   };
 })();

@@ -72,6 +72,15 @@
       if (R.isAuthError(e)) {
         var tb = expTbody();
         if (tb) tb.innerHTML = '<tr><td class="py-2.5 px-3 text-on-surface-variant" colspan="5">Sign in to load experiment templates.</td></tr>';
+        var notice = document.getElementById("auth-notice");
+        if (notice) {
+          notice.style.display = "";
+          notice.querySelectorAll("div,span,p").forEach(function (el) {
+            if (/token expired/i.test(el.textContent) && el.children.length === 0) {
+              el.textContent = "Authentication required (HTTP 401).";
+            }
+          });
+        }
         R.showAuth("experiment templates", loadTemplates);
       }
     });
@@ -149,9 +158,98 @@
     });
   };
 
+  function hideFakePager() {
+    // Static demo pagination ("4 of 42") paginates nothing real.
+    var divs = document.querySelectorAll("div,span,p");
+    for (var i = 0; i < divs.length; i++) {
+      var el = divs[i];
+      if (/^Showing \d+ of \d+/.test(el.textContent.trim()) && el.children.length === 0) {
+        el.style.display = "none";
+      }
+      if (/^(Prev|Next)$/.test(el.textContent.trim()) && el.tagName === "BUTTON") {
+        el.style.display = "none";
+      }
+    }
+  }
+  function wireFilterAndReset() {
+    var input = null;
+    document.querySelectorAll('input[placeholder]').forEach(function (el) {
+      if (/filter experiments/i.test(el.getAttribute("placeholder") || "")) input = el;
+    });
+    if (input) {
+      input.addEventListener("input", function () {
+        var q = input.value.trim().toLowerCase();
+        document.querySelectorAll("tbody tr").forEach(function (tr) {
+          tr.style.display = !q || tr.textContent.toLowerCase().indexOf(q) !== -1 ? "" : "none";
+        });
+      });
+    }
+    Array.prototype.forEach.call(document.querySelectorAll("button"), function (b) {
+      if (/^reset form/i.test((b.textContent || "").trim())) {
+        b.addEventListener("click", function () {
+          document.querySelectorAll("input[type=text],input[type=number]").forEach(function (el) {
+            if (/filter/i.test(el.getAttribute("placeholder") || "")) el.value = "";
+          });
+          var sels = document.querySelectorAll("select");
+          if (sels[0]) sels[0].selectedIndex = 0;
+          if (sels[1]) sels[1].selectedIndex = 0;
+        });
+      }
+      if (/export json/i.test((b.textContent || ""))) {
+        b.addEventListener("click", function () {
+          RIFT.get("/api/experiments/templates").then(function (body) {
+            var blob = new Blob([JSON.stringify(body, null, 2)], { type: "application/json" });
+            var a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "rift-experiment-templates.json";
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+          }).catch(function (e) {
+            if (RIFT.isAuthError(e)) RIFT.showAuth("experiment templates");
+          });
+        });
+      }
+      if (/import json/i.test((b.textContent || ""))) {
+        b.addEventListener("click", function () {
+          var file = document.createElement("input");
+          file.type = "file";
+          file.accept = "application/json";
+          file.addEventListener("change", function () {
+            if (!file.files.length) return;
+            var reader = new FileReader();
+            reader.onload = function () {
+              try {
+                var body = JSON.parse(reader.result);
+                RIFT.sessionInfo().catch(function () { return null; }).then(function (info) {
+                  body.user_id = info && info.user_id ? info.user_id : "stitch-ui";
+                  return RIFT.post("/api/experiments/import", body);
+                }).then(function () {
+                  RIFT.toast("Import accepted; templates reloaded.");
+                  loadTemplates();
+                }).catch(function (e2) {
+                  if (RIFT.isAuthError(e2)) RIFT.showAuth("experiment import");
+                  else RIFT.toast("Import failed: " + (e2.message || ("HTTP " + e2.status)));
+                });
+              } catch (err) {
+                RIFT.toast("Import failed: file is not valid JSON.");
+              }
+            };
+            reader.readAsText(file.files[0]);
+          });
+          file.click();
+        });
+      }
+    });
+  }
+  window.riftVerify = function () { loadTemplates(); loadBenchmarks(); };
   document.addEventListener("DOMContentLoaded", function () {
+    var notice = document.getElementById("auth-notice");
+    if (notice) notice.style.display = "none";
     loadTemplates();
     loadBenchmarks();
+    hideFakePager();
+    wireFilterAndReset();
   });
 })();
 

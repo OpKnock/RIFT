@@ -234,6 +234,7 @@
   };
   window.simulateRetry = function () { poll(true); };
 
+  window.riftVerify = function () { poll(true); };
   document.addEventListener("DOMContentLoaded", function () {
     var input = document.querySelector('input[placeholder="Filter routes..."]');
     if (input) input.addEventListener("input", applyFilter);

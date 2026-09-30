@@ -201,6 +201,7 @@
     R.showAuth("incidents and decisions", function () { refreshAll(); });
   };
 
+  window.riftVerify = function () { refreshAll(); };
   document.addEventListener("DOMContentLoaded", function () {
     hideFakeBanner();
     refreshAll();

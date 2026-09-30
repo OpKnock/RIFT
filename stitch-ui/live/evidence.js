@@ -176,6 +176,10 @@
     });
   };
 
+  window.riftVerify = function () {
+    var s = document.getElementById("day-slider");
+    window.updateReplayState(Number((s || {}).value || 0));
+  };
   document.addEventListener("DOMContentLoaded", function () {
     var slider = document.getElementById("day-slider");
     if (slider) {

@@ -118,15 +118,31 @@
   function apply(name) {
     if (!THEMES[name]) name = "console";
     try { localStorage.setItem(KEY, name); } catch (e) {}
+    var el = document.documentElement;
+    // If this theme's palette is already live, only refresh picker states:
+    // swapping config.theme while the CDN does its initial build silently
+    // kills generation, so never re-mutate for the active theme.
+    if (el.getAttribute("data-rift-theme") === name && window.tailwind && window.tailwind.config) {
+      paintPicks(name);
+      return;
+    }
     try {
-      // Re-assigning tailwind.config makes the Play CDN regenerate
-      // utilities; nudging a class forces its MutationObserver to run.
-      window.tailwind.config = build(name);
-      var el = document.documentElement;
-      el.classList.add("rift-theme-applied");
+      // Mutate the live config object in place (never replace the
+      // reference: the Play CDN snapshots it at init), then nudge the
+      // DOM so its observer rebuilds utilities from the new palette.
+      var built = build(name);
+      if (window.tailwind && window.tailwind.config) {
+        window.tailwind.config.darkMode = built.darkMode;
+        window.tailwind.config.theme = built.theme;
+      } else {
+        window.tailwind.config = built;
+      }
       try { el.style.setProperty("--rift-surface", THEMES[name].colors.surface); } catch (e2) {}
-      void el.offsetWidth;
+      el.setAttribute("data-rift-theme", name);
     } catch (e) {}
+    paintPicks(name);
+  }
+  function paintPicks(name) {
     document.querySelectorAll("[data-theme-pick]").forEach(function (b) {
       var on = b.getAttribute("data-theme-pick") === name;
       b.setAttribute("aria-pressed", on ? "true" : "false");
@@ -144,10 +160,13 @@
 
   // Apply (saved or default) synchronously: this script replaces the old
   // inline tailwind.config block, so timing matches what Stitch had.
+  // The data-rift-theme marker lets apply() skip re-mutation later.
   try {
-    window.tailwind.config = build(currentName());
+    var initial = currentName();
+    window.tailwind.config = build(initial);
     document.documentElement.style.setProperty(
-      "--rift-surface", (THEMES[currentName()] || THEMES.console).colors.surface);
+      "--rift-surface", (THEMES[initial] || THEMES.console).colors.surface);
+    document.documentElement.setAttribute("data-rift-theme", initial);
   } catch (e) {}
   try { document.documentElement.classList.add("dark"); } catch (e) {}
   if (document.readyState !== "loading") {

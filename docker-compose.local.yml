@@ -12,7 +12,7 @@ services:
       # so operator-supplied Supabase/JWT/token settings actually reach
       # the container; literals below are dev-only defaults.
       - RIFT_ENV=development
-      - RIFT_API_TOKEN=${RIFT_API_TOKEN:-dev-token-change-in-production}
+      - RIFT_API_TOKEN=${RIFT_API_TOKEN:-}
       - RIFT_SUPABASE_URL=${RIFT_SUPABASE_URL:-}
       - RIFT_SUPABASE_KEY=${RIFT_SUPABASE_KEY:-}
       - RIFT_SUPABASE_JWT_SECRET=${RIFT_SUPABASE_JWT_SECRET:-}
