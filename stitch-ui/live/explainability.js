@@ -143,6 +143,7 @@
     });
   };
 
+  window.riftVerify = function () { window.location.reload(); };
   document.addEventListener("DOMContentLoaded", function () {
     R.get("/api/twin/demo?t=" + DAY).then(function (twin) {
       hydrateOverview(twin);

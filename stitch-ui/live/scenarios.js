@@ -32,6 +32,7 @@
     if (note) note.textContent = "Not submitted: the engine exposes no scenario-create endpoint. Only the built-in scenario exists (see banner).";
   };
 
+  window.riftVerify = function () { window.location.reload(); };
   document.addEventListener("DOMContentLoaded", function () {
     R.get("/api/meta").then(function (meta) {
       var bounds = ((meta.limits || {}).scenario_bounds) || {};
