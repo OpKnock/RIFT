@@ -300,7 +300,7 @@ start() {
     docker-compose -f "${COMPOSE_FILE}" ps
     success "RIFT local environment started!"
     log "API: http://localhost:8080"
-    log "UI: Stitch project 'RIFT Premium - Counterfactual Decision Intelligence' (connects to this API)"
+    log "UI: http://localhost:8000 (Stitch screens; serve with 'bash ./local ui')"
     log "Prometheus: http://localhost:9090"
     log "Grafana: http://localhost:3000 (admin/admin)"
 }
@@ -316,6 +316,18 @@ stop() {
 restart() {
     stop
     start
+}
+
+# Serve the Stitch UI preview (foreground; Ctrl+C to stop)
+ui() {
+    if [ ! -d "${RIFT_ROOT}/stitch-ui" ]; then
+        error "stitch-ui/ not found in ${RIFT_ROOT}"
+        return 1
+    fi
+    log "Serving Stitch UI at http://localhost:8000 (landing: dashboard)"
+    log "API must allow this origin: RIFT_CORS_ORIGINS must include http://localhost:8000"
+    command -v python3 >/dev/null || { error "python3 not found"; return 1; }
+    python3 -m http.server 8000 --directory "${RIFT_ROOT}/stitch-ui"
 }
 
 # Reset to clean state
@@ -545,6 +557,9 @@ main() {
         restart)
             restart
             ;;
+        ui)
+            ui
+            ;;
         reset)
             reset
             ;;
@@ -585,6 +600,7 @@ Commands:
   start       Start all services (API, Redis, Prometheus, Grafana)
   stop        Stop all services
   restart     Restart all services
+  ui          Serve the Stitch UI at http://localhost:8000 (foreground)
   reset       Reset to clean state (removes volumes, DB, logs, cache)
   health      Run health checks
   test        Run test suite (Python)
