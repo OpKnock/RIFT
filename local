@@ -300,14 +300,64 @@ start() {
     docker-compose -f "${COMPOSE_FILE}" ps
     success "RIFT local environment started!"
     log "API: http://localhost:8080"
-    log "UI: http://localhost:8000 (Stitch screens; serve with 'bash ./local ui')"
+    start_ui_background
+    log "UI: http://localhost:8000 (Stitch screens, served automatically)"
     log "Prometheus: http://localhost:9090"
     log "Grafana: http://localhost:3000 (admin/admin)"
+}
+
+# Serve the Stitch UI preview in the background (one-command start).
+UI_PORT=8000
+UI_PID_FILE="${RIFT_ROOT}/.rift-ui.pid"
+
+start_ui_background() {
+    if [ ! -d "${RIFT_ROOT}/stitch-ui" ]; then
+        warn "stitch-ui/ not found; skipping UI preview"
+        return 0
+    fi
+    # Reap a stale PID file.
+    if [ -f "${UI_PID_FILE}" ]; then
+        local old_pid
+        old_pid=$(cat "${UI_PID_FILE}")
+        if kill -0 "${old_pid}" 2>/dev/null; then
+            log "UI preview already serving at http://localhost:${UI_PORT} (pid ${old_pid})"
+            return 0
+        fi
+        rm -f "${UI_PID_FILE}"
+    fi
+    # Don't fight another server already holding the port.
+    if curl -sf "http://localhost:${UI_PORT}/" >/dev/null 2>&1; then
+        warn "Port ${UI_PORT} already in use; assuming UI preview is up"
+        return 0
+    fi
+    command -v python3 >/dev/null || { warn "python3 not found; skipping UI preview"; return 0; }
+    log "Starting UI preview at http://localhost:${UI_PORT} ..."
+    nohup python3 -m http.server "${UI_PORT}" --directory "${RIFT_ROOT}/stitch-ui" >/dev/null 2>&1 &
+    echo "$!" > "${UI_PID_FILE}"
+    sleep 1
+    if curl -sf "http://localhost:${UI_PORT}/" >/dev/null 2>&1; then
+        success "UI preview serving at http://localhost:${UI_PORT}"
+    else
+        warn "UI preview failed to start (run 'bash ./local ui' to serve it foreground)"
+    fi
+}
+
+stop_ui_background() {
+    if [ -f "${UI_PID_FILE}" ]; then
+        local pid
+        pid=$(cat "${UI_PID_FILE}" 2>/dev/null)
+        if [ -n "${pid}" ] && kill -0 "${pid}" 2>/dev/null; then
+            kill "${pid}" 2>/dev/null || true
+            log "Stopped UI preview (pid ${pid})"
+        fi
+        rm -f "${UI_PID_FILE}"
+    fi
 }
 
 # Stop services
 stop() {
     log "Stopping RIFT local environment..."
+    stop_ui_background
     docker-compose -f "${COMPOSE_FILE}" down
     success "Stopped"
 }
@@ -600,7 +650,7 @@ Commands:
   start       Start all services (API, Redis, Prometheus, Grafana)
   stop        Stop all services
   restart     Restart all services
-  ui          Serve the Stitch UI at http://localhost:8000 (foreground)
+  ui          Serve the Stitch UI at http://localhost:8000 (foreground; start does this automatically)
   reset       Reset to clean state (removes volumes, DB, logs, cache)
   health      Run health checks
   test        Run test suite (Python)
