@@ -9,3 +9,5 @@ venv/
 .pytest_cache/
 # Local durable ledgers (reviews/prospective JSONL) — runtime state, never commit.
 data/*.jsonl
+# Local UI preview server PID (managed by ./local start/stop).
+.rift-ui.pid
