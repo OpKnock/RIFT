@@ -1,0 +1,52 @@
+{
+ "dataset": "Z-Alizadeh Sani Extension",
+ "records": 303,
+ "source_url": "https://archive.ics.uci.edu/static/public/411/extention+of+z+alizadeh+sani+dataset.zip",
+ "source_doi": "https://doi.org/10.24432/C5461K",
+ "retrieved_at": "2026-10-01T13:14:07.647601+00:00",
+ "source_hash": "sha256:e97af1a18733d64fa88caa0628e5fe7ce6b2e26ec4c7ee03baade92a6f1470e8",
+ "license": "UCI ML Repository default terms (research use; see dataset page)",
+ "preprocessing_version": "v1",
+ "feature_schema_version": "v1.2",
+ "targets": {
+  "cad": {
+   "source": "Cath",
+   "positive": "CAD",
+   "description": "CAD if any vessel stenotic"
+  },
+  "lad": {
+   "source": "LAD",
+   "positive": "Stenotic",
+   "description": "LAD stenosis"
+  },
+  "lcx": {
+   "source": "LCX",
+   "positive": "Stenotic",
+   "description": "LCX stenosis"
+  },
+  "rca": {
+   "source": "RCA",
+   "positive": "Stenotic",
+   "description": "RCA stenosis"
+  }
+ },
+ "forbidden_features": [
+  "Cath",
+  "LAD",
+  "LCX",
+  "RCA"
+ ],
+ "split": {
+  "seed": 7,
+  "ratios": {
+   "train": 0.6,
+   "val": 0.2,
+   "test": 0.2
+  },
+  "sizes": {
+   "train": 183,
+   "val": 60,
+   "test": 60
+  }
+ }
+}
