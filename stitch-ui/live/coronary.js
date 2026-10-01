@@ -158,6 +158,29 @@ function probBar(target, label, prob, truth) {
   </div>`;
 }
 
+function whatIfHtml(patient) {
+  const names = { lad: 'LAD', lcx: 'LCX', rca: 'RCA' };
+  return ['lad', 'lcx', 'rca'].map(t => {
+    const flips = (patient.counterfactuals && patient.counterfactuals[t]) || [];
+    const truth = patient.labels[t] ? 'Stenotic' : 'Normal';
+    let body;
+    if (!flips.length) {
+      body = '<div class="text-on-surface-variant">Stable — no single observed-value change flips this prediction.</div>';
+    } else {
+      body = flips.map(f => {
+        const dir = f.corrective
+          ? '<span class="text-green-400">✓ toward truth</span>'
+          : '<span class="text-amber-400">· away from truth</span>';
+        const act = f.actionable ? '' : ' <span class="text-on-surface-variant">(demographic — explanation, not advice)</span>';
+        const fmt = v => (typeof v === 'number' && !Number.isInteger(v) ? v.toFixed(1) : String(v));
+        return `<div class="rounded border border-outline-variant px-2 py-1.5">If <b>${f.feature}</b> were ` +
+          `<b>${fmt(f.to)}</b> (was ${fmt(f.from)}) → P <b>${f.prob_after.toFixed(3)}</b> ${dir}${act}</div>`;
+      }).join('');
+    }
+    return `<div><div class="font-label uppercase tracking-wider text-on-surface-variant mb-1">${names[t]} (truth ${truth})</div>${body}</div>`;
+  }).join('');
+}
+
 function selectPatient(patients, slug) {
   const p = patients.find(x => x.slug === slug) || patients[0];
   buildTree(p);
@@ -176,6 +199,7 @@ function selectPatient(patients, slug) {
     probBar('rca', 'RCA stenosis', pr.rca, p.labels.rca);
   document.getElementById('patient-meta').textContent =
     `Models cad-v1 / lad-, lcx-, rca-stenosis-v1 · dataset ${p.dataset_hash.slice(0, 12)}…`;
+  document.getElementById('whatif-panel').innerHTML = whatIfHtml(p);
   for (const btn of document.querySelectorAll('#patient-switch button')) {
     const active = btn.dataset.slug === p.slug;
     btn.setAttribute('aria-selected', active ? 'true' : 'false');

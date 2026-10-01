@@ -1,0 +1,214 @@
+[
+ {
+  "model_id": "cad-v1",
+  "target": "cad",
+  "task": "Predict coronary artery disease (Cath Normal vs CAD) from 55 clinical predictors.",
+  "intended_use": "Research decision-support prototype: rank and explain stenosis risk for Track A demonstration. Not for diagnosis, triage, or treatment.",
+  "training": {
+   "dataset": "UCI Z-Alizadeh Sani Extension (id 411)",
+   "dataset_hash": "sha256:e97af1a18733d64fa88caa0628e5fe7ce6b2e26ec4c7ee03baade92a6f1470e8",
+   "n_train": 183,
+   "n_val": 60,
+   "n_test": 60,
+   "split_seed": 7,
+   "n_predictors": 55,
+   "feature_schema_version": "v1.2",
+   "leakage": "LAD/LCX/RCA/Cath columns excluded per-target by the firewall; scaler fit on train only."
+  },
+  "algorithm": "logistic_regression",
+  "hyperparameters": {
+   "C": 0.01,
+   "solver": "lbfgs",
+   "max_iter": 2000
+  },
+  "test_metrics": {
+   "accuracy": 0.8666666666666667,
+   "precision": 0.8571428571428571,
+   "recall": 0.9767441860465116,
+   "f1": 0.9130434782608695,
+   "roc_auc": 0.9288645690834474
+  },
+  "confusion": {
+   "tp": 42,
+   "tn": 10,
+   "fp": 7,
+   "fn": 1
+  },
+  "cv_roc_auc": {
+   "mean": 0.8816083916083916,
+   "std": 0.04729956411237627
+  },
+  "calibration": {
+   "method": "isotonic",
+   "test_ece_before": 0.16351582788496868,
+   "test_ece_after": 0.05801986901986905
+  },
+  "top_drivers": [
+   "Typical Chest Pain",
+   "Age",
+   "Tinversion",
+   "HTN",
+   "Atypical"
+  ],
+  "limitations": "Held-out test n=60. Single-center n=303 (Z-Alizadeh Sani Extension), no external validation; research prototype, not a medical device."
+ },
+ {
+  "model_id": "lad-stenosis-v1",
+  "target": "lad",
+  "task": "Predict left anterior descending artery stenosis (Normal vs Stenotic).",
+  "intended_use": "Research decision-support prototype: rank and explain stenosis risk for Track A demonstration. Not for diagnosis, triage, or treatment.",
+  "training": {
+   "dataset": "UCI Z-Alizadeh Sani Extension (id 411)",
+   "dataset_hash": "sha256:e97af1a18733d64fa88caa0628e5fe7ce6b2e26ec4c7ee03baade92a6f1470e8",
+   "n_train": 183,
+   "n_val": 60,
+   "n_test": 60,
+   "split_seed": 7,
+   "n_predictors": 55,
+   "feature_schema_version": "v1.2",
+   "leakage": "LAD/LCX/RCA/Cath columns excluded per-target by the firewall; scaler fit on train only."
+  },
+  "algorithm": "random_forest",
+  "hyperparameters": {
+   "n_estimators": 200,
+   "max_depth": 5,
+   "min_samples_leaf": 5
+  },
+  "test_metrics": {
+   "accuracy": 0.75,
+   "precision": 0.7692307692307693,
+   "recall": 0.8333333333333334,
+   "f1": 0.8,
+   "roc_auc": 0.8622685185185185
+  },
+  "confusion": {
+   "tp": 30,
+   "tn": 15,
+   "fp": 9,
+   "fn": 6
+  },
+  "cv_roc_auc": {
+   "mean": 0.8384054834054833,
+   "std": 0.02046293181747265
+  },
+  "calibration": {
+   "method": "isotonic",
+   "test_ece_before": 0.12517405980567134,
+   "test_ece_after": 0.09841594556188607
+  },
+  "top_drivers": [
+   "Typical Chest Pain",
+   "EF-TTE",
+   "Region RWMA",
+   "Age",
+   "Tinversion"
+  ],
+  "limitations": "Held-out test n=60. Single-center n=303 (Z-Alizadeh Sani Extension), no external validation; research prototype, not a medical device."
+ },
+ {
+  "model_id": "lcx-stenosis-v1",
+  "target": "lcx",
+  "task": "Predict left circumflex artery stenosis (Normal vs Stenotic).",
+  "intended_use": "Research decision-support prototype: rank and explain stenosis risk for Track A demonstration. Not for diagnosis, triage, or treatment.",
+  "training": {
+   "dataset": "UCI Z-Alizadeh Sani Extension (id 411)",
+   "dataset_hash": "sha256:e97af1a18733d64fa88caa0628e5fe7ce6b2e26ec4c7ee03baade92a6f1470e8",
+   "n_train": 183,
+   "n_val": 60,
+   "n_test": 60,
+   "split_seed": 7,
+   "n_predictors": 55,
+   "feature_schema_version": "v1.2",
+   "leakage": "LAD/LCX/RCA/Cath columns excluded per-target by the firewall; scaler fit on train only."
+  },
+  "algorithm": "random_forest",
+  "hyperparameters": {
+   "n_estimators": 200,
+   "max_depth": 5,
+   "min_samples_leaf": 5
+  },
+  "test_metrics": {
+   "accuracy": 0.6333333333333333,
+   "precision": 0.7777777777777778,
+   "recall": 0.25925925925925924,
+   "f1": 0.3888888888888889,
+   "roc_auc": 0.7239057239057238
+  },
+  "confusion": {
+   "tp": 7,
+   "tn": 31,
+   "fp": 2,
+   "fn": 20
+  },
+  "cv_roc_auc": {
+   "mean": 0.7236024844720497,
+   "std": 0.05837639610324889
+  },
+  "calibration": {
+   "method": "isotonic",
+   "test_ece_before": 0.0933117887888676,
+   "test_ece_after": 0.10345678557614295
+  },
+  "top_drivers": [
+   "Age",
+   "Typical Chest Pain",
+   "CR",
+   "TG",
+   "Na"
+  ],
+  "limitations": "Low recall (0.259): the model finds a minority of LCX stenotics \u2014 a negative LCX prediction does NOT rule out LCX disease. Single-center n=303 (Z-Alizadeh Sani Extension), no external validation; research prototype, not a medical device."
+ },
+ {
+  "model_id": "rca-stenosis-v1",
+  "target": "rca",
+  "task": "Predict right coronary artery stenosis (Normal vs Stenotic).",
+  "intended_use": "Research decision-support prototype: rank and explain stenosis risk for Track A demonstration. Not for diagnosis, triage, or treatment.",
+  "training": {
+   "dataset": "UCI Z-Alizadeh Sani Extension (id 411)",
+   "dataset_hash": "sha256:e97af1a18733d64fa88caa0628e5fe7ce6b2e26ec4c7ee03baade92a6f1470e8",
+   "n_train": 183,
+   "n_val": 60,
+   "n_test": 60,
+   "split_seed": 7,
+   "n_predictors": 55,
+   "feature_schema_version": "v1.2",
+   "leakage": "LAD/LCX/RCA/Cath columns excluded per-target by the firewall; scaler fit on train only."
+  },
+  "algorithm": "logistic_regression",
+  "hyperparameters": {
+   "C": 1.0,
+   "solver": "lbfgs",
+   "max_iter": 2000
+  },
+  "test_metrics": {
+   "accuracy": 0.5833333333333334,
+   "precision": 0.29411764705882354,
+   "recall": 0.2777777777777778,
+   "f1": 0.28571428571428575,
+   "roc_auc": 0.593915343915344
+  },
+  "confusion": {
+   "tp": 5,
+   "tn": 30,
+   "fp": 12,
+   "fn": 13
+  },
+  "cv_roc_auc": {
+   "mean": 0.6407792207792207,
+   "std": 0.0886312231250171
+  },
+  "calibration": {
+   "method": "isotonic",
+   "test_ece_before": 0.21908519448022748,
+   "test_ece_after": 0.12665664928065443
+  },
+  "top_drivers": [
+   "Function Class",
+   "Atypical",
+   "Q Wave",
+   "CRF",
+   "Systolic Murmur"
+  ],
+  "limitations": "Near-chance discrimination (test AUC 0.594, CV 0.641\u00b10.089): RCA predictions are NOT decision-grade and are shown for completeness only. Single-center n=303 (Z-Alizadeh Sani Extension), no external validation; research prototype, not a medical device."
+ }
+]

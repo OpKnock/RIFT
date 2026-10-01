@@ -128,10 +128,33 @@ function renderFeatures(expl) {
   }
 }
 
+function renderCards(cards) {
+  const grid = document.getElementById('cards-grid');
+  const weak = { lcx: true, rca: true };
+  for (const c of cards) {
+    const div = document.createElement('div');
+    div.className = 'rounded-lg border px-4 py-3 ' + (weak[c.target]
+      ? 'border-amber-500/50 bg-amber-500/5' : 'border-outline-variant');
+    div.innerHTML =
+      `<div class="flex items-baseline gap-2 mb-1">` +
+      `<h3 class="font-headline text-sm font-bold">${c.target.toUpperCase()}${weak[c.target] ? ' ⚠' : ''}</h3>` +
+      `<span class="font-mono text-xs text-on-surface-variant">${c.model_id} · ${c.algorithm.replace(/_/g, ' ')}</span></div>` +
+      `<p class="text-xs mb-2">${c.task}</p>` +
+      `<p class="text-xs mb-2"><span class="font-label uppercase tracking-wider text-on-surface-variant">Use: </span>${c.intended_use}</p>` +
+      `<p class="text-xs mb-2"><span class="font-label uppercase tracking-wider text-on-surface-variant">Test: </span>` +
+      `AUC ${cell(c.test_metrics.roc_auc)} · F1 ${cell(c.test_metrics.f1)} · ` +
+      `recall ${cell(c.test_metrics.recall)} · CV ${cell(c.cv_roc_auc.mean)}±${cell(c.cv_roc_auc.std)} · ` +
+      `ECE ${cell(c.calibration.test_ece_before)}→${cell(c.calibration.test_ece_after)} (${c.calibration.method})</p>` +
+      `<p class="text-xs mb-2"><span class="font-label uppercase tracking-wider text-on-surface-variant">Top drivers: </span>${c.top_drivers.join(' · ')}</p>` +
+      `<p class="text-xs rounded bg-surface-container-high px-2 py-1.5"><span class="font-label uppercase tracking-wider">Limits: </span>${c.limitations}</p>`;
+    grid.appendChild(div);
+  }
+}
+
 async function main() {
   try {
-    const [report, calib, expl] = await Promise.all(
-      ['report.json', 'calibration.json', 'explainability.json'].map(async f => {
+    const [report, calib, expl, cards] = await Promise.all(
+      ['report.json', 'calibration.json', 'explainability.json', 'model_cards.json'].map(async f => {
         const res = await fetch(BASE + f);
         if (!res.ok) throw new Error(f + ': HTTP ' + res.status);
         return res.json();
@@ -139,6 +162,7 @@ async function main() {
     renderMetrics(report);
     renderCalibration(calib);
     renderFeatures(expl);
+    renderCards(cards);
     document.getElementById('manifest-line').textContent =
       `Dataset sha256 ${report.dataset_hash.slice(0, 16)}… · feature schema ${report.feature_schema_version} · ` +
       `split seed 7 (183/60/60) · 55 predictors · protocol: ${report.protocol}`;
