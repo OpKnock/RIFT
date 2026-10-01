@@ -22,7 +22,12 @@ def test_records_complete_and_versions_pinned():
         assert record["feature_schema_version"] == schemas.FEATURE_SCHEMA_VERSION
         assert record["preprocessing_version"] == schemas.PREPROCESSING_VERSION
         assert record["split_seed"] == 7
-        assert record["calibration"] is None  # Phase 6 fills this
+        cal = record["calibration"]  # Phase 6 fills this
+        assert cal["method"] in ("sigmoid", "isotonic")
+        for key in ("oof_ece_before", "oof_ece_after", "oof_brier_before",
+                    "oof_brier_after", "test_ece_before", "test_ece_after",
+                    "test_brier_before", "test_brier_after"):
+            assert isinstance(cal[key], float)
         leakage.assert_no_leakage(record["features"])
         assert len(record["features"]) == 59
 

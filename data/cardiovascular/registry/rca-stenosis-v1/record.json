@@ -83,5 +83,15 @@
   "VHD=Moderate",
   "VHD=Severe"
  ],
- "calibration": null
+ "calibration": {
+  "method": "isotonic",
+  "oof_ece_before": 0.17702880740877847,
+  "oof_ece_after": 8.155341971011952e-17,
+  "oof_brier_before": 0.2479500188834964,
+  "oof_brier_after": 0.2012023831451276,
+  "test_ece_before": 0.21908519448022748,
+  "test_ece_after": 0.12665664928065443,
+  "test_brier_before": 0.2505572528082764,
+  "test_brier_after": 0.20235741087440942
+ }
 }
