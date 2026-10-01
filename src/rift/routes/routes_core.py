@@ -175,7 +175,7 @@ def get_api_meta(h, request_id, timer, path, query):
         "quantum_backend_detail": qb,
         "capabilities": ["demo", "twin", "experiments", "runs",
                          "operations", "explainability", "intelligence",
-                         "billing", "guardian", "events"],
+                         "billing", "guardian", "events", "cardio"],
         "optimizers": ["exact", "qaoa-expectation", "qaoa-cvar"],
         "backends": ["statevector-simulator"],
         "accelerator": accelerator_report(),

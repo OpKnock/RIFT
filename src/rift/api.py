@@ -57,7 +57,7 @@ from .supabase_store import SupabaseStore
 from .uncertainty import normalized_risk_entropy
 from .verifier import verify_under_perturbations
 
-from .routes import routes_auth, routes_billing, routes_core, routes_experiments, routes_operations, routes_twin
+from .routes import routes_auth, routes_billing, routes_cardio, routes_core, routes_experiments, routes_operations, routes_twin
 from .routes.support import PERTURBATIONS, POLICY_VARIABLES, _ClientGone, _SEEN_WEBHOOK_KEYS, _apply_subscription_update, _bounded_float, _cors_allowed_origins, _cors_headers, _is_not_found_error, _is_valid_uuid, _mirror_experiment_to_archive, _mirror_run_to_archive, _publish_event, _remember_webhook_key, _resolve_experiment, _resolve_run, _run_from_row, _seen_webhook_key, _spec_from_experiment_row, configured_scenario, scenario_payload
 
 
@@ -302,6 +302,15 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/intelligence/status":
             if routes_twin.get_api_intelligence_status(self, request_id, timer, path, query):
                 return
+        if path == "/api/cardio/models":
+            if routes_cardio.get_api_cardio_models(self, request_id, timer, path, query):
+                return
+        if path == "/api/cardio/report":
+            if routes_cardio.get_api_cardio_report(self, request_id, timer, path, query):
+                return
+        if path == "/api/cardio/model-cards":
+            if routes_cardio.get_api_cardio_model_cards(self, request_id, timer, path, query):
+                return
         if path == "/api/twin/evidence":
             if routes_twin.get_api_twin_evidence(self, request_id, timer, path, query):
                 return
@@ -414,6 +423,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
         if path == "/api/experiments/scheduler/jobs":
             if routes_experiments.post_api_experiments_scheduler_jobs(self, request_id, timer, path, query):
+                return
+        if path == "/api/cardio/predict":
+            if routes_cardio.post_api_cardio_predict(self, request_id, timer, path, query):
                 return
         self._send(404, json.dumps({"error": "not found"}), request_id=request_id)
         self._finish(timer, request_id, "POST", path, 404, "not_found")

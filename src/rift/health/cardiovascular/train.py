@@ -75,7 +75,8 @@ def train_target(target: str) -> dict:
     # Scaler fit on TRAIN only; val transformed with train params.
     x_train, scaler = preprocessing.prepare_matrices(train_raw)
     x_val, _ = preprocessing.prepare_matrices(val_raw, scaler)
-    assert list(x_train.columns) == features
+    if list(x_train.columns) != features:
+        raise ValueError("feature order drift between encoder and registry")
     columns_for_target(train_raw, target)  # firewall on the real input frame
 
     best = None

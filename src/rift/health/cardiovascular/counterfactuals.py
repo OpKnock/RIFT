@@ -16,7 +16,6 @@ One command: ``python -m rift.health.cardiovascular.counterfactuals``
 from __future__ import annotations
 
 import json
-import pickle
 
 from . import calibration, evaluate, preprocessing, registry, schemas, targets
 from .leakage import columns_for_target
@@ -51,10 +50,12 @@ def candidate_values(train) -> dict:
 
 
 def _loaded(model_id: str):
-    estimator, record = registry.load_model(model_id)
+    estimator, _ = registry.load_model(model_id)
     scaler = registry.load_scaler(model_id)
-    path = registry.REGISTRY_DIR / model_id / "calibrator.pkl"
-    calibrator = pickle.loads(path.read_bytes()) if path.exists() else None
+    try:
+        calibrator = registry.load_calibrator(model_id)
+    except ValueError:
+        calibrator = None
     return estimator, scaler, calibrator
 
 

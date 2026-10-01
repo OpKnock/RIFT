@@ -85,6 +85,7 @@
  ],
  "calibration": {
   "method": "isotonic",
+  "calibrator_hash": "sha256:667c6e5307b24101b944cdbec47ef12a01276ad28277e30303c783172e8f1bc3",
   "oof_ece_before": 0.0907934467044272,
   "oof_ece_after": 4.249001699182698e-17,
   "oof_brier_before": 0.20165484787991556,
