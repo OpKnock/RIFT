@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RIFT Track A — Evaluation Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<script src="./theme.js"></script>
+<link rel="stylesheet" href="./polish.css" />
+</head>
+<body class="bg-surface text-on-surface font-body antialiased min-h-screen">
+<div class="max-w-7xl mx-auto px-6 py-6">
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <a class="text-xs font-label text-primary hover:underline" href="./dashboard.html">← RIFT Dashboard</a>
+    <a class="text-xs font-label text-primary hover:underline" href="./coronary.html">3D coronary viewer →</a>
+    <span class="ml-auto font-headline text-sm font-bold uppercase tracking-wider">Track A · Evaluation dashboard</span>
+  </div>
+
+  <div class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 mb-4 text-xs font-label">
+    Research prototype; not a medical device. Held-out test n=60 per target, scored once. Weak spots are shown,
+    not hidden: LCX recall 0.259, RCA AUC 0.594. Numbers load live from the committed JSON reports below.
+  </div>
+
+  <div id="cardio-error" class="hidden rounded-lg border border-red-500/50 bg-red-500/10 px-4 py-3 text-xs mb-4"></div>
+
+  <section class="rounded-xl border border-outline-variant p-5 mb-4">
+    <h2 class="font-headline text-base font-bold mb-1">Held-out test metrics + 5-fold CV stability</h2>
+    <p class="text-xs text-on-surface-variant mb-3" id="protocol-line">—</p>
+    <div class="overflow-x-auto"><table class="w-full text-xs" id="metrics-table"></table></div>
+  </section>
+
+  <section class="rounded-xl border border-outline-variant p-5 mb-4">
+    <h2 class="font-headline text-base font-bold mb-1">Calibration (isotonic, OOF-fit)</h2>
+    <p class="text-xs text-on-surface-variant mb-3">ECE = expected calibration error, 10 bins. OOF rows are fit-set
+    (optimistic by construction); test rows are the evidence. LCX calibration did not help — reported as-is.</p>
+    <div class="overflow-x-auto"><table class="w-full text-xs" id="calib-table"></table></div>
+    <div class="mt-4">
+      <div class="flex items-center gap-2 mb-2 text-xs">
+        <span class="font-label uppercase tracking-wider text-on-surface-variant">Reliability curve:</span>
+        <span id="rel-switch" class="flex gap-1"></span>
+        <span class="text-on-surface-variant ml-2">diagonal = perfect · dots = calibrated · crosses = raw</span>
+      </div>
+      <canvas id="rel-canvas" width="640" height="300" class="w-full max-w-2xl rounded-lg border border-outline-variant bg-[#0b1220]"></canvas>
+    </div>
+  </section>
+
+  <section class="rounded-xl border border-outline-variant p-5 mb-4">
+    <h2 class="font-headline text-base font-bold mb-1">What drives each model (permutation AUC-drop, top 10)</h2>
+    <p class="text-xs text-on-surface-variant mb-3">Explanation-only on the held-out test; tunes nothing.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4" id="feat-grid"></div>
+  </section>
+
+  <section class="rounded-xl border border-outline-variant p-5 text-xs text-on-surface-variant" id="manifest-line"></section>
+</div>
+<script src="./live/cardio-dashboard.js"></script>
+</body></html>

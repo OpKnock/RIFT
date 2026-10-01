@@ -1,0 +1,101 @@
+[
+ {
+  "slug": "classic-positive",
+  "test_row": 4,
+  "labels": {
+   "cad": 1,
+   "lad": 1,
+   "lcx": 0,
+   "rca": 0
+  },
+  "display": {
+   "Age": 65,
+   "Sex": "Male",
+   "Typical Chest Pain": 1,
+   "Atypical": "N",
+   "Nonanginal": "N",
+   "HTN": 0,
+   "FH": 0,
+   "EF-TTE": 45,
+   "Region RWMA": 3,
+   "Tinversion": 1,
+   "St Depression": 0,
+   "FBS": 90,
+   "TG": 140,
+   "LDL": 107
+  },
+  "calibrated_probabilities": {
+   "cad": 1.0,
+   "lad": 0.9310344827586207,
+   "lcx": 0.6428571428571429,
+   "rca": 0.40540540540540543
+  },
+  "dataset_hash": "sha256:e97af1a18733d64fa88caa0628e5fe7ce6b2e26ec4c7ee03baade92a6f1470e8"
+ },
+ {
+  "slug": "clear-negative",
+  "test_row": 2,
+  "labels": {
+   "cad": 0,
+   "lad": 0,
+   "lcx": 0,
+   "rca": 0
+  },
+  "display": {
+   "Age": 58,
+   "Sex": "Fmale",
+   "Typical Chest Pain": 0,
+   "Atypical": "N",
+   "Nonanginal": "Y",
+   "HTN": 0,
+   "FH": 0,
+   "EF-TTE": 50,
+   "Region RWMA": 0,
+   "Tinversion": 0,
+   "St Depression": 0,
+   "FBS": 69,
+   "TG": 79,
+   "LDL": 90
+  },
+  "calibrated_probabilities": {
+   "cad": 0.0,
+   "lad": 0.14,
+   "lcx": 0.10526315789473684,
+   "rca": 0.0
+  },
+  "dataset_hash": "sha256:e97af1a18733d64fa88caa0628e5fe7ce6b2e26ec4c7ee03baade92a6f1470e8"
+ },
+ {
+  "slug": "discordant",
+  "test_row": 32,
+  "labels": {
+   "cad": 1,
+   "lad": 1,
+   "lcx": 1,
+   "rca": 0
+  },
+  "display": {
+   "Age": 53,
+   "Sex": "Fmale",
+   "Typical Chest Pain": 0,
+   "Atypical": "N",
+   "Nonanginal": "Y",
+   "HTN": 1,
+   "FH": 0,
+   "EF-TTE": 50,
+   "Region RWMA": 0,
+   "Tinversion": 1,
+   "St Depression": 1,
+   "FBS": 79,
+   "TG": 85,
+   "LDL": 110
+  },
+  "calibrated_probabilities": {
+   "cad": 0.125,
+   "lad": 0.14,
+   "lcx": 0.10526315789473684,
+   "rca": 0.0
+  },
+  "dataset_hash": "sha256:e97af1a18733d64fa88caa0628e5fe7ce6b2e26ec4c7ee03baade92a6f1470e8"
+ }
+]

@@ -1,0 +1,155 @@
+{
+ "protocol": "stratified split seed 7 (train 183/val 60/test 60); algorithm selected on val ROC-AUC; winner refit on train+val; held-out test scored once; 5-fold stratified CV on train for stability",
+ "dataset_hash": "sha256:e97af1a18733d64fa88caa0628e5fe7ce6b2e26ec4c7ee03baade92a6f1470e8",
+ "feature_schema_version": "v1.2",
+ "targets": {
+  "cad": {
+   "model_id": "cad-v1",
+   "test": {
+    "n": 60,
+    "threshold": 0.5,
+    "accuracy": 0.8666666666666667,
+    "precision": 0.8571428571428571,
+    "recall": 0.9767441860465116,
+    "f1": 0.9130434782608695,
+    "roc_auc": 0.9288645690834474,
+    "confusion": {
+     "tp": 42,
+     "tn": 10,
+     "fp": 7,
+     "fn": 1
+    },
+    "model_id": "cad-v1",
+    "target": "cad"
+   },
+   "cv_train": {
+    "target": "cad",
+    "model_id": "cad-v1",
+    "folds": 5,
+    "seed": 7,
+    "roc_auc_mean": 0.8816083916083916,
+    "roc_auc_std": 0.04729956411237627,
+    "f1_mean": 0.8527473954709489,
+    "f1_std": 0.03165259546687278,
+    "roc_auc_folds": [
+     0.8706293706293706,
+     0.9160839160839161,
+     0.8251748251748252,
+     0.8538461538461538,
+     0.9423076923076923
+    ]
+   }
+  },
+  "lad": {
+   "model_id": "lad-stenosis-v1",
+   "test": {
+    "n": 60,
+    "threshold": 0.5,
+    "accuracy": 0.75,
+    "precision": 0.7692307692307693,
+    "recall": 0.8333333333333334,
+    "f1": 0.8,
+    "roc_auc": 0.8622685185185185,
+    "confusion": {
+     "tp": 30,
+     "tn": 15,
+     "fp": 9,
+     "fn": 6
+    },
+    "model_id": "lad-stenosis-v1",
+    "target": "lad"
+   },
+   "cv_train": {
+    "target": "lad",
+    "model_id": "lad-stenosis-v1",
+    "folds": 5,
+    "seed": 7,
+    "roc_auc_mean": 0.8384054834054833,
+    "roc_auc_std": 0.02046293181747265,
+    "f1_mean": 0.8109808818994757,
+    "f1_std": 0.03547928593442617,
+    "roc_auc_folds": [
+     0.8424242424242424,
+     0.8065476190476191,
+     0.8541666666666666,
+     0.8571428571428571,
+     0.8317460317460317
+    ]
+   }
+  },
+  "lcx": {
+   "model_id": "lcx-stenosis-v1",
+   "test": {
+    "n": 60,
+    "threshold": 0.5,
+    "accuracy": 0.6333333333333333,
+    "precision": 0.7777777777777778,
+    "recall": 0.25925925925925924,
+    "f1": 0.3888888888888889,
+    "roc_auc": 0.7239057239057238,
+    "confusion": {
+     "tp": 7,
+     "tn": 31,
+     "fp": 2,
+     "fn": 20
+    },
+    "model_id": "lcx-stenosis-v1",
+    "target": "lcx"
+   },
+   "cv_train": {
+    "target": "lcx",
+    "model_id": "lcx-stenosis-v1",
+    "folds": 5,
+    "seed": 7,
+    "roc_auc_mean": 0.7236024844720497,
+    "roc_auc_std": 0.05837639610324889,
+    "f1_mean": 0.4402329935510713,
+    "f1_std": 0.15057907339346566,
+    "roc_auc_folds": [
+     0.7204968944099379,
+     0.7857142857142857,
+     0.7546583850931676,
+     0.6298701298701298,
+     0.7272727272727273
+    ]
+   }
+  },
+  "rca": {
+   "model_id": "rca-stenosis-v1",
+   "test": {
+    "n": 60,
+    "threshold": 0.5,
+    "accuracy": 0.5833333333333334,
+    "precision": 0.29411764705882354,
+    "recall": 0.2777777777777778,
+    "f1": 0.28571428571428575,
+    "roc_auc": 0.593915343915344,
+    "confusion": {
+     "tp": 5,
+     "tn": 30,
+     "fp": 12,
+     "fn": 13
+    },
+    "model_id": "rca-stenosis-v1",
+    "target": "rca"
+   },
+   "cv_train": {
+    "target": "rca",
+    "model_id": "rca-stenosis-v1",
+    "folds": 5,
+    "seed": 7,
+    "roc_auc_mean": 0.6407792207792207,
+    "roc_auc_std": 0.0886312231250171,
+    "f1_mean": 0.46983004224383534,
+    "f1_std": 0.12704757131992375,
+    "roc_auc_folds": [
+     0.5969696969696969,
+     0.5212121212121212,
+     0.7545454545454545,
+     0.6883116883116882,
+     0.6428571428571429
+    ]
+   }
+  }
+ }
+}
