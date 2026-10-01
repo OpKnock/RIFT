@@ -165,6 +165,13 @@ def prepare() -> dict:
         "feature_schema_version": schemas.FEATURE_SCHEMA_VERSION,
         "targets": schemas.TARGETS,
         "forbidden_features": sorted(schemas.FORBIDDEN_FEATURES),
+        "data_notes": [
+            "Second workbook sheet 'Sheet1' is an empty 100-column template; ignored.",
+            "Cath=CAD coincides with any-vessel-stenotic in 302/303 rows; one row has "
+            "LAD=Stenotic yet Cath=Normal (angiography judgment, kept verbatim).",
+            "'Exertional CP' is constant 'N' across all rows; excluded from features.",
+            "'Sex' level 'Fmale' is the dataset's verbatim spelling, kept as-is.",
+        ],
         "split": {"seed": SPLIT_SEED, "ratios": SPLIT_RATIOS,
                   "sizes": {k: len(v) for k, v in split.items()}},
     }
