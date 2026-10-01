@@ -54,10 +54,15 @@
         if (/Parameters Configured/.test(s.textContent)) {
           s.textContent = names.length + " Parameters Configured";
         }
-        if (/MESH_ID/.test(s.textContent) || (/SMART-BUILDING-EMERGENCY \/\//.test(s.textContent))) {
-          s.textContent = "SMART-BUILDING-EMERGENCY // ENGINE v" +
-            String(meta.engine_version || "?").replace(/^v/, "");
-        }
+      });
+      // Honest labels anywhere in the page (mesh id / schema version are
+      // Stitch fiction; the engine reports only its own version).
+      var ver = "v" + String(meta.engine_version || "?").replace(/^v/, "");
+      document.querySelectorAll("p,span,div").forEach(function (el) {
+        if (el.children.length !== 0) return;
+        var txt = el.textContent;
+        if (/MESH_ID/.test(txt)) el.textContent = "SMART-BUILDING-EMERGENCY // ENGINE " + ver;
+        else if (/^v2\.4\.1$/.test(txt.trim())) el.textContent = "engine " + ver;
       });
       // Optimizer list.
       var opts = meta.optimizers || [];

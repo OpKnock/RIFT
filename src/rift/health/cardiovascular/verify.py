@@ -85,7 +85,16 @@ def _c_pages():
              "coronary.html missing what-if panel")
     _require("model_cards.json" in (ui / "live" / "cardio-dashboard.js").read_text(encoding="utf-8"),
              "dashboard not wired to model cards")
-    return True, "coronary.html + cardio-dashboard.html wired"
+    pages = ["dashboard", "scenarios", "simulation", "runs", "experiments",
+             "evidence", "incidents", "explainability", "settings",
+             "coronary", "cardio-dashboard"]
+    for page in pages:
+        html = (ui / (page + ".html")).read_text(encoding="utf-8")
+        _require('href="./coronary.html"' in html and 'href="./cardio-dashboard.html"' in html,
+                 "Track A missing from %s nav" % page)
+        _require(html.count("border-l-2 border-primary") == 1,
+                 "nav active marker broken on %s" % page)
+    return True, "coronary.html + cardio-dashboard.html wired; Track A in 11/11 navs"
 
 
 @check("API smoke: models/report/cards/predict+safety")
