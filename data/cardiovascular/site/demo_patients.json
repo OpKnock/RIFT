@@ -30,6 +30,54 @@
    "lcx": 0.6428571428571429,
    "rca": 0.40540540540540543
   },
+  "counterfactuals": {
+   "cad": [],
+   "lad": [],
+   "lcx": [
+    {
+     "feature": "Age",
+     "from": 65,
+     "to": 51.0,
+     "prob_before": 0.6428571428571429,
+     "prob_after": 0.391304347826087,
+     "corrective": true,
+     "actionable": false,
+     "std_distance": 14.0
+    }
+   ],
+   "rca": [
+    {
+     "feature": "DM",
+     "from": 0,
+     "to": 1,
+     "prob_before": 0.40540540540540543,
+     "prob_after": 0.558139534883721,
+     "corrective": false,
+     "actionable": true,
+     "std_distance": 1.0
+    },
+    {
+     "feature": "CVA",
+     "from": "N",
+     "to": "Y",
+     "prob_before": 0.40540540540540543,
+     "prob_after": 0.558139534883721,
+     "corrective": false,
+     "actionable": true,
+     "std_distance": 1.0
+    },
+    {
+     "feature": "Poor R Progression",
+     "from": "N",
+     "to": "Y",
+     "prob_before": 0.40540540540540543,
+     "prob_after": 0.558139534883721,
+     "corrective": false,
+     "actionable": true,
+     "std_distance": 1.0
+    }
+   ]
+  },
   "dataset_hash": "sha256:e97af1a18733d64fa88caa0628e5fe7ce6b2e26ec4c7ee03baade92a6f1470e8"
  },
  {
@@ -63,6 +111,12 @@
    "lcx": 0.10526315789473684,
    "rca": 0.0
   },
+  "counterfactuals": {
+   "cad": [],
+   "lad": [],
+   "lcx": [],
+   "rca": []
+  },
   "dataset_hash": "sha256:e97af1a18733d64fa88caa0628e5fe7ce6b2e26ec4c7ee03baade92a6f1470e8"
  },
  {
@@ -95,6 +149,23 @@
    "lad": 0.14,
    "lcx": 0.10526315789473684,
    "rca": 0.0
+  },
+  "counterfactuals": {
+   "cad": [],
+   "lad": [
+    {
+     "feature": "Typical Chest Pain",
+     "from": 0,
+     "to": 1,
+     "prob_before": 0.14,
+     "prob_after": 0.6153846153846153,
+     "corrective": true,
+     "actionable": true,
+     "std_distance": 1.0
+    }
+   ],
+   "lcx": [],
+   "rca": []
   },
   "dataset_hash": "sha256:e97af1a18733d64fa88caa0628e5fe7ce6b2e26ec4c7ee03baade92a6f1470e8"
  }

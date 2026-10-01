@@ -1,10 +1,11 @@
-"""Track-A site data (Phases 8-10): demo patients + JSON copies for the UI.
+"""Track-A site data (Phases 8-10, 12-13): demo patients + UI mirrors.
 
 Generates ``data/cardiovascular/site/demo_patients.json`` (three fixed
-test-split patients with calibrated probabilities) and mirrors it plus
-the evaluation reports into ``stitch-ui/live/cardio/`` so the static
-``:8000`` preview can fetch them with relative paths. Re-running is
-byte-deterministic; a test pins the mirror copies to the sources.
+test-split patients with calibrated probabilities AND top-3
+counterfactual flips per target) plus ``model_cards.json``, and mirrors
+them with the evaluation reports into ``stitch-ui/live/cardio/`` so the
+static ``:8000`` preview can fetch them with relative paths. Re-running
+is byte-deterministic; tests pin the mirrors to the sources.
 
 One command: ``python -m rift.health.cardiovascular.cardio_site_data``
 """
@@ -14,7 +15,7 @@ import json
 import shutil
 from pathlib import Path
 
-from . import calibration, evaluate, registry, schemas, targets
+from . import calibration, counterfactuals, evaluate, model_cards, registry, schemas, targets
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DATA_DIR = REPO_ROOT / "data" / "cardiovascular"
@@ -50,10 +51,15 @@ def build_demo_patients() -> list:
     for slug, idx in picks.items():
         row = frame.iloc[idx]
         probs = {}
+        flips = {}
         for target in ("cad", "lad", "lcx", "rca"):
             probs[target] = float(
                 calibration.predict_calibrated(registry.MODEL_IDS[target],
                                                frame.iloc[[idx]])[0])
+            label = int(targets.read_labels(frame.iloc[[idx]], target).iloc[0])
+            flips[target] = counterfactuals.counterfactuals_for(
+                registry.MODEL_IDS[target], frame.iloc[[idx]], label,
+                top_k=3)["counterfactuals"]
         patients.append({
             "slug": slug,
             "test_row": int(idx),
@@ -61,6 +67,7 @@ def build_demo_patients() -> list:
                        for t in ("cad", "lad", "lcx", "rca")},
             "display": {f: _jsonable(row[f]) for f in DISPLAY_FIELDS},
             "calibrated_probabilities": probs,
+            "counterfactuals": flips,
             "dataset_hash": manifest["source_hash"],
         })
     return patients
@@ -76,13 +83,15 @@ def _jsonable(value):
 
 
 def sync_site_data() -> dict:
-    """Write demo patients + mirror reports into the static UI directory."""
+    """Write demo patients + model cards; mirror reports into the static UI."""
     SITE_DIR.mkdir(parents=True, exist_ok=True)
     UI_DATA_DIR.mkdir(parents=True, exist_ok=True)
     patients = build_demo_patients()
     (SITE_DIR / "demo_patients.json").write_text(
         json.dumps(patients, indent=1), encoding="utf-8")
+    model_cards.write_cards()
     mirrored = {"demo_patients.json": SITE_DIR / "demo_patients.json",
+                "model_cards.json": SITE_DIR / "model_cards.json",
                 "report.json": evaluate.EVAL_DIR / "report.json",
                 "calibration.json": evaluate.EVAL_DIR / "calibration.json",
                 "explainability.json": evaluate.EVAL_DIR / "explainability.json"}
