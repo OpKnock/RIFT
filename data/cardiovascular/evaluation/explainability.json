@@ -1,0 +1,803 @@
+{
+ "protocol": "permutation importance, ROC-AUC drop, 10 repeats, seed 7, held-out test split, explanation-only; logreg coefficients in standardized space",
+ "targets": {
+  "cad": {
+   "model_id": "cad-v1",
+   "permutation_top15": [
+    {
+     "feature": "Typical Chest Pain",
+     "auc_drop_mean": 0.05540355677154588,
+     "auc_drop_std": 0.029104750817718118
+    },
+    {
+     "feature": "Age",
+     "auc_drop_mean": 0.040629274965800356,
+     "auc_drop_std": 0.01743367743451754
+    },
+    {
+     "feature": "Tinversion",
+     "auc_drop_mean": 0.022298221614227186,
+     "auc_drop_std": 0.007135869414908342
+    },
+    {
+     "feature": "HTN",
+     "auc_drop_mean": 0.017783857729138285,
+     "auc_drop_std": 0.01157548333860802
+    },
+    {
+     "feature": "Atypical",
+     "auc_drop_mean": 0.014637482900136844,
+     "auc_drop_std": 0.013277952935756673
+    },
+    {
+     "feature": "FH",
+     "auc_drop_mean": 0.01080711354309174,
+     "auc_drop_std": 0.006797405334503325
+    },
+    {
+     "feature": "TG",
+     "auc_drop_mean": 0.00793433652530785,
+     "auc_drop_std": 0.006351948982896797
+    },
+    {
+     "feature": "St Depression",
+     "auc_drop_mean": 0.0076607387140904095,
+     "auc_drop_std": 0.0046269588304481074
+    },
+    {
+     "feature": "Region RWMA",
+     "auc_drop_mean": 0.007250341997264131,
+     "auc_drop_std": 0.011704903201440334
+    },
+    {
+     "feature": "BP",
+     "auc_drop_mean": 0.0065663474692203684,
+     "auc_drop_std": 0.00815762052852286
+    },
+    {
+     "feature": "EF-TTE",
+     "auc_drop_mean": 0.00601915184678532,
+     "auc_drop_std": 0.005269866014844931
+    },
+    {
+     "feature": "ESR",
+     "auc_drop_mean": 0.005745554035567801,
+     "auc_drop_std": 0.006111712148752007
+    },
+    {
+     "feature": "CRF",
+     "auc_drop_mean": 0.0038303693570452156,
+     "auc_drop_std": 0.0029212252399538484
+    },
+    {
+     "feature": "BMI",
+     "auc_drop_mean": 0.003009575923392771,
+     "auc_drop_std": 0.0029845997577662726
+    },
+    {
+     "feature": "K",
+     "auc_drop_mean": 0.0028727770177839453,
+     "auc_drop_std": 0.00283342204886565
+    }
+   ],
+   "logistic_coefficients": [
+    {
+     "feature": "Typical Chest Pain",
+     "coefficient": 0.28246403360266614
+    },
+    {
+     "feature": "Atypical",
+     "coefficient": -0.20111210195293164
+    },
+    {
+     "feature": "Age",
+     "coefficient": 0.19624867079764602
+    },
+    {
+     "feature": "Nonanginal",
+     "coefficient": -0.15741468883683463
+    },
+    {
+     "feature": "DM",
+     "coefficient": 0.1513734171772176
+    },
+    {
+     "feature": "Region RWMA",
+     "coefficient": 0.14835653344917657
+    },
+    {
+     "feature": "HTN",
+     "coefficient": 0.1184771349165231
+    },
+    {
+     "feature": "FBS",
+     "coefficient": 0.11398783633378548
+    },
+    {
+     "feature": "BP",
+     "coefficient": 0.10634753691748
+    },
+    {
+     "feature": "Dyspnea",
+     "coefficient": -0.09385981198372978
+    },
+    {
+     "feature": "Tinversion",
+     "coefficient": 0.09176336732280979
+    },
+    {
+     "feature": "ESR",
+     "coefficient": 0.09050445199086132
+    },
+    {
+     "feature": "VHD=Severe",
+     "coefficient": -0.07954397214604272
+    },
+    {
+     "feature": "TG",
+     "coefficient": 0.07854590936248858
+    },
+    {
+     "feature": "Diastolic Murmur",
+     "coefficient": -0.07201869908093983
+    },
+    {
+     "feature": "Q Wave",
+     "coefficient": 0.06972010668848774
+    },
+    {
+     "feature": "EF-TTE",
+     "coefficient": -0.06873923256579506
+    },
+    {
+     "feature": "PR",
+     "coefficient": 0.06738347144793921
+    },
+    {
+     "feature": "St Elevation",
+     "coefficient": 0.06544247208159
+    },
+    {
+     "feature": "Poor R Progression",
+     "coefficient": 0.05997111645639593
+    },
+    {
+     "feature": "FH",
+     "coefficient": 0.05949886377595258
+    },
+    {
+     "feature": "K",
+     "coefficient": 0.05594588989527192
+    },
+    {
+     "feature": "BBB=LBBB",
+     "coefficient": -0.05414732082746974
+    },
+    {
+     "feature": "St Depression",
+     "coefficient": 0.0532269395216811
+    },
+    {
+     "feature": "Airway disease",
+     "coefficient": 0.0519548358470024
+    },
+    {
+     "feature": "Na",
+     "coefficient": -0.04745090315057756
+    },
+    {
+     "feature": "BBB=N",
+     "coefficient": 0.04541413244232913
+    },
+    {
+     "feature": "Sex",
+     "coefficient": 0.042869686293279745
+    },
+    {
+     "feature": "Current Smoker",
+     "coefficient": 0.04218759939670364
+    },
+    {
+     "feature": "LowTH Ang",
+     "coefficient": 0.04158134744583085
+    },
+    {
+     "feature": "LVH",
+     "coefficient": 0.04125158365952533
+    },
+    {
+     "feature": "PLT",
+     "coefficient": -0.039577725968400944
+    },
+    {
+     "feature": "Lymph",
+     "coefficient": -0.03779709478229404
+    },
+    {
+     "feature": "Weak Peripheral Pulse",
+     "coefficient": 0.03556884368832855
+    },
+    {
+     "feature": "Thyroid Disease",
+     "coefficient": -0.035384920792337876
+    },
+    {
+     "feature": "Function Class",
+     "coefficient": 0.03131677805377305
+    },
+    {
+     "feature": "LDL",
+     "coefficient": -0.030396130237063983
+    },
+    {
+     "feature": "CRF",
+     "coefficient": 0.029174153495462915
+    },
+    {
+     "feature": "Neut",
+     "coefficient": 0.028479970070373426
+    },
+    {
+     "feature": "CR",
+     "coefficient": 0.027780574678859127
+    },
+    {
+     "feature": "WBC",
+     "coefficient": 0.025320205339045353
+    },
+    {
+     "feature": "Obesity",
+     "coefficient": 0.023145436290937727
+    },
+    {
+     "feature": "BMI",
+     "coefficient": -0.023071807499321646
+    },
+    {
+     "feature": "Length",
+     "coefficient": 0.023031882739903104
+    },
+    {
+     "feature": "Lung rales",
+     "coefficient": 0.020932405116280584
+    },
+    {
+     "feature": "VHD=N",
+     "coefficient": 0.01534113576720522
+    },
+    {
+     "feature": "VHD=mild",
+     "coefficient": 0.014294005541851272
+    },
+    {
+     "feature": "Systolic Murmur",
+     "coefficient": 0.01138876397261689
+    },
+    {
+     "feature": "HDL",
+     "coefficient": -0.008822127874932511
+    },
+    {
+     "feature": "HB",
+     "coefficient": -0.008419076615268827
+    },
+    {
+     "feature": "Weight",
+     "coefficient": 0.008041996676578803
+    },
+    {
+     "feature": "BBB=RBBB",
+     "coefficient": -0.007612252898885202
+    },
+    {
+     "feature": "BUN",
+     "coefficient": -0.007394903261689693
+    },
+    {
+     "feature": "EX-Smoker",
+     "coefficient": -0.00530042006994505
+    },
+    {
+     "feature": "VHD=Moderate",
+     "coefficient": 0.004579237330756748
+    },
+    {
+     "feature": "DLP",
+     "coefficient": -0.0039144109003863455
+    },
+    {
+     "feature": "CVA",
+     "coefficient": -0.0031754991131285057
+    },
+    {
+     "feature": "Edema",
+     "coefficient": -0.002264986642939909
+    },
+    {
+     "feature": "CHF",
+     "coefficient": 0.0
+    }
+   ]
+  },
+  "lad": {
+   "model_id": "lad-stenosis-v1",
+   "permutation_top15": [
+    {
+     "feature": "Typical Chest Pain",
+     "auc_drop_mean": 0.1048611111111111,
+     "auc_drop_std": 0.04807687031758211
+    },
+    {
+     "feature": "EF-TTE",
+     "auc_drop_mean": 0.03368055555555553,
+     "auc_drop_std": 0.01900722339858534
+    },
+    {
+     "feature": "Region RWMA",
+     "auc_drop_mean": 0.028819444444444432,
+     "auc_drop_std": 0.015183226640859611
+    },
+    {
+     "feature": "Age",
+     "auc_drop_mean": 0.015277777777777734,
+     "auc_drop_std": 0.015115581219735642
+    },
+    {
+     "feature": "Tinversion",
+     "auc_drop_mean": 0.006365740740740711,
+     "auc_drop_std": 0.004722732815533128
+    },
+    {
+     "feature": "Atypical",
+     "auc_drop_mean": 0.004976851851851804,
+     "auc_drop_std": 0.014622320753964621
+    },
+    {
+     "feature": "WBC",
+     "auc_drop_mean": 0.004629629629629595,
+     "auc_drop_std": 0.0029280348705262595
+    },
+    {
+     "feature": "Nonanginal",
+     "auc_drop_mean": 0.002662037037037024,
+     "auc_drop_std": 0.002975685215782955
+    },
+    {
+     "feature": "Sex",
+     "auc_drop_mean": 0.0016203703703703276,
+     "auc_drop_std": 0.0024931318551548783
+    },
+    {
+     "feature": "Q Wave",
+     "auc_drop_mean": 0.0011574074074074292,
+     "auc_drop_std": 0.0008965239227331953
+    },
+    {
+     "feature": "Obesity",
+     "auc_drop_mean": 0.0004629629629629761,
+     "auc_drop_std": 0.0005670115145331592
+    },
+    {
+     "feature": "BBB=N",
+     "auc_drop_mean": 0.00023148148148148805,
+     "auc_drop_std": 0.00046296296296297615
+    },
+    {
+     "feature": "BBB=LBBB",
+     "auc_drop_mean": 0.00023148148148148805,
+     "auc_drop_std": 0.00046296296296297615
+    },
+    {
+     "feature": "St Depression",
+     "auc_drop_mean": 0.00011574074074074402,
+     "auc_drop_std": 0.0008101851851852083
+    },
+    {
+     "feature": "EX-Smoker",
+     "auc_drop_mean": 0.0,
+     "auc_drop_std": 0.0
+    }
+   ],
+   "logistic_coefficients": null
+  },
+  "lcx": {
+   "model_id": "lcx-stenosis-v1",
+   "permutation_top15": [
+    {
+     "feature": "Age",
+     "auc_drop_mean": 0.06846240179573508,
+     "auc_drop_std": 0.04068365647674939
+    },
+    {
+     "feature": "Typical Chest Pain",
+     "auc_drop_mean": 0.05667789001122329,
+     "auc_drop_std": 0.03689477149026929
+    },
+    {
+     "feature": "CR",
+     "auc_drop_mean": 0.03411896745230071,
+     "auc_drop_std": 0.022131342699362247
+    },
+    {
+     "feature": "TG",
+     "auc_drop_mean": 0.029180695847362458,
+     "auc_drop_std": 0.00706268584626364
+    },
+    {
+     "feature": "Na",
+     "auc_drop_mean": 0.01099887766554426,
+     "auc_drop_std": 0.0038813953907498506
+    },
+    {
+     "feature": "HTN",
+     "auc_drop_mean": 0.009876543209876498,
+     "auc_drop_std": 0.004861146538206
+    },
+    {
+     "feature": "FBS",
+     "auc_drop_mean": 0.009427609427609385,
+     "auc_drop_std": 0.012916114371102872
+    },
+    {
+     "feature": "LDL",
+     "auc_drop_mean": 0.009427609427609363,
+     "auc_drop_std": 0.00981256700085044
+    },
+    {
+     "feature": "Lymph",
+     "auc_drop_mean": 0.008641975308641903,
+     "auc_drop_std": 0.00684624017957354
+    },
+    {
+     "feature": "BUN",
+     "auc_drop_mean": 0.00864197530864188,
+     "auc_drop_std": 0.00890896054880639
+    },
+    {
+     "feature": "Current Smoker",
+     "auc_drop_mean": 0.008529741863075124,
+     "auc_drop_std": 0.0036951913879134423
+    },
+    {
+     "feature": "HDL",
+     "auc_drop_mean": 0.00830527497194159,
+     "auc_drop_std": 0.006470722920493607
+    },
+    {
+     "feature": "DM",
+     "auc_drop_mean": 0.007407407407407363,
+     "auc_drop_std": 0.00417532553035651
+    },
+    {
+     "feature": "ESR",
+     "auc_drop_mean": 0.006846240179573515,
+     "auc_drop_std": 0.008269556462306883
+    },
+    {
+     "feature": "Tinversion",
+     "auc_drop_mean": 0.0061728395061728,
+     "auc_drop_std": 0.0018947186325627612
+    }
+   ],
+   "logistic_coefficients": null
+  },
+  "rca": {
+   "model_id": "rca-stenosis-v1",
+   "permutation_top15": [
+    {
+     "feature": "Function Class",
+     "auc_drop_mean": 0.028703703703703752,
+     "auc_drop_std": 0.011682972204630437
+    },
+    {
+     "feature": "Atypical",
+     "auc_drop_mean": 0.021693121693121754,
+     "auc_drop_std": 0.01837815283910943
+    },
+    {
+     "feature": "Q Wave",
+     "auc_drop_mean": 0.016798941798941903,
+     "auc_drop_std": 0.004771081692293982
+    },
+    {
+     "feature": "CRF",
+     "auc_drop_mean": 0.015343915343915372,
+     "auc_drop_std": 0.011625170657523727
+    },
+    {
+     "feature": "Systolic Murmur",
+     "auc_drop_mean": 0.015079365079365137,
+     "auc_drop_std": 0.014162707740025591
+    },
+    {
+     "feature": "Typical Chest Pain",
+     "auc_drop_mean": 0.01388888888888894,
+     "auc_drop_std": 0.015177094428489437
+    },
+    {
+     "feature": "ESR",
+     "auc_drop_mean": 0.009656084656084706,
+     "auc_drop_std": 0.02229964153267162
+    },
+    {
+     "feature": "Sex",
+     "auc_drop_mean": 0.009523809523809578,
+     "auc_drop_std": 0.024631604442337255
+    },
+    {
+     "feature": "Current Smoker",
+     "auc_drop_mean": 0.008068783068783125,
+     "auc_drop_std": 0.0070850591221386676
+    },
+    {
+     "feature": "TG",
+     "auc_drop_mean": 0.007275132275132335,
+     "auc_drop_std": 0.016713317594745068
+    },
+    {
+     "feature": "VHD=N",
+     "auc_drop_mean": 0.006349206349206415,
+     "auc_drop_std": 0.011189569302940018
+    },
+    {
+     "feature": "Neut",
+     "auc_drop_mean": 0.006084656084656126,
+     "auc_drop_std": 0.009972527420619456
+    },
+    {
+     "feature": "Dyspnea",
+     "auc_drop_mean": 0.004894179894179928,
+     "auc_drop_std": 0.0169089842455227
+    },
+    {
+     "feature": "BBB=LBBB",
+     "auc_drop_mean": 0.004497354497354533,
+     "auc_drop_std": 0.011289200155212615
+    },
+    {
+     "feature": "Weak Peripheral Pulse",
+     "auc_drop_mean": 0.00264550264550274,
+     "auc_drop_std": 0.001565100471719482
+    }
+   ],
+   "logistic_coefficients": [
+    {
+     "feature": "DM",
+     "coefficient": 0.9596462799738285
+    },
+    {
+     "feature": "Age",
+     "coefficient": 0.9528272732423572
+    },
+    {
+     "feature": "BUN",
+     "coefficient": -0.8593339635379201
+    },
+    {
+     "feature": "ESR",
+     "coefficient": 0.7029836320549662
+    },
+    {
+     "feature": "Weight",
+     "coefficient": 0.5867175840839324
+    },
+    {
+     "feature": "Sex",
+     "coefficient": 0.576811509821784
+    },
+    {
+     "feature": "TG",
+     "coefficient": 0.5580063333346071
+    },
+    {
+     "feature": "VHD=Severe",
+     "coefficient": 0.5110017434086948
+    },
+    {
+     "feature": "Poor R Progression",
+     "coefficient": 0.47515607321634096
+    },
+    {
+     "feature": "EF-TTE",
+     "coefficient": 0.45735200659080993
+    },
+    {
+     "feature": "Dyspnea",
+     "coefficient": -0.4418913217089977
+    },
+    {
+     "feature": "BMI",
+     "coefficient": -0.40688004277953366
+    },
+    {
+     "feature": "VHD=Moderate",
+     "coefficient": 0.3522982425604174
+    },
+    {
+     "feature": "CR",
+     "coefficient": 0.35088915523591135
+    },
+    {
+     "feature": "FH",
+     "coefficient": 0.35043854776428257
+    },
+    {
+     "feature": "LVH",
+     "coefficient": 0.31909977234063946
+    },
+    {
+     "feature": "Diastolic Murmur",
+     "coefficient": -0.28715979248902956
+    },
+    {
+     "feature": "Edema",
+     "coefficient": -0.28648894668292246
+    },
+    {
+     "feature": "CVA",
+     "coefficient": 0.28416395910244774
+    },
+    {
+     "feature": "CRF",
+     "coefficient": -0.28091278327228775
+    },
+    {
+     "feature": "LowTH Ang",
+     "coefficient": -0.27583337296356064
+    },
+    {
+     "feature": "HDL",
+     "coefficient": 0.2638100040701745
+    },
+    {
+     "feature": "HTN",
+     "coefficient": 0.26301097098554654
+    },
+    {
+     "feature": "HB",
+     "coefficient": 0.2602107007185769
+    },
+    {
+     "feature": "Atypical",
+     "coefficient": -0.254268254809891
+    },
+    {
+     "feature": "Nonanginal",
+     "coefficient": -0.25176755159130804
+    },
+    {
+     "feature": "K",
+     "coefficient": 0.24219482074189347
+    },
+    {
+     "feature": "St Depression",
+     "coefficient": 0.21267340331931062
+    },
+    {
+     "feature": "VHD=mild",
+     "coefficient": -0.2031518328152871
+    },
+    {
+     "feature": "Typical Chest Pain",
+     "coefficient": 0.2026787551759233
+    },
+    {
+     "feature": "Systolic Murmur",
+     "coefficient": -0.2013382515557409
+    },
+    {
+     "feature": "PLT",
+     "coefficient": -0.19994880213591976
+    },
+    {
+     "feature": "VHD=N",
+     "coefficient": -0.19529257747916978
+    },
+    {
+     "feature": "Tinversion",
+     "coefficient": -0.19428770271566392
+    },
+    {
+     "feature": "Na",
+     "coefficient": -0.183704228538444
+    },
+    {
+     "feature": "BBB=RBBB",
+     "coefficient": -0.17533163927620526
+    },
+    {
+     "feature": "Function Class",
+     "coefficient": 0.1726593661205086
+    },
+    {
+     "feature": "BBB=LBBB",
+     "coefficient": 0.16842976583565544
+    },
+    {
+     "feature": "Q Wave",
+     "coefficient": 0.15796773384665147
+    },
+    {
+     "feature": "Current Smoker",
+     "coefficient": 0.15471821020797819
+    },
+    {
+     "feature": "Neut",
+     "coefficient": 0.15180862674890208
+    },
+    {
+     "feature": "Length",
+     "coefficient": -0.145117064360015
+    },
+    {
+     "feature": "EX-Smoker",
+     "coefficient": 0.12117093613509096
+    },
+    {
+     "feature": "Lung rales",
+     "coefficient": 0.10463559196381982
+    },
+    {
+     "feature": "Lymph",
+     "coefficient": -0.08426198441197734
+    },
+    {
+     "feature": "Airway disease",
+     "coefficient": 0.07267689263340174
+    },
+    {
+     "feature": "Region RWMA",
+     "coefficient": -0.06874071910774021
+    },
+    {
+     "feature": "DLP",
+     "coefficient": -0.06871257100352406
+    },
+    {
+     "feature": "Obesity",
+     "coefficient": 0.061688662113169264
+    },
+    {
+     "feature": "FBS",
+     "coefficient": -0.06125955399776997
+    },
+    {
+     "feature": "Thyroid Disease",
+     "coefficient": 0.05898477416218407
+    },
+    {
+     "feature": "BP",
+     "coefficient": -0.054883736830350166
+    },
+    {
+     "feature": "St Elevation",
+     "coefficient": -0.04174420454852664
+    },
+    {
+     "feature": "PR",
+     "coefficient": 0.037178525917629865
+    },
+    {
+     "feature": "Weak Peripheral Pulse",
+     "coefficient": -0.020706457770225995
+    },
+    {
+     "feature": "WBC",
+     "coefficient": 0.014138723092840493
+    },
+    {
+     "feature": "LDL",
+     "coefficient": -0.009738172394966525
+    },
+    {
+     "feature": "BBB=N",
+     "coefficient": -0.0020528121899676304
+    },
+    {
+     "feature": "CHF",
+     "coefficient": 0.0
+    }
+   ]
+  }
+ }
+}
