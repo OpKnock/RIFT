@@ -1,5 +1,4 @@
 """Track-A calibration (Phase 6): Platt vs isotonic, OOF-fit, ECE-measured.
-
 Honesty protocol: the shipped estimators were refit on train+val, so no
 fresh calibration split exists. The calibrator is therefore fit on
 OUT-OF-FOLD predictions (5-fold stratified ``cross_val_predict`` on
@@ -17,7 +16,6 @@ One command: ``python -m rift.health.cardiovascular.calibration``
 from __future__ import annotations
 
 import json
-import pickle
 from pathlib import Path
 
 from . import dataset, evaluate, preprocessing, registry, schemas, targets
@@ -174,10 +172,10 @@ def predict_calibrated(model_id: str, frame):
     import numpy as np
     from .predict import predict_proba
     raw = np.asarray(predict_proba(model_id, frame)["probabilities"], dtype=float)
-    path = registry.REGISTRY_DIR / model_id / "calibrator.pkl"
-    if not path.exists():
+    try:
+        calibrator = registry.load_calibrator(model_id)
+    except ValueError:
         return [float(v) for v in raw]
-    calibrator = pickle.loads(path.read_bytes())
     return [float(v) for v in apply_estimator(calibrator, raw)]
 
 
@@ -189,11 +187,12 @@ def calibrate_all() -> dict:
     for target in ("cad", "lad", "lcx", "rca"):
         result = fit_calibrator(target)
         model_dir = registry.REGISTRY_DIR / result["model_id"]
-        (model_dir / "calibrator.pkl").write_bytes(pickle.dumps(result["estimator"]))
+        calibrator_hash = registry.save_calibrator(result["model_id"], result["estimator"])
         record_path = model_dir / "record.json"
         record = json.loads(record_path.read_text())
         record["calibration"] = {
             "method": result["method"],
+            "calibrator_hash": calibrator_hash,
             "oof_ece_before": result["oof"]["before"]["ece"],
             "oof_ece_after": result["oof"]["after"]["ece"],
             "oof_brier_before": result["oof"]["before"]["brier"],

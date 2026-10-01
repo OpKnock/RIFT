@@ -60,8 +60,10 @@ def fetch_raw(dest: Path | None = None) -> Path:
     RAW_DIR.mkdir(parents=True, exist_ok=True)
     if dest.exists() and dest.stat().st_size > 50000:
         return dest
+    if not SOURCE_URL.startswith("https://archive.ics.uci.edu/"):
+        raise ValueError("refusing to fetch outside the UCI allowlist")
     tmp = dest.with_suffix(".tmp")
-    urllib.request.urlretrieve(SOURCE_URL, tmp)
+    urllib.request.urlretrieve(SOURCE_URL, tmp)  # nosec B310 -- pinned https UCI constant allowlisted above, not input
     if tmp.stat().st_size < 50000:
         raise ValueError("downloaded archive suspiciously small: %d bytes" % tmp.stat().st_size)
     os.replace(tmp, dest)

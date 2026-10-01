@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-import pickle
+import pickle  # nosec B403 -- sklearn research-artifact format; all loads() hash-verified
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -89,7 +89,30 @@ def load_model(model_id: str):
     if _weights_hash(model_bytes) != record["weights_hash"]:
         raise ValueError("weights hash mismatch for %r: artifact changed since training" % model_id)
     assert_no_leakage(record["features"])
-    return pickle.loads(model_bytes), record
+    # Bytes hash-verified against the training record above: only artifacts
+    # our own pipeline wrote can reach this loads().
+    return pickle.loads(model_bytes), record  # nosec B301
+
+
+def load_calibrator(model_id: str):
+    """Load the OOF-fit calibrator; verifies its hash against the record."""
+    model_dir = REGISTRY_DIR / model_id
+    record = json.loads((model_dir / "record.json").read_text(encoding="utf-8"))
+    stored = (record.get("calibration") or {}).get("calibrator_hash")
+    if not stored:
+        raise ValueError("no recorded calibrator for %r: re-run calibration" % model_id)
+    raw = (model_dir / "calibrator.pkl").read_bytes()
+    if _weights_hash(raw) != stored:
+        raise ValueError("calibrator hash mismatch for %r" % model_id)
+    # Same hash-gated own-artifact justification as load_model.
+    return pickle.loads(raw)  # nosec B301
+
+
+def save_calibrator(model_id: str, estimator) -> str:
+    """Persist an OOF-fit calibrator; return its hash for the record."""
+    raw = pickle.dumps(estimator)
+    (REGISTRY_DIR / model_id / "calibrator.pkl").write_bytes(raw)
+    return _weights_hash(raw)
 
 
 def load_scaler(model_id: str) -> dict:

@@ -24,6 +24,8 @@ def test_records_complete_and_versions_pinned():
         assert record["split_seed"] == 7
         cal = record["calibration"]  # Phase 6 fills this
         assert cal["method"] in ("sigmoid", "isotonic")
+        assert isinstance(cal["calibrator_hash"], str)
+        assert cal["calibrator_hash"].startswith("sha256:")
         for key in ("oof_ece_before", "oof_ece_after", "oof_brier_before",
                     "oof_brier_after", "test_ece_before", "test_ece_after",
                     "test_brier_before", "test_brier_after"):
