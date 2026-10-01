@@ -8,34 +8,34 @@ RIFT is a domain-neutral optimization platform for generating counterfactual fut
 
 ```bash
 # One-command local startup (API + Redis + Prometheus + Grafana + UI)
-./local.sh start
+bash ./local start
 
 # Serve Stitch UI foreground (Ctrl+C to stop)
-./local.sh ui
+bash ./local ui
 
 # Run demo
-./local.sh demo
+bash ./local demo
 
 # Health check
-./local.sh health
+bash ./local health
 
 # Run tests
-./local.sh test
+bash ./local test
 
 # Full diagnostics
-./local.sh diag
+bash ./local diag
 
 # Initialize demo data
-./local.sh init
+bash ./local init
 
 # Generate config files
-./local.sh gen-config
+bash ./local gen-config
 
 # Shell into container
-./local.sh shell
+bash ./local shell
 
 # Clean reset
-./local.sh reset
+bash ./local reset
 ```
 
 ## Track A: Cardiovascular Digital Twin (NEW)
@@ -62,7 +62,7 @@ python -m rift.health.cardiovascular.pipeline
 python -m rift.health.cardiovascular.verify
 
 # Start local stack + open coronary viewer
-./local.sh start
+bash ./local start
 # open http://localhost:8000/coronary.html
 # open http://localhost:8000/cardio-dashboard.html
 ```
@@ -214,10 +214,10 @@ This repo ships the engine API only.
 
 ```bash
 # One-command local stack (API + Redis + Prometheus + Grafana + UI background)
-./local.sh start
+bash ./local start
 
 # Serve Stitch UI foreground (Ctrl+C to stop)
-./local.sh ui
+bash ./local ui
 
 # Services:
 # - API: http://localhost:8080 (`/` returns the API index JSON)
@@ -226,11 +226,11 @@ This repo ships the engine API only.
 # - Grafana: http://localhost:3000 (admin/admin)
 
 # Other local commands
-./local.sh init      # Initialize demo data
-./local.sh diag      # Full environment diagnostics
-./local.sh shell     # Shell into API container
-./local.sh gen-config # Generate Dockerfile.dev, docker-compose, .env.local
-./local.sh logs [svc] # Show logs
+bash ./local init      # Initialize demo data
+bash ./local diag      # Full environment diagnostics
+bash ./local shell     # Shell into API container
+bash ./local gen-config # Generate Dockerfile.dev, docker-compose, .env.local
+bash ./local logs [svc] # Show logs
 ```
 
 ## Extending with Plugins
