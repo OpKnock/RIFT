@@ -162,6 +162,20 @@ def post_api_cardio_predict(h, request_id, timer, path, query):
             h._finish(timer, request_id, "POST", path, 422, "validation")
             return True
         _, record = _reg.load_model(model_id)
+        from rift.health.cardiovascular import safety as _safety
+        verdict = _safety.assess_prediction(model_id, predictors, prob)
+        if not verdict["safe_to_show"] and "no recorded calibration" in " ".join(verdict["warnings"]):
+            h._send(503, json.dumps({"error": "cardio_not_ready",
+                                     "detail": "model has no recorded calibration"}),
+                    request_id=request_id)
+            h._finish(timer, request_id, "POST", path, 503, "not_ready")
+            return True
+        if not verdict["safe_to_show"]:
+            log_event("internal_error", request_id=request_id, route="cardio-predict")
+            h._send(500, json.dumps({"error": "internal_error", "request_id": request_id}),
+                    request_id=request_id)
+            h._finish(timer, request_id, "POST", path, 500, "internal")
+            return True
         positive = prob >= 0.5
         names = {"cad": ("CAD", "Normal"), "lad": ("Stenotic", "Normal"),
                  "lcx": ("Stenotic", "Normal"), "rca": ("Stenotic", "Normal")}
@@ -173,8 +187,8 @@ def post_api_cardio_predict(h, request_id, timer, path, query):
             "predicted_positive": positive,
             "threshold": 0.5,
             "feature_schema_version": record["feature_schema_version"],
-            "disclaimer": "Research prototype output; not a medical device. "
-                          "See /api/cardio/model-cards for limitations.",
+            "safety": verdict,
+            "disclaimer": verdict["disclaimer"],
         }
         if body.get("include_counterfactuals"):
             payload["counterfactuals"] = _cf.counterfactuals_for(
