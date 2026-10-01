@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>RIFT Track A — Coronary Tree Viewer (Schematic)</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=Inter:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<script src="./theme.js"></script>
+<link rel="stylesheet" href="./polish.css" />
+<script type="importmap">
+{"imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+<style>
+  #coronary-canvas { width: 100%; height: 62vh; min-height: 420px; display: block; }
+  #coronary-tip { position: absolute; pointer-events: none; display: none; z-index: 30; }
+</style>
+</head>
+<body class="bg-surface text-on-surface font-body antialiased min-h-screen">
+<div class="max-w-7xl mx-auto px-6 py-6">
+  <div class="flex flex-wrap items-center gap-3 mb-4">
+    <a class="text-xs font-label text-primary hover:underline" href="./dashboard.html">← RIFT Dashboard</a>
+    <a class="text-xs font-label text-primary hover:underline" href="./cardio-dashboard.html">Track A evaluation dashboard →</a>
+    <span class="ml-auto font-headline text-sm font-bold uppercase tracking-wider">Track A · Coronary tree viewer</span>
+  </div>
+
+  <div class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 mb-4 text-xs font-label">
+    SCHEMATIC — not anatomy. Branch colors are the registered models' calibrated stenosis
+    probabilities for the selected demo patient. Stenosis rings mark representative sites, not measured lesions.
+    Research prototype; not a medical device.
+  </div>
+
+  <div class="flex flex-wrap items-center gap-2 mb-4" id="patient-switch" role="tablist" aria-label="Demo patients"></div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="lg:col-span-2 relative rounded-xl border border-outline-variant bg-[#0b1220] overflow-hidden">
+      <canvas id="coronary-canvas"></canvas>
+      <div id="coronary-tip" class="rounded-md border border-outline-variant bg-surface px-3 py-2 text-xs"></div>
+      <div id="coronary-fallback" class="hidden absolute inset-0 items-center justify-center text-center text-sm p-8">
+        3D unavailable (WebGL or CDN blocked). Probabilities are listed numerically on the right —
+        no information is hidden by the missing render.
+      </div>
+    </div>
+    <div class="rounded-xl border border-outline-variant p-5 space-y-4">
+      <div>
+        <div class="font-label text-xs uppercase tracking-wider text-on-surface-variant">Demo patient</div>
+        <div class="font-headline text-lg font-bold" id="patient-name">—</div>
+        <div class="text-xs text-on-surface-variant" id="patient-desc">—</div>
+      </div>
+      <div id="prob-bars" class="space-y-3"></div>
+      <div class="text-xs text-on-surface-variant" id="patient-meta">—</div>
+      <div class="pt-2 border-t border-outline-variant text-xs">
+        <div class="font-label uppercase tracking-wider text-on-surface-variant mb-1">Color scale</div>
+        <div class="flex items-center gap-2">
+          <div class="h-2.5 flex-1 rounded-full" style="background:linear-gradient(90deg,#22c55e,#f59e0b,#ef4444)"></div>
+          <span class="text-on-surface-variant">0 → 0.5 → 1</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module" src="./live/coronary.js"></script>
+</body></html>
