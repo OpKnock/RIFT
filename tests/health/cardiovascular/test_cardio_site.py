@@ -50,6 +50,23 @@ def test_demo_generation_deterministic():
     assert cardio_site_data.build_demo_patients() == on_disk
 
 
+def test_track_a_in_main_nav_on_every_page():
+    ui = REPO_ROOT / "stitch-ui"
+    pages = ["dashboard", "scenarios", "simulation", "runs", "experiments",
+             "evidence", "incidents", "explainability", "settings",
+             "coronary", "cardio-dashboard"]
+    for page in pages:
+        html = (ui / (page + ".html")).read_text(encoding="utf-8")
+        assert 'href="./coronary.html"' in html, page
+        assert 'href="./cardio-dashboard.html"' in html, page
+        assert html.count("Track A · Cardio") == 1, page
+        # Exactly one active nav entry, and it is this page.
+        assert html.count("border-l-2 border-primary") == 1, page
+        before, _, after = html.partition("border-l-2 border-primary")
+        anchor = before.split("<a")[-1] + after.split("</a>")[0]
+        assert ('href="./%s.html"' % page) in anchor, page
+
+
 def test_pages_and_scripts_wired():
     ui = REPO_ROOT / "stitch-ui"
     coronary = (ui / "coronary.html").read_text(encoding="utf-8")

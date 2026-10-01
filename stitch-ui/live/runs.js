@@ -44,6 +44,11 @@
       if (el) el.textContent = "--";
     });
     var list = findSectionList("Alert Rules");
+    document.querySelectorAll("span").forEach(function (s) {
+      if (/^\d+ Rules$/.test(s.textContent.trim())) {
+        s.textContent = alerts.length + " Rules";
+      }
+    });
     if (list) list.innerHTML = '<div class="p-3.5 text-xs text-on-surface-variant">Sign in to load alert rules.</div>';
     var tbody = findRoutesTbody();
     if (tbody) tbody.innerHTML = '<tr><td class="py-3 px-4 text-xs text-on-surface-variant" colspan="7">Sign in to load per-route traffic.</td></tr>';

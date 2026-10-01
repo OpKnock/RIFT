@@ -63,6 +63,12 @@
       document.getElementById("timestamp-readout").innerText = "day " + dayIndex + " · patient " + (snap.patient_id || "--");
       var unc = snap.risk && typeof snap.risk.uncertainty === "number" ? snap.risk.uncertainty : null;
       document.getElementById("vector-velocity-val").innerText = unc === null ? "--" : "±" + unc.toFixed(3);
+      document.querySelectorAll("span,div,p").forEach(function (el) {
+        if (el.children.length !== 0) return;
+        var txt = el.textContent.trim();
+        if (/^Vector:\s*V-/.test(txt)) el.textContent = "Day " + dayIndex + " · " + (snap.patient_id || "");
+        else if (/STABILITY INDEX/.test(txt)) el.textContent = unc === null ? "UNCERTAINTY: --" : "UNCERTAINTY DAY " + dayIndex;
+      });
       var badge = document.getElementById("guardian-badge");
       badge.innerText = verdict;
       badge.className = badgeClass(verdict);
@@ -180,6 +186,67 @@
     var s = document.getElementById("day-slider");
     window.updateReplayState(Number((s || {}).value || 0));
   };
+  function setCard(label, value) {
+    var labels = document.querySelectorAll("span");
+    for (var i = 0; i < labels.length; i++) {
+      if (labels[i].textContent.trim().toLowerCase() !== label.toLowerCase()) continue;
+      var v = labels[i].nextElementSibling;
+      if (v) { v.textContent = value; return true; }
+      var parent = labels[i].parentElement;
+      if (parent) {
+        var sibs = parent.querySelectorAll("span");
+        if (sibs.length > 1) { sibs[sibs.length - 1].textContent = value; return true; }
+      }
+    }
+    return false;
+  }
+  function hydrateBundleCards() {
+    R.get("/api/twin/evidence").then(function (b) {
+      if (!b) return;
+      var meta = b.meta || {};
+      var model = meta.model || {};
+      var ext = b.external_validation || {};
+      function f3(v) { return (typeof v === "number") ? v.toFixed(3) : "--"; }
+      setCard("dataset", "synthetic 60-day (seed 7)");
+      setCard("model", model.model_id || "--");
+      setCard("sensitivity", f3(b.sensitivity));
+      setCard("specificity", f3(b.specificity));
+      setCard("brier score", f3(b.brier));
+      setCard("ext validation", String(ext.status || "--") + " · " + (ext.days_evaluated || "?") + "d");
+      setCard("deployment", (meta.deployment_gate && meta.deployment_gate.clinical_use
+        ? String(meta.deployment_gate.clinical_use).toUpperCase() : "--"));
+      var dig = model.weights_digest ? String(model.weights_digest).slice(0, 12) + "..." : "--";
+      setCard("weights", dig);
+      setCard("engine", "v" + String(meta.engine_version || "?").replace(/^v/, ""));
+      // Stress table: real severities. Status is a display convention on
+      // agreement (documented here): >=0.85 PASSED, >=0.7 DEGRADED, else NULL.
+      var rows = ((b.stress || {}).rows) || [];
+      var tables = document.querySelectorAll("table");
+      for (var ti = 0; ti < tables.length; ti++) {
+        var ths = tables[ti].querySelectorAll("th");
+        var head = Array.prototype.map.call(ths, function (h) { return h.textContent.trim().toLowerCase(); }).join("|");
+        if (head.indexOf("noise") === -1 || head.indexOf("perturbation") === -1) continue;
+        var tb = tables[ti].querySelector("tbody");
+        if (!tb || !rows.length) continue;
+        tb.innerHTML = rows.map(function (r, i) {
+          var ag = r.agreement;
+          var st = (typeof ag === "number" && ag >= 0.85) ? "PASSED"
+            : (typeof ag === "number" && ag >= 0.7) ? "DEGRADED" : "NULL";
+          var cls = st === "PASSED" ? "text-emerald-400" : st === "DEGRADED" ? "text-amber-400" : "text-on-surface-variant";
+          return '<tr><td class="py-3 text-primary">NV-' + (i + 1) + '</td>' +
+            '<td class="py-3">noise ' + R.num(r.noise_magnitude, 2) + ' · ' + (r.days || "?") + 'd</td>' +
+            '<td class="py-3">' + (typeof ag === "number" ? ag.toFixed(3) : "--") + '</td>' +
+            '<td class="py-3 ' + cls + '">' + st + '</td></tr>';
+        }).join("");
+      }
+      // Calibration header: real interval coverage, not a fabricated AUC.
+      document.querySelectorAll("span").forEach(function (s) {
+        if (/^AUC:/.test(s.textContent.trim())) {
+          s.textContent = "Coverage: " + f3(b.interval_coverage);
+        }
+      });
+    }).catch(function () {});
+  }
   document.addEventListener("DOMContentLoaded", function () {
     var slider = document.getElementById("day-slider");
     if (slider) {
@@ -191,6 +258,7 @@
       if (ok) window.updateReplayState(Number((slider || {}).value || 0));
     });
     if (typeof window.updateSnapshotCount === "function") window.updateSnapshotCount();
+    hydrateBundleCards();
     window.startPolling();
   });
 })();
