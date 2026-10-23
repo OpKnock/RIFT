@@ -21,8 +21,12 @@
     return "http://localhost:8080";
   }
   var API = base();
-  // Clear stale run history / logs from previous builds (one-time).
-  try { localStorage.removeItem("rift_simulation_run_history_v1"); } catch (e) {}
+  // Clear stale test data / logs / run history from previous builds.
+  try {
+    localStorage.removeItem("rift_simulation_run_history_v1");
+    localStorage.removeItem("rift_snapshots");
+    localStorage.removeItem("rift-notif-prefs");
+  } catch (e) {}
 
   function ApiError(status, message) {
     this.status = status;
