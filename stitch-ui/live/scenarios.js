@@ -29,7 +29,7 @@
       var form = modal.querySelector("form");
       if (form) form.appendChild(note);
     }
-    if (note) note.textContent = "Not submitted: the engine exposes no scenario-create endpoint. Only the built-in scenario exists (see banner).";
+    if (note) note.textContent = "Not submitted: the engine exposes no scenario-create endpoint. Only the built-in scenario is available.";
   };
 
   window.riftVerify = function () { window.location.reload(); };
