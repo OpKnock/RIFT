@@ -21,6 +21,8 @@
     return "http://localhost:8080";
   }
   var API = base();
+  // Clear stale run history / logs from previous builds (one-time).
+  try { localStorage.removeItem("rift_simulation_run_history_v1"); } catch (e) {}
 
   function ApiError(status, message) {
     this.status = status;
