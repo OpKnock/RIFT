@@ -384,16 +384,16 @@
 
   // Universal top-right account avatar (consistent on every page)
   document.addEventListener("DOMContentLoaded", function () {
-    var uri = "data:image/svg+xml;base64,data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSI+PGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTQiIGZpbGw9IiMwZjE3MmEiLz48Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNCIgc3Ryb2tlPSIjMDg5MWIyIiBzdHJva2Utd2lkdGg9IjEuNSIvPjxwYXRoIGQ9Ik0xMiA5aDJ2MmgydjRoLTJ2MmgtMnYtNGgtMlY5aDJ6TTEyIDE3aDR2LTJoLTR6IiBmaWxsPSIjMDg5MWIyIi8+PC9zdmc+";
-    // check if page already has an avatar img in topbar
-    var existing = document.querySelector("header img[src*='data:image/svg+xml']");
-    if (!existing) {
+    var uri = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSI+PGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTQiIGZpbGw9IiMwZjE3MmEiLz48Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNCIgc3Ryb2tlPSIjMDg5MWIyIiBzdHJva2Utd2lkdGg9IjEuNSIvPjxwYXRoIGQ9Ik0xMiA5aDJ2MmgydjRoLTJ2MmgtMnYtNGgtMlY5aDJ6TTEyIDE3aDR2LTJoLTR6IiBmaWxsPSIjMDg5MWIyIi8+PC9zdmc+";
+    var header = document.querySelector("header");
+    if (header && !document.getElementById("rift-universal-avatar")) {
       var btn = document.createElement("div");
       btn.id = "rift-universal-avatar";
-      btn.style.cssText = "position:fixed;top:12px;right:16px;z-index:9997;width:36px;height:36px;border-radius:50%;overflow:hidden;border:2px solid #0891b2;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4);";
+      btn.style.cssText = "position:absolute;top:10px;right:16px;z-index:9997;width:36px;height:36px;border-radius:50%;overflow:hidden;border:2px solid #0891b2;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4);";
       btn.innerHTML = '<img src="' + uri + '" alt="RIFT account" style="width:100%;height:100%;object-fit:cover;"/>';
       btn.addEventListener("click", function () { window.location.href = "./dashboard.html"; });
-      document.body.appendChild(btn);
+      header.style.position = "relative";
+      header.appendChild(btn);
     }
   });
 
