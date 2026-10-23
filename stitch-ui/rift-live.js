@@ -292,8 +292,24 @@
       main.classList.add("rift-anim");
     } catch (e) {}
   }
-  if (document.readyState !== "loading") { setupNav(); staggerEntrance(); }
-  else document.addEventListener("DOMContentLoaded", function () { setupNav(); staggerEntrance(); });
+  // Make the sidebar logo clickable -> dashboard
+  function makeLogoClickable() {
+    var svgs = document.querySelectorAll("svg");
+    for (var i = 0; i < svgs.length; i++) {
+      var svg = svgs[i];
+      if (svg.getAttribute("width") === "20" && svg.getAttribute("height") === "20") {
+        var container = svg.parentElement;
+        while (container && container.tagName !== "DIV") container = container.parentElement;
+        if (container) {
+          container.style.cursor = "pointer";
+          container.addEventListener("click", function () { window.location.href = "./dashboard.html"; });
+        }
+        break;
+      }
+    }
+  }
+  if (document.readyState !== "loading") { setupNav(); staggerEntrance(); makeLogoClickable(); }
+  else document.addEventListener("DOMContentLoaded", function () { setupNav(); staggerEntrance(); makeLogoClickable(); });
 
   // Global header chrome: Stitch left icon buttons + Verify/Deploy dead.
   // bell -> live alerts page, help -> explainability, tune -> settings,
@@ -343,6 +359,38 @@
   }
   if (document.readyState !== "loading") wireHeaderChrome();
   else document.addEventListener("DOMContentLoaded", wireHeaderChrome);
+
+  // Make email addresses clickable (mailto)
+  document.addEventListener("DOMContentLoaded", function () {
+    try {
+      var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      var nodes = [];
+      while (walker.nextNode()) nodes.push(walker.currentNode);
+      nodes.forEach(function (node) {
+        if (node.nodeValue && node.nodeValue.indexOf("wagdemehul@gmail.com") !== -1) {
+          var span = document.createElement("a");
+          span.href = "mailto:wagdemehul@gmail.com";
+          span.textContent = "wagdemehul@gmail.com";
+          span.style.color = "#67e8f9";
+          node.parentNode.replaceChild(span, node);
+        }
+      });
+    } catch (e) {}
+  });
+
+  // Back-to-top button
+  document.addEventListener("DOMContentLoaded", function () {
+    var btn = document.createElement("button");
+    btn.id = "rift-back-to-top";
+    btn.setAttribute("aria-label", "Back to top");
+    btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:20px">arrow_upward</span>';
+    btn.style.cssText = "position:fixed;bottom:24px;right:24px;z-index:9998;width:44px;height:44px;border-radius:50%;background:#0891b2;color:#fff;border:0;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.4);";
+    document.body.appendChild(btn);
+    btn.addEventListener("click", function () { window.scrollTo({ top: 0, behavior: "smooth" }); });
+    window.addEventListener("scroll", function () {
+      btn.style.display = window.scrollY > 400 ? "flex" : "none";
+    });
+  });
 
   window.RIFT = {
     API: API, api: api, get: get, post: post, num: num, esc: esc,
