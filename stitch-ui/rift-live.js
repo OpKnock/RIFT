@@ -382,6 +382,21 @@
     } catch (e) {}
   });
 
+  // Universal top-right account avatar (consistent on every page)
+  document.addEventListener("DOMContentLoaded", function () {
+    var uri = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij48ZGVmcz48bGluZWFyR3JhZGllbnQgaWQ9ImJnIiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iIzA4OTFiMiIvPjxzdG9wIG9mZnNldD0iNTUlIiBzdG9wLWNvbG9yPSIjMGU3NDkwIi8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMTY0ZTYzIi8+PC9saW5lYXJHcmFkaWVudD48cmFkaWFsR3JhZGllbnQgaWQ9Imdsb3ciIGN4PSI1MCUiIGN5PSI0MCUiIHI9IjU1JSI+PHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iIzY3ZThmOSIgc3RvcC1vcGFjaXR5PSIwLjM1Ii8+PHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjMDg5MWIyIiBzdG9wLW9wYWNpdHk9IjAiLz48L3JhZGlhbEdyYWRpZW50PjwvZGVmcz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIzMiIgZmlsbD0idXJsKCNiZykiLz48Y2lyY2xlIGN4PSIzMiIgY3k9IjMyIiByPSIzMiIgZmlsbD0idXJsKCNnbG93KSIvPjwhLS0gaGV4YWdvbiBtYXJrIC0tPjxwb2x5Z29uIHBvaW50cz0iMzIsMTIgNDgsMjIgNDgsNDIgMzIsNTIgMTYsNDIgMTYsMjIiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2UyZThmMCIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBvcGFjaXR5PSIwLjkiLz48cG9seWdvbiBwb2ludHM9IjMyLDE4IDQzLDI0LjUgNDMsMzkuNSAzMiw0NiAyMSwzOS41IDIxLDI0LjUiIGZpbGw9IiMwYjEyMjAiIG9wYWNpdHk9IjAuNTUiLz48IS0tIFIgbW9ub2dyYW0gLS0+PHRleHQgeD0iMzIiIHk9IjQwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmb250LWZhbWlseT0iU3BhY2UgR3JvdGVzaywgSW50ZXIsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjIiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiM2N2U4ZjkiPlI8L3RleHQ+PC9zdmc+";
+    // check if page already has an avatar img in topbar
+    var existing = document.querySelector("header img[src*='data:image/svg+xml']");
+    if (!existing) {
+      var btn = document.createElement("div");
+      btn.id = "rift-universal-avatar";
+      btn.style.cssText = "position:fixed;top:12px;right:16px;z-index:9997;width:36px;height:36px;border-radius:50%;overflow:hidden;border:2px solid #0891b2;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4);";
+      btn.innerHTML = '<img src="' + uri + '" alt="RIFT account" style="width:100%;height:100%;object-fit:cover;"/>';
+      btn.addEventListener("click", function () { window.location.href = "./dashboard.html"; });
+      document.body.appendChild(btn);
+    }
+  });
+
   // Back-to-top button
   document.addEventListener("DOMContentLoaded", function () {
     var btn = document.createElement("button");
