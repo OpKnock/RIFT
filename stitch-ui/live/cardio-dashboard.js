@@ -18,6 +18,7 @@ function fail(msg) {
 }
 
 function cell(v, digits) {
+  if (v === null || v === undefined || v === '') return '—';
   const n = Number(v);
   return Number.isFinite(n) ? n.toFixed(digits === undefined ? 3 : digits) : '—';
 }
@@ -78,7 +79,12 @@ function drawReliability(calib, target) {
       ? 'bg-primary text-surface border-primary font-semibold' : 'border-outline-variant text-on-surface-variant');
   }
   const canvas = document.getElementById('rel-canvas');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    canvas.setAttribute('aria-label', 'Reliability chart is unavailable in this browser.');
+    return;
+  }
   const W = canvas.width, H = canvas.height, PAD = 34;
   ctx.clearRect(0, 0, W, H);
   ctx.strokeStyle = '#374151';
