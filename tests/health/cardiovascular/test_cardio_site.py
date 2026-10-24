@@ -70,15 +70,24 @@ def test_track_a_in_main_nav_on_every_page():
 def test_pages_and_scripts_wired():
     ui = REPO_ROOT / "stitch-ui"
     coronary = (ui / "coronary.html").read_text(encoding="utf-8")
-    assert "./live/coronary.js" in coronary and "not a medical device" in coronary
+    assert "./live/coronary-loader.js" in coronary and "not a medical device" in coronary
+    assert "./tracka.css" in coronary and "./live/tracka-ui.js" in coronary
+    assert '<main class="rift-tracka-workspace' in coronary
     assert "whatif-panel" in coronary
     viewer = (ui / "live" / "coronary.js").read_text(encoding="utf-8")
-    assert "demo_patients.json" in viewer
+    assert "demo_patients.json" in viewer and "rendererReady" in viewer
     for seg in ("'lad'", "'lcx'", "'rca'"):
         assert seg in viewer
+    loader = (ui / "live" / "coronary-loader.js").read_text(encoding="utf-8")
+    assert 'await import("./coronary.js")' in loader
+    assert "probabilities are still available" in loader
     dash = (ui / "cardio-dashboard.html").read_text(encoding="utf-8")
     assert "./live/cardio-dashboard.js" in dash and "RCA AUC 0.594" in dash
+    assert "./tracka.css" in dash and "./live/tracka-ui.js" in dash
+    assert '<main class="rift-tracka-workspace' in dash
     script = (ui / "live" / "cardio-dashboard.js").read_text(encoding="utf-8")
     for name in ("report.json", "calibration.json", "explainability.json",
                  "model_cards.json"):
         assert name in script
+    assert "Number.isFinite(n)" in script
+    assert "Evaluation data could not be loaded" in script
