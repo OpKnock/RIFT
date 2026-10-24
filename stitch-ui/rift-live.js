@@ -16,14 +16,26 @@
       var q = new URLSearchParams(window.location.search).get("api");
       if (q) return q.replace(/\/$/, "");
     } catch (e) { /* ignore */ }
+
+    // Explicit runtime override remains available for staging or custom domains.
     if (window.RIFT_API_BASE) return String(window.RIFT_API_BASE).replace(/\/$/, "");
+
+    var hostname = String(window.location.hostname || "").toLowerCase();
     if (window.location.port === "8080") return window.location.origin;
-    return "http://localhost:8080";
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
+      return "http://localhost:8080";
+    }
+    // Render serves the static UI and the API as separate services.
+    if (hostname === "rift-ui.onrender.com") return "https://rift-s2fw.onrender.com";
+
+    // For same-origin / reverse-proxy deployments, use the current origin.
+    return window.location.origin;
   }
   var API = base();
-  // Clear stale test data / logs / run history from previous builds.
+  // Keep the simulation run ledger across navigation/reloads so operators can
+  // verify that a new run adds a new timestamped record. Clear only obsolete
+  // transient UI state from earlier prototype builds.
   try {
-    localStorage.removeItem("rift_simulation_run_history_v1");
     localStorage.removeItem("rift_snapshots");
     localStorage.removeItem("rift-notif-prefs");
   } catch (e) {}
