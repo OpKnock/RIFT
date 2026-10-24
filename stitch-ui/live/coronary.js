@@ -1,11 +1,27 @@
-/* RIFT Track A — schematic coronary tree (Three.js, CDN).
- * Branch colors = calibrated model probabilities for the selected demo
- * patient. Geometry is illustrative, not anatomy; see on-page banner.
+/* RIFT Track A — anatomical heart viewer with model-output overlays.
+ * Base heart geometry is loaded from a CC0 GLB model. Colored vessel traces
+ * are approximate explanatory overlays of the selected patient's model
+ * probabilities; they are not patient-specific anatomy or measured lesions.
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const DATA_URL = './live/cardio/demo_patients.json';
+const HEART_MODELS = [
+  {
+    url: 'https://grab3d.com/dl/human-heart-cutaway/human-heart-cutaway-light.glb',
+    name: 'High-detail anatomical heart',
+    source: 'https://grab3d.com/models/anatomy/human-heart-cutaway/',
+    license: 'CC0'
+  },
+  {
+    url: 'https://cdn.3dassets.dev/assets/38952/v1/model.glb',
+    name: 'Lightweight anatomical heart',
+    source: 'https://3dassets.dev/assets/human-anatomy-and-education-kit-heart-model-79e77e2b',
+    license: 'CC0'
+  }
+];
 
 const SEGMENTS = [
   // [id, label, target, points, radius, markerT]
@@ -50,23 +66,38 @@ let rendererReady = false;
 let frameId = 0;
 let meshes = [];
 let markers = [];
+let heartRoot = null;
+let heartDimensions = null;
+let currentPatient = null;
+let heartLoadingPromise = null;
 
 function init() {
   const canvas = document.getElementById('coronary-canvas');
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
   renderer.setClearColor(0x0b1220, 1);
   const w = canvas.clientWidth || 800, h = canvas.clientHeight || 500;
   renderer.setSize(w, h, false);
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(42, w / h, 0.1, 100);
-  camera.position.set(0, 0.4, 7.4);
+  scene.background = new THREE.Color(0x0b1220);
+  camera = new THREE.PerspectiveCamera(38, w / h, 0.1, 100);
+  camera.position.set(0, 0.1, 6.1);
   controls = new OrbitControls(camera, canvas);
   controls.enableDamping = true;
-  scene.add(new THREE.AmbientLight(0xffffff, 0.75));
-  const dir = new THREE.DirectionalLight(0xffffff, 1.4);
-  dir.position.set(3, 5, 6);
+  controls.target.set(0, 0, 0);
+  controls.minDistance = 3.0;
+  controls.maxDistance = 14;
+  scene.add(new THREE.HemisphereLight(0xe5f3ff, 0x21151d, 1.35));
+  const dir = new THREE.DirectionalLight(0xffe4d6, 2.2);
+  dir.position.set(3.5, 5, 6);
   scene.add(dir);
-  const glow = new THREE.PointLight(0x0891b2, 12, 30);
+  const fill = new THREE.DirectionalLight(0x77b9ff, 0.8);
+  fill.position.set(-4, 1, -3);
+  scene.add(fill);
+  const glow = new THREE.PointLight(0x0891b2, 7, 18);
   glow.position.set(0, 1, 3);
   scene.add(glow);
   raycaster = new THREE.Raycaster();
@@ -77,31 +108,163 @@ function init() {
   animate();
 }
 
+function setHeartModelStatus(message, asset) {
+  const el = document.getElementById('heart-model-status');
+  if (!el) return;
+  el.textContent = message;
+  el.dataset.state = asset ? 'loaded' : 'loading';
+  el.style.borderColor = asset ? 'rgba(34,197,94,.45)' : 'rgba(148,163,184,.3)';
+  el.style.color = asset ? '#bbf7d0' : '#cbd5e1';
+  const source = document.getElementById('heart-model-source');
+  if (source) {
+    source.replaceChildren();
+    if (asset) {
+      const link = document.createElement('a');
+      link.href = asset.source;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.textContent = asset.name + ' · ' + asset.license;
+      link.style.cssText = 'color:#67e8f9;text-decoration:underline;text-underline-offset:3px;';
+      source.appendChild(link);
+    } else {
+      source.textContent = 'Loading open-licensed anatomical model…';
+    }
+  }
+}
+
+function loadGltf(loader, asset, index, count) {
+  return new Promise((resolve, reject) => {
+    loader.load(asset.url, resolve, event => {
+      if (event && event.total > 0) {
+        const pct = Math.max(0, Math.min(100, Math.round(event.loaded / event.total * 100)));
+        setHeartModelStatus('Loading anatomical model · ' + pct + '%', null);
+      } else {
+        setHeartModelStatus('Loading anatomical model…', null);
+      }
+    }, reject);
+  });
+}
+
+async function loadHeartModel() {
+  if (heartLoadingPromise) return heartLoadingPromise;
+  heartLoadingPromise = (async () => {
+    if (!rendererReady || !scene) return false;
+    const loader = new GLTFLoader();
+    const statusEl = document.getElementById('heart-model-status');
+    if (statusEl) statusEl.style.display = 'block';
+
+    for (let i = 0; i < HEART_MODELS.length; i++) {
+      const asset = HEART_MODELS[i];
+      try {
+        setHeartModelStatus(i === 0
+          ? 'Loading high-detail heart model…'
+          : 'Loading lightweight anatomical backup…', null);
+        const gltf = await loadGltf(loader, asset, i, HEART_MODELS.length);
+        const model = gltf.scene;
+        model.updateMatrixWorld(true);
+        const bounds = new THREE.Box3().setFromObject(model);
+        const size = bounds.getSize(new THREE.Vector3());
+        const center = bounds.getCenter(new THREE.Vector3());
+        if (!Number.isFinite(size.y) || size.y <= 0) throw new Error('Model has invalid dimensions');
+
+        // Center and fit the downloaded asset to the viewer without changing its meshes.
+        model.position.sub(center);
+        const root = new THREE.Group();
+        root.name = 'RIFT anatomical heart model';
+        root.add(model);
+        const fitHeight = 4.15;
+        const fitScale = fitHeight / size.y;
+        root.scale.setScalar(fitScale);
+        root.traverse(object => {
+          if (!object.isMesh) return;
+          object.castShadow = true;
+          object.receiveShadow = true;
+          if (object.material) {
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            materials.forEach(material => {
+              if ('roughness' in material && material.roughness > 0.9) material.roughness = 0.72;
+              if ('metalness' in material && material.metalness > 0.55) material.metalness = 0.12;
+              material.needsUpdate = true;
+            });
+          }
+        });
+        scene.add(root);
+        heartRoot = root;
+        heartDimensions = size.multiplyScalar(fitScale);
+        setHeartModelStatus(asset.name + ' loaded', asset);
+        if (currentPatient) buildTree(currentPatient);
+        return true;
+      } catch (error) {
+        console.warn('Could not load ' + asset.name + '; trying next CC0 model.', error);
+      }
+    }
+    setHeartModelStatus('Anatomical asset unavailable · schematic overlay only', null);
+    return false;
+  })();
+  return heartLoadingPromise;
+}
+
+function clearOverlays() {
+  for (const m of meshes) {
+    scene.remove(m);
+    m.geometry.dispose();
+    if (Array.isArray(m.material)) m.material.forEach(material => material.dispose());
+    else m.material.dispose();
+  }
+  for (const m of markers) {
+    scene.remove(m);
+    m.geometry.dispose();
+    if (Array.isArray(m.material)) m.material.forEach(material => material.dispose());
+    else m.material.dispose();
+  }
+  meshes = [];
+  markers = [];
+}
+
 function buildTree(patient) {
-  // Keep the numerical evaluation usable even if WebGL is blocked or unavailable.
   if (!rendererReady || !scene || !patient || !patient.calibrated_probabilities) return;
-  for (const m of meshes) { scene.remove(m); m.geometry.dispose(); m.material.dispose(); }
-  for (const m of markers) { scene.remove(m); m.geometry.dispose(); m.material.dispose(); }
-  meshes = []; markers = [];
+  currentPatient = patient;
+  clearOverlays();
+
+  const usingAnatomicalModel = Boolean(heartRoot && heartDimensions);
+  // Map the existing explanatory coronary paths onto the front of the real heart mesh.
+  // The paths stay explicitly schematic and are not claimed to be patient-specific anatomy.
+  const xScale = usingAnatomicalModel ? heartDimensions.x / 6.6 : 1;
+  const yScale = usingAnatomicalModel ? heartDimensions.y / 4.8 : 1;
+  const frontZ = usingAnatomicalModel ? heartDimensions.z * 0.5 + 0.035 : 0;
+  const radiusScale = usingAnatomicalModel ? Math.min(xScale, yScale) * 0.52 : 1;
+
   for (const [id, label, target, pts, radius, markerT] of SEGMENTS) {
+    // The asset already provides the great vessels, so avoid drawing a second arch.
+    if (usingAnatomicalModel && id === 'aorta') continue;
+
     const prob = target ? patient.calibrated_probabilities[target] : null;
-    const curve = new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p)));
-    const geo = new THREE.TubeGeometry(curve, 48, radius, 12, false);
+    const mapped = pts.map(([x, y, z]) => new THREE.Vector3(
+      x * xScale,
+      y * yScale,
+      usingAnatomicalModel ? frontZ + z * 0.015 : z
+    ));
+    const curve = new THREE.CatmullRomCurve3(mapped);
+    const actualRadius = radius * radiusScale;
+    const geo = new THREE.TubeGeometry(curve, 48, actualRadius, 10, false);
+    const tint = probColor(prob);
     const mat = new THREE.MeshStandardMaterial({
-      color: probColor(prob), roughness: 0.35, metalness: 0.15,
-      emissive: probColor(prob), emissiveIntensity: 0.25,
+      color: tint, roughness: 0.38, metalness: 0.05,
+      emissive: tint, emissiveIntensity: usingAnatomicalModel ? 0.12 : 0.25,
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.userData = { id, label, target, prob };
     scene.add(mesh);
     meshes.push(mesh);
+
     if (markerT >= 0) {
       const pos = curve.getPoint(markerT);
+      const ringRadius = actualRadius + (usingAnatomicalModel ? 0.018 : 0.05);
       const ring = new THREE.Mesh(
-        new THREE.TorusGeometry(radius + 0.05, 0.022, 10, 28),
+        new THREE.TorusGeometry(ringRadius, usingAnatomicalModel ? 0.012 : 0.022, 10, 28),
         new THREE.MeshBasicMaterial({ color: prob >= 0.5 ? 0xef4444 : 0xf59e0b }));
       ring.position.copy(pos);
-      ring.userData = { pulse: Math.random() * Math.PI * 2, base: radius + 0.05 };
+      ring.userData = { pulse: Math.random() * Math.PI * 2, base: ringRadius };
       scene.add(ring);
       markers.push(ring);
     }
@@ -189,6 +352,7 @@ function whatIfHtml(patient) {
 
 function selectPatient(patients, slug) {
   const p = patients.find(x => x.slug === slug) || patients[0];
+  currentPatient = p;
   buildTree(p);
   document.getElementById('patient-name').textContent =
     p.slug.replace(/-/g, ' ') + ` (test row ${p.test_row})`;
@@ -218,6 +382,7 @@ function selectPatient(patients, slug) {
 async function main() {
   try {
     init();
+    void loadHeartModel();
   } catch (err) {
     rendererReady = false;
     if (frameId) cancelAnimationFrame(frameId);
