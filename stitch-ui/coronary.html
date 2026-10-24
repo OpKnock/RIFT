@@ -68,16 +68,18 @@ Deploy Override
   </div>
 
   <div class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-2.5 mb-4 text-xs font-label">
-    SCHEMATIC — not anatomy. Branch colors are the registered models' calibrated stenosis
-    probabilities for the selected demo patient. Stenosis rings mark representative sites, not measured lesions.
-    Research prototype; not a medical device.
+    ANATOMICAL MODEL + EXPLANATORY OVERLAYS. The 3D heart is a general educational model, not a patient scan.
+    Colored coronary traces visualize registered model outputs for the selected demo patient; they are approximate,
+    not patient-specific vessel measurements or medical advice. Research prototype; not a medical device.
   </div>
 
   <div class="flex flex-wrap items-center gap-2 mb-4" id="patient-switch" role="tablist" aria-label="Demo patients"></div>
 
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
     <div class="lg:col-span-2 relative rounded-xl border border-outline-variant bg-[#0b1220] overflow-hidden">
-      <canvas id="coronary-canvas"></canvas>
+      <canvas id="coronary-canvas" aria-label="Interactive 3D anatomical heart model with illustrative coronary probability overlays"></canvas>
+      <div id="heart-model-status" class="absolute top-3 left-3 z-20 rounded-lg px-3 py-2 text-xs bg-slate-950/90 border border-slate-700/70" role="status" aria-live="polite">Loading high-detail anatomical heart…</div>
+      <div id="heart-model-source" class="absolute bottom-3 left-3 z-20 text-[10px] text-slate-300/90"></div>
       <div id="coronary-tip" class="rounded-md border border-outline-variant bg-surface px-3 py-2 text-xs"></div>
       <div id="coronary-fallback" class="hidden absolute inset-0 items-center justify-center text-center text-sm p-8" role="status" aria-live="polite">
         3D unavailable (WebGL or CDN blocked). Probabilities are listed numerically on the right —
