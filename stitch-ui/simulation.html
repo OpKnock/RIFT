@@ -384,17 +384,30 @@ Deploy Override
     const metaIndicatorBar = document.getElementById('meta-indicator-bar');
     const validationPill = document.getElementById('validation-pill');
 
-    // Bound network requests so a sleeping/unavailable API cannot leave the UI
-    // permanently stuck on "Loading schema..." or "EVALUATING...".
-    const META_TIMEOUT_MS = 15000;
+    // Bound network requests so an unavailable endpoint cannot leave the UI
+    // permanently stuck on "Checking engine metadata..." or "EVALUATING...".
+    const META_TIMEOUT_MS = 8000;
     const SIMULATION_TIMEOUT_MS = 25000;
     const runStatus = document.getElementById('run-status');
 
     async function fetchWithTimeout(url, options, timeoutMs) {
       const controller = new AbortController();
-      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+      let timeoutId;
+      const timeout = new Promise((resolve, reject) => {
+        timeoutId = window.setTimeout(() => {
+          controller.abort();
+          const error = new Error(`Request timed out after ${timeoutMs / 1000} seconds.`);
+          error.name = 'TimeoutError';
+          reject(error);
+        }, timeoutMs);
+      });
       try {
-        return await fetch(url, Object.assign({}, options || {}, { signal: controller.signal }));
+        // Promise.race guarantees the UI is released even if a browser/network
+        // layer does not promptly settle an aborted fetch.
+        return await Promise.race([
+          fetch(url, Object.assign({}, options || {}, { signal: controller.signal })),
+          timeout
+        ]);
       } finally {
         window.clearTimeout(timeoutId);
       }
@@ -431,12 +444,18 @@ Deploy Override
       policiesTbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-slate-400 italic">No current results. Run the simulation.</td></tr>';
     }
 
-    // Fetch /api/meta for dynamic validation bounds. Timeout falls back to
-    // clearly labelled local bounds; it never pretends the live schema loaded.
+    // Fetch /api/meta for dynamic validation bounds. Start with usable local
+    // bounds immediately; live metadata upgrades them when available.
     async function fetchMeta() {
+      applyBoundsUI();
+      metaStatus.textContent = 'Fallback bounds ready; checking engine...';
+      metaStatus.className = 'font-mono text-amber-400';
+      metaIndicatorBar.style.width = '60%';
+      metaIndicatorBar.className = 'bg-amber-500 h-full transition-all duration-500';
+      validationPill.textContent = 'Fallback Bounds';
+      validationPill.className = 'text-[11px] font-mono px-2 py-0.5 rounded border border-amber-500/30 bg-amber-950/30 text-amber-300';
+
       try {
-        metaStatus.textContent = 'Checking engine metadata...';
-        validationPill.textContent = 'Connecting...';
         const res = await fetchWithTimeout('/api/meta', {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
@@ -446,15 +465,18 @@ Deploy Override
         }
         const data = await res.json();
         
-        // Update bounds if returned. Real shape:
-        // limits.scenario_bounds = {crowd: [lo, hi], ...}; accept {min,max} too.
+        // Metadata bounds must contain all three scenario inputs before applying.
         const sb = (data.limits && data.limits.scenario_bounds) || data.bounds || data.parameters || {};
         if (!sb.crowd || !sb.smoke || !sb.corridor_capacity) {
           throw new Error('Metadata response did not include all scenario bounds.');
         }
         function asMinMax(v, fb) {
-          if (Array.isArray(v) && v.length >= 2) return { min: v[0], max: v[1] };
-          if (v && typeof v === 'object' && v.min !== undefined) return { min: v.min, max: v.max };
+          if (Array.isArray(v) && v.length >= 2 && Number.isFinite(Number(v[0])) && Number.isFinite(Number(v[1]))) {
+            return { min: Number(v[0]), max: Number(v[1]) };
+          }
+          if (v && typeof v === 'object' && Number.isFinite(Number(v.min)) && Number.isFinite(Number(v.max))) {
+            return { min: Number(v.min), max: Number(v.max) };
+          }
           return fb;
         }
         metaBounds.crowd = asMinMax(sb.crowd, metaBounds.crowd);
@@ -470,7 +492,7 @@ Deploy Override
         validationPill.className = 'text-[11px] font-mono px-2 py-0.5 rounded border border-emerald-500/30 bg-emerald-950/40 text-emerald-400';
       } catch (err) {
         console.warn('GET /api/meta unavailable or offline:', err);
-        const timedOut = err && err.name === 'AbortError';
+        const timedOut = err && (err.name === 'AbortError' || err.name === 'TimeoutError');
         metaStatus.textContent = timedOut ? 'Timed out. Using fallback bounds.' : 'API unavailable. Using fallback bounds.';
         metaStatus.className = 'font-mono text-amber-400';
         metaIndicatorBar.style.width = '60%';
@@ -862,11 +884,18 @@ Deploy Override
         .replace(/'/g, '&#039;');
     }
 
-    // Initialize console
-    window.addEventListener('DOMContentLoaded', () => {
+    // Initialize immediately because this script is at the end of the page,
+    // after all controls exist. This avoids missing DOMContentLoaded on cached/
+    // restored documents and guarantees the metadata fallback is rendered.
+    function initializeSimulationConsole() {
       fetchMeta();
       loadHistoryUI();
-    });
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initializeSimulationConsole, { once: true });
+    } else {
+      initializeSimulationConsole();
+    }
   </script>
   
 </body>
