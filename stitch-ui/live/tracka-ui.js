@@ -16,9 +16,9 @@
       document.body.appendChild(el);
     }
     el.textContent = message;
-    el.hidden = false;
+    el.style.display = "block";
     clearTimeout(el._hideTimer);
-    el._hideTimer = setTimeout(() => { el.hidden = true; }, 3600);
+    el._hideTimer = setTimeout(() => { el.style.display = "none"; }, 3600);
   }
 
   const toolbar = header.querySelector(":scope > div");
@@ -121,7 +121,7 @@
       const showing = menu.style.display === "block";
       if (showing) return hideMenu();
       const rect = avatar.getBoundingClientRect();
-      menu.style.top = Math.min(window.innerHeight - 220, rect.bottom + 8) + "px";
+      menu.style.top = Math.max(8, Math.min(window.innerHeight - 220, rect.bottom + 8)) + "px";
       menu.style.left = Math.max(8, Math.min(window.innerWidth - 226, rect.right - 210)) + "px";
       menu.style.display = "block";
       avatar.setAttribute("aria-expanded", "true");
