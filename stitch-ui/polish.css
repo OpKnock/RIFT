@@ -113,3 +113,34 @@ main { scrollbar-width: thin; scrollbar-color: #26334d transparent; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Shared responsive header: keep the menu toggle in the same row on every screen. */
+header { min-width: 0; }
+header > div:first-of-type {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+header #rift-nav-toggle {
+  position: static !important;
+  flex: 0 0 34px;
+  margin-left: 12px;
+  align-self: center;
+}
+header > div:first-of-type > div:first-child { min-width: 0; }
+header > div:first-of-type > div:last-child {
+  min-width: 0;
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+header #rift-avatar, header [aria-label="Account"] { flex-shrink: 0; }
+@media (max-width: 900px) {
+  header > div:first-of-type { padding: 10px 12px; gap: 8px; }
+  header > div:first-of-type > div:last-child { gap: 6px; }
+}
+@media (max-width: 600px) {
+  header > div:first-of-type { flex-wrap: wrap; }
+  header > div:first-of-type > div:last-child { width: 100%; }
+}
