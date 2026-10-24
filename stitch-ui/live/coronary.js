@@ -108,13 +108,13 @@ function init() {
   animate();
 }
 
-function setHeartModelStatus(message, asset) {
+function setHeartModelStatus(message, asset, failed) {
   const el = document.getElementById('heart-model-status');
   if (!el) return;
   el.textContent = message;
-  el.dataset.state = asset ? 'loaded' : 'loading';
-  el.style.borderColor = asset ? 'rgba(34,197,94,.45)' : 'rgba(148,163,184,.3)';
-  el.style.color = asset ? '#bbf7d0' : '#cbd5e1';
+  el.dataset.state = asset ? 'loaded' : (failed ? 'error' : 'loading');
+  el.style.borderColor = asset ? 'rgba(34,197,94,.45)' : (failed ? 'rgba(245,158,11,.5)' : 'rgba(148,163,184,.3)');
+  el.style.color = asset ? '#bbf7d0' : (failed ? '#fde68a' : '#cbd5e1');
   const source = document.getElementById('heart-model-source');
   if (source) {
     source.replaceChildren();
@@ -127,7 +127,7 @@ function setHeartModelStatus(message, asset) {
       link.style.cssText = 'color:#67e8f9;text-decoration:underline;text-underline-offset:3px;';
       source.appendChild(link);
     } else {
-      source.textContent = 'Loading open-licensed anatomical model…';
+      source.textContent = failed ? 'Schematic overlay is active; anatomical asset did not load.' : 'Loading open-licensed anatomical model…';
     }
   }
 }
@@ -198,7 +198,7 @@ async function loadHeartModel() {
         console.warn('Could not load ' + asset.name + '; trying next CC0 model.', error);
       }
     }
-    setHeartModelStatus('Anatomical asset unavailable · schematic overlay only', null);
+    setHeartModelStatus('Anatomical asset unavailable · schematic overlay only', null, true);
     return false;
   })();
   return heartLoadingPromise;
@@ -386,6 +386,7 @@ async function main() {
   } catch (err) {
     rendererReady = false;
     if (frameId) cancelAnimationFrame(frameId);
+    setHeartModelStatus('3D renderer unavailable in this browser', null, true);
     const fallback = document.getElementById('coronary-fallback');
     const canvas = document.getElementById('coronary-canvas');
     if (fallback) {
