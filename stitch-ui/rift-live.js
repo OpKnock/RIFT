@@ -382,20 +382,26 @@
     } catch (e) {}
   });
 
-  // Universal top-right account avatar (consistent on every page)
-  document.addEventListener("DOMContentLoaded", function () {
-    var uri = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSI+PGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iMTQiIGZpbGw9IiMwZjE3MmEiLz48Y2lyY2xlIGN4PSIxNiIgY3k9IjE2IiByPSIxNCIgc3Ryb2tlPSIjMDg5MWIyIiBzdHJva2Utd2lkdGg9IjEuNSIvPjxwYXRoIGQ9Ik0xMiA5aDJ2MmgydjRoLTJ2MmgtMnYtNGgtMlY5aDJ6TTEyIDE3aDR2LTJoLTR6IiBmaWxsPSIjMDg5MWIyIi8+PC9zdmc+";
+  // The existing Stitch avatar is already wired by setupAccountMenu().
+  // Do not inject a second floating avatar: it overlaps header controls.
+  // Normalize the existing avatar dimensions without changing its click handler.
+  function normalizeHeaderAvatar() {
     var header = document.querySelector("header");
-    if (header && !document.getElementById("rift-universal-avatar")) {
-      var btn = document.createElement("div");
-      btn.id = "rift-universal-avatar";
-      btn.style.cssText = "position:absolute;top:10px;right:16px;z-index:9997;width:36px;height:36px;border-radius:50%;overflow:hidden;border:2px solid #0891b2;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4);";
-      btn.innerHTML = '<img src="' + uri + '" alt="RIFT account" style="width:100%;height:100%;object-fit:cover;"/>';
-      btn.addEventListener("click", function () { window.location.href = "./dashboard.html"; });
-      header.style.position = "relative";
-      header.appendChild(btn);
-    }
-  });
+    if (!header) return;
+    var avatar = header.querySelector("#rift-avatar, [aria-label='Account']");
+    if (!avatar) return;
+    avatar.style.flexShrink = "0";
+    avatar.style.width = "34px";
+    avatar.style.height = "34px";
+    avatar.style.borderRadius = "50%";
+    avatar.style.display = "inline-flex";
+    avatar.style.alignItems = "center";
+    avatar.style.justifyContent = "center";
+    avatar.style.position = "static";
+    avatar.style.marginLeft = "8px";
+  }
+  if (document.readyState !== "loading") normalizeHeaderAvatar();
+  else document.addEventListener("DOMContentLoaded", normalizeHeaderAvatar);
 
   // Back-to-top button
   document.addEventListener("DOMContentLoaded", function () {
