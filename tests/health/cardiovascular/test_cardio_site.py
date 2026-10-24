@@ -76,11 +76,16 @@ def test_pages_and_scripts_wired():
     assert "whatif-panel" in coronary
     viewer = (ui / "live" / "coronary.js").read_text(encoding="utf-8")
     assert "demo_patients.json" in viewer and "rendererReady" in viewer
+    assert "GLTFLoader" in viewer and "human-heart-cutaway-light.glb" in viewer
+    assert "https://cdn.3dassets.dev/assets/38952/v1/model.glb" in viewer
+    assert "heartDimensions" in viewer and "setHeartModelStatus" in viewer
     for seg in ("'lad'", "'lcx'", "'rca'"):
         assert seg in viewer
     loader = (ui / "live" / "coronary-loader.js").read_text(encoding="utf-8")
     assert 'await import("./coronary.js")' in loader
     assert "probabilities and explanation details are still available" in loader
+    assert 'id="heart-model-status"' in coronary
+    assert "ANATOMICAL MODEL + EXPLANATORY OVERLAYS" in coronary
     dash = (ui / "cardio-dashboard.html").read_text(encoding="utf-8")
     assert "./live/cardio-dashboard.js" in dash and "RCA AUC 0.594" in dash
     assert "./tracka.css" in dash and "./live/tracka-ui.js" in dash
