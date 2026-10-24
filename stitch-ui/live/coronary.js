@@ -37,14 +37,17 @@ const RED = new THREE.Color('#ef4444');
 const NEUTRAL = new THREE.Color('#38bdf8');
 
 function probColor(p) {
-  if (p === null || p === undefined) return NEUTRAL.clone();
+  if (p === null || p === undefined || !Number.isFinite(Number(p))) return NEUTRAL.clone();
+  const value = Math.max(0, Math.min(1, Number(p)));
   const c = new THREE.Color();
-  if (p <= 0.5) c.lerpColors(GREEN, AMBER, p / 0.5);
-  else c.lerpColors(AMBER, RED, (p - 0.5) / 0.5);
+  if (value <= 0.5) c.lerpColors(GREEN, AMBER, value / 0.5);
+  else c.lerpColors(AMBER, RED, (value - 0.5) / 0.5);
   return c;
 }
 
 let renderer, scene, camera, controls, raycaster, pointer;
+let rendererReady = false;
+let frameId = 0;
 let meshes = [];
 let markers = [];
 
@@ -70,10 +73,13 @@ function init() {
   pointer = new THREE.Vector2();
   canvas.addEventListener('pointermove', onHover);
   window.addEventListener('resize', onResize);
+  rendererReady = true;
   animate();
 }
 
 function buildTree(patient) {
+  // Keep the numerical evaluation usable even if WebGL is blocked or unavailable.
+  if (!rendererReady || !scene || !patient || !patient.calibrated_probabilities) return;
   for (const m of meshes) { scene.remove(m); m.geometry.dispose(); m.material.dispose(); }
   for (const m of markers) { scene.remove(m); m.geometry.dispose(); m.material.dispose(); }
   meshes = []; markers = [];
@@ -134,7 +140,7 @@ function onResize() {
 
 const clock = new THREE.Clock();
 function animate() {
-  requestAnimationFrame(animate);
+  frameId = requestAnimationFrame(animate);
   const t = clock.getElapsedTime();
   for (const m of markers) {
     const s = 1 + 0.12 * Math.sin(2.2 * t + m.userData.pulse);
@@ -213,8 +219,16 @@ async function main() {
   try {
     init();
   } catch (err) {
-    document.getElementById('coronary-fallback').style.display = 'flex';
-    console.error(err);
+    rendererReady = false;
+    if (frameId) cancelAnimationFrame(frameId);
+    const fallback = document.getElementById('coronary-fallback');
+    const canvas = document.getElementById('coronary-canvas');
+    if (fallback) {
+      fallback.style.display = 'flex';
+      fallback.textContent = '3D rendering is unavailable in this browser. Demo-patient probabilities and explanation details remain available below.';
+    }
+    if (canvas) canvas.style.display = 'none';
+    console.warn('RIFT coronary 3D renderer unavailable; showing numeric fallback.', err);
   }
   let patients;
   try {
@@ -222,8 +236,17 @@ async function main() {
     if (!res.ok) throw new Error('HTTP ' + res.status);
     patients = await res.json();
   } catch (err) {
-    document.getElementById('patient-desc').textContent =
-      'Could not load demo patients (' + err.message + '). Serve via `bash ./local ui`.';
+    rendererReady = false;
+    if (frameId) cancelAnimationFrame(frameId);
+    const fallback = document.getElementById('coronary-fallback');
+    const canvas = document.getElementById('coronary-canvas');
+    if (fallback) {
+      fallback.style.display = 'flex';
+      fallback.textContent = 'Demo-patient data could not be loaded. Check that the Track A data files are deployed, then refresh this page.';
+    }
+    if (canvas) canvas.style.display = 'none';
+    document.getElementById('patient-desc').textContent = 'Demo-patient data unavailable.';
+    console.warn('RIFT coronary demo-patient data failed to load.', err);
     return;
   }
   const sw = document.getElementById('patient-switch');
