@@ -105,10 +105,10 @@ Deploy Override
             <p class="text-xs text-slate-400 mt-0.5">Input variables validated against counterfactual engine bounds prior to execution.</p>
           </div>
           <div id="validation-pill" class="text-[11px] font-mono px-2 py-0.5 rounded border border-[#1F293D] bg-[#172033] text-slate-400">
-            Awaiting Schema
+            Connecting to engine...
           </div>
           <div class="flex items-center gap-2 mt-2">
-            <span id="meta-status" class="font-mono text-xs text-slate-400">Loading schema...</span>
+            <span id="meta-status" class="font-mono text-xs text-slate-400">Checking engine metadata...</span>
             <div class="w-24 h-1 rounded bg-[#172033] overflow-hidden"><div id="meta-indicator-bar" class="bg-cyan-500 h-full transition-all duration-500" style="width:10%"></div></div>
           </div>
         </div>
@@ -194,6 +194,10 @@ Deploy Override
 
       <!-- Active Output Screen Area -->
       <section id="result-container" class="space-y-6">
+        <div id="run-status" role="status" aria-live="polite"
+          class="rounded border border-[#1F293D] bg-[#0B0F17] px-4 py-3 text-xs font-mono text-slate-400">
+          No simulation has been run in this session. Results are shown only after a successful API response.
+        </div>
 
         <!-- Verdict & Quantum Energy Row -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -380,11 +384,63 @@ Deploy Override
     const metaIndicatorBar = document.getElementById('meta-indicator-bar');
     const validationPill = document.getElementById('validation-pill');
 
-    // Fetch /api/meta for dynamic validation bounds
+    // Bound network requests so a sleeping/unavailable API cannot leave the UI
+    // permanently stuck on "Loading schema..." or "EVALUATING...".
+    const META_TIMEOUT_MS = 15000;
+    const SIMULATION_TIMEOUT_MS = 25000;
+    const runStatus = document.getElementById('run-status');
+
+    async function fetchWithTimeout(url, options, timeoutMs) {
+      const controller = new AbortController();
+      const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        return await fetch(url, Object.assign({}, options || {}, { signal: controller.signal }));
+      } finally {
+        window.clearTimeout(timeoutId);
+      }
+    }
+
+    function formatRunTime(date) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    function setRunStatus(message, state) {
+      if (!runStatus) return;
+      const baseClass = 'rounded border px-4 py-3 text-xs font-mono ';
+      const classes = {
+        success: 'border-emerald-500/30 bg-emerald-950/30 text-emerald-300',
+        error: 'border-rose-500/40 bg-rose-950/30 text-rose-300',
+        running: 'border-cyan-500/30 bg-cyan-950/20 text-cyan-200',
+        idle: 'border-[#1F293D] bg-[#0B0F17] text-slate-400'
+      };
+      runStatus.className = baseClass + (classes[state] || classes.idle);
+      runStatus.textContent = message;
+    }
+
+    function clearDisplayedResults() {
+      guardianBadge.textContent = 'NO ACTIVE RUN';
+      guardianBadge.className = 'px-3 py-1 rounded text-xs font-mono font-bold tracking-wider uppercase border border-slate-700 bg-slate-800 text-slate-400';
+      violationsContainer.innerHTML = '<div class="text-slate-400 italic text-[11px]">No current result. Run the simulation to evaluate constraints.</div>';
+      guardianChecksCount.textContent = 'Checks: 0 evaluated';
+      guardianLatency.textContent = 'Latency: -- ms';
+      energyClassicalVal.textContent = '--';
+      energyQuantumVal.textContent = '--';
+      energyDelta.textContent = '--';
+      energyDelta.className = 'font-bold text-slate-400 font-mono';
+      policiesCount.textContent = '0 policies evaluated';
+      policiesTbody.innerHTML = '<tr><td colspan="5" class="py-6 text-center text-slate-400 italic">No current results. Run the simulation.</td></tr>';
+    }
+
+    // Fetch /api/meta for dynamic validation bounds. Timeout falls back to
+    // clearly labelled local bounds; it never pretends the live schema loaded.
     async function fetchMeta() {
       try {
-        metaStatus.textContent = 'Fetching /api/meta...';
-        const res = await fetch('/api/meta', { method: 'GET' });
+        metaStatus.textContent = 'Checking engine metadata...';
+        validationPill.textContent = 'Connecting...';
+        const res = await fetchWithTimeout('/api/meta', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' }
+        }, META_TIMEOUT_MS);
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}: ${res.statusText}`);
         }
@@ -393,6 +449,9 @@ Deploy Override
         // Update bounds if returned. Real shape:
         // limits.scenario_bounds = {crowd: [lo, hi], ...}; accept {min,max} too.
         const sb = (data.limits && data.limits.scenario_bounds) || data.bounds || data.parameters || {};
+        if (!sb.crowd || !sb.smoke || !sb.corridor_capacity) {
+          throw new Error('Metadata response did not include all scenario bounds.');
+        }
         function asMinMax(v, fb) {
           if (Array.isArray(v) && v.length >= 2) return { min: v[0], max: v[1] };
           if (v && typeof v === 'object' && v.min !== undefined) return { min: v.min, max: v.max };
@@ -406,15 +465,18 @@ Deploy Override
         metaStatus.textContent = 'Active (Live)';
         metaStatus.className = 'font-mono text-emerald-400';
         metaIndicatorBar.style.width = '100%';
+        metaIndicatorBar.className = 'bg-emerald-500 h-full transition-all duration-500';
         validationPill.textContent = 'Schema Enforced';
         validationPill.className = 'text-[11px] font-mono px-2 py-0.5 rounded border border-emerald-500/30 bg-emerald-950/40 text-emerald-400';
       } catch (err) {
-        console.warn('GET /api/meta unreachable or offline:', err);
-        metaStatus.textContent = 'Fallback Bounds';
+        console.warn('GET /api/meta unavailable or offline:', err);
+        const timedOut = err && err.name === 'AbortError';
+        metaStatus.textContent = timedOut ? 'Timed out. Using fallback bounds.' : 'API unavailable. Using fallback bounds.';
         metaStatus.className = 'font-mono text-amber-400';
         metaIndicatorBar.style.width = '60%';
         metaIndicatorBar.className = 'bg-amber-500 h-full transition-all duration-500';
-        validationPill.textContent = 'Default Spec Enforced';
+        validationPill.textContent = 'Fallback Bounds';
+        validationPill.className = 'text-[11px] font-mono px-2 py-0.5 rounded border border-amber-500/30 bg-amber-950/30 text-amber-300';
         applyBoundsUI();
       }
     }
@@ -464,9 +526,12 @@ Deploy Override
       }
     }
 
-    // Main POST run submission
+    // Run a fresh scenario request. Previous result panels are cleared first
+    // so a failed request cannot leave old output looking like the new result.
     async function runSimulation() {
       hideError();
+      clearDisplayedResults();
+      setRunStatus(`Preparing a fresh run at ${formatRunTime(new Date())}...`, 'running');
 
       const crowd = parseInt(inputCrowd.value, 10);
       const smoke = parseInt(inputSmoke.value, 10);
@@ -486,12 +551,15 @@ Deploy Override
       }
 
       if (errors.length > 0) {
-        showError('Client-side Bounds Validation Failed', errors.join('\n'));
+        const message = errors.join('\n');
+        setRunStatus(`Run not started at ${formatRunTime(new Date())}. No new results are available.`, 'error');
+        showError('Client-side Bounds Validation Failed', message);
         return;
       }
 
       setLoading(true);
       const startTime = performance.now();
+      const runStartedAt = new Date();
 
       const payload = {
         crowd: crowd,
@@ -500,6 +568,8 @@ Deploy Override
         block_b: block_b
       };
 
+      setRunStatus(`Run started at ${formatRunTime(runStartedAt)}. Waiting for a fresh API response...`, 'running');
+
       try {
         const qs = new URLSearchParams({
           crowd: String(payload.crowd),
@@ -507,27 +577,38 @@ Deploy Override
           corridor_capacity: String(payload.corridor_capacity),
           block_b: payload.block_b ? '1' : '0'
         }).toString();
-        const response = await fetch('/api/demo?' + qs, {
+        const response = await fetchWithTimeout('/api/demo?' + qs, {
           method: 'GET',
           headers: { 'Accept': 'application/json' }
-        });
-
-        const duration = Math.round(performance.now() - startTime);
+        }, SIMULATION_TIMEOUT_MS);
 
         if (!response.ok) {
           let errBody = '';
           try {
             errBody = await response.text();
           } catch(e) {}
-          throw new Error(`Endpoint returned HTTP ${response.status} (${response.statusText})\n${errBody}`);
+          throw new Error(`Endpoint returned HTTP ${response.status} (${response.statusText})${errBody ? '\n' + errBody : ''}`);
         }
 
         const data = await response.json();
+        const hasExpectedResult = data && typeof data === 'object' && data.guardian &&
+          (Array.isArray(data.robust) || Array.isArray(data.futures) ||
+           (data.robust_optimization && typeof data.robust_optimization === 'object'));
+        if (!hasExpectedResult) {
+          throw new Error('The API response did not contain the expected simulation output.');
+        }
+
+        const duration = Math.round(performance.now() - startTime);
         renderSimulationResponse(data, payload, duration);
+        setRunStatus(`Fresh API response received at ${formatRunTime(new Date())} · HTTP ${response.status} · ${duration} ms.`, 'success');
 
       } catch (err) {
-        console.error('Simulation POST failed:', err);
-        showError('Simulation Execution Failed', `${err.message}\nCheck endpoint GET /api/demo availability.`);
+        console.error('Simulation run failed:', err);
+        clearDisplayedResults();
+        const timedOut = err && err.name === 'AbortError';
+        const detail = timedOut ? `Request timed out after ${SIMULATION_TIMEOUT_MS / 1000} seconds.` : (err.message || 'Request failed.');
+        setRunStatus(`Run failed at ${formatRunTime(new Date())}. No new results are available.`, 'error');
+        showError('Simulation Execution Failed', `${detail}\nPrevious results have been cleared so they cannot be mistaken for this run. Check endpoint GET /api/demo availability.`);
       } finally {
         setLoading(false);
       }
