@@ -247,32 +247,32 @@ Deploy Override
                   </div>
                   <div class="flex items-baseline justify-between">
                     <span id="energy-classical-val" class="text-xl font-mono font-bold text-slate-200">--</span>
-                    <span class="text-[10px] font-mono text-slate-400">E_c (Hartree/eV)</span>
+                    <span class="text-[10px] font-mono text-slate-400">Objective score (model units)</span>
                   </div>
                 </div>
 
                 <!-- Quantum Metric -->
                 <div class="p-3 bg-[#0B0F17] rounded border border-cyan-500/20">
                   <div class="flex items-center justify-between text-xs text-cyan-300/80 mb-1">
-                    <span>Quantum Annealed Energy</span>
-                    <span id="energy-quantum-status" class="text-[10px] font-mono text-cyan-400">optimized</span>
+                    <span>QAOA Statevector Energy</span>
+                    <span id="energy-quantum-status" class="text-[10px] font-mono text-cyan-400">classical sim</span>
                   </div>
                   <div class="flex items-baseline justify-between">
                     <span id="energy-quantum-val" class="text-xl font-mono font-bold text-cyan-400">--</span>
-                    <span class="text-[10px] font-mono text-cyan-500/80">E_q (ground state)</span>
+                    <span class="text-[10px] font-mono text-cyan-500/80">Statevector score</span>
                   </div>
                 </div>
 
                 <!-- Energy Delta / Advantage -->
                 <div class="flex items-center justify-between text-xs px-1 text-slate-400 font-mono">
-                  <span>Advantage Δ:</span>
+                  <span>Score difference Δ (classical − QAOA):</span>
                   <span id="energy-delta" class="font-bold text-slate-300">--</span>
                 </div>
               </div>
             </div>
 
             <div class="mt-4 pt-3 border-t border-[#1F293D] text-[10px] text-slate-400 font-mono">
-              Convergence criterion: &lt; 1e-6 tolerance
+              QAOA result is computed with a classical statevector simulator; no quantum hardware run or quantum advantage is claimed.
             </div>
           </div>
 
@@ -736,10 +736,12 @@ Deploy Override
       }
 
       if (typeof classicalVal === 'number' && typeof quantumVal === 'number') {
-        const diff = classicalVal - quantumVal;
-        const pct = classicalVal !== 0 ? ((diff / Math.abs(classicalVal)) * 100).toFixed(2) : '0';
-        energyDelta.textContent = `${diff >= 0 ? '-' : '+'}${Math.abs(diff).toFixed(4)} (${pct}%)`;
-        energyDelta.className = diff >= 0 ? 'font-bold text-cyan-400 font-mono' : 'font-bold text-slate-300 font-mono';
+        const rawDiff = classicalVal - quantumVal;
+        const diff = Math.abs(rawDiff) < 1e-9 ? 0 : rawDiff;
+        const pct = classicalVal !== 0 ? ((diff / Math.abs(classicalVal)) * 100).toFixed(2) : '0.00';
+        const sign = diff > 0 ? '+' : diff < 0 ? '−' : '';
+        energyDelta.textContent = `${sign}${Math.abs(diff).toFixed(4)} (${pct}%)`;
+        energyDelta.className = diff > 0 ? 'font-bold text-cyan-400 font-mono' : diff < 0 ? 'font-bold text-amber-300 font-mono' : 'font-bold text-slate-300 font-mono';
       } else {
         energyDelta.textContent = 'Computed';
       }
@@ -830,9 +832,12 @@ Deploy Override
       } catch(e) {}
     }
 
-    document.getElementById('btn-clear-history').addEventListener('click', () => {
-      clearRunHistory();
-    });
+    const clearHistoryButton = document.getElementById('btn-clear-history');
+    if (clearHistoryButton) {
+      clearHistoryButton.addEventListener('click', () => {
+        clearRunHistory();
+      });
+    }
 
     function loadHistoryUI() {
       const history = getStoredHistory();
