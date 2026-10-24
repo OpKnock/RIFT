@@ -33,3 +33,9 @@ def test_fresh_run_clears_old_results_and_reports_a_completion_timestamp():
     assert "function clearDisplayedResults()" in source
     assert "Fresh API response received at" in source
     assert "No new results are available" in source
+
+def test_absent_clear_history_button_cannot_abort_simulation_initialization():
+    source = (UI / "simulation.html").read_text(encoding="utf-8")
+    assert "const clearHistoryButton = document.getElementById('btn-clear-history');" in source
+    assert "if (clearHistoryButton) {" in source
+    assert "initializeSimulationConsole()" in source
