@@ -20,8 +20,11 @@ def test_run_history_is_not_deleted_on_every_page_load():
 def test_schema_loading_has_a_timeout_and_visible_fallback_state():
     source = (UI / "simulation.html").read_text(encoding="utf-8")
     assert "function fetchWithTimeout(" in source
+    assert "Promise.race([" in source
+    assert "Fallback bounds ready; checking engine..." in source
     assert "Timed out. Using fallback bounds." in source
     assert "API unavailable. Using fallback bounds." in source
+    assert "initializeSimulationConsole()" in source
 
 
 def test_fresh_run_clears_old_results_and_reports_a_completion_timestamp():
