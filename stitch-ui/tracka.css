@@ -124,3 +124,27 @@
     transition-duration: .01ms !important;
   }
 }
+
+
+/* Anatomical heart viewer model state and open-license source marker. */
+#heart-model-status {
+  max-width: calc(100% - 24px);
+  font: 11px/1.45 Inter, system-ui, sans-serif;
+  letter-spacing: .01em;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.24);
+  pointer-events: none;
+}
+#heart-model-status[data-state="loaded"] { border-color: rgba(34,197,94,.45); }
+#heart-model-source {
+  max-width: calc(100% - 24px);
+  font: 10px/1.4 Inter, system-ui, sans-serif;
+  text-shadow: 0 1px 3px rgba(0,0,0,.9);
+  overflow-wrap: anywhere;
+}
+#heart-model-source a { pointer-events: auto; }
+#coronary-canvas { background: #0b1220; }
+@media (max-width: 767px) {
+  #heart-model-status { font-size: 10px; top: 8px; left: 8px; }
+  #heart-model-source { left: 8px; bottom: 8px; font-size: 9px; }
+}
