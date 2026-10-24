@@ -80,7 +80,7 @@ def test_pages_and_scripts_wired():
         assert seg in viewer
     loader = (ui / "live" / "coronary-loader.js").read_text(encoding="utf-8")
     assert 'await import("./coronary.js")' in loader
-    assert "probabilities are still available" in loader
+    assert "probabilities and explanation details are still available" in loader
     dash = (ui / "cardio-dashboard.html").read_text(encoding="utf-8")
     assert "./live/cardio-dashboard.js" in dash and "RCA AUC 0.594" in dash
     assert "./tracka.css" in dash and "./live/tracka-ui.js" in dash
