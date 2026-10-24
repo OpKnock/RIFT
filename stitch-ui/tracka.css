@@ -1,0 +1,126 @@
+/* Track A Cardio workspace polish. Shared by Coronary 3D and Cardio Eval. */
+.rift-tracka-workspace {
+  min-width: 0;
+  max-width: 100%;
+  background: var(--rift-surface, #0b0f17);
+}
+.rift-tracka-workspace > header {
+  position: sticky;
+  top: 0;
+  flex: 0 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+.rift-tracka-page-content {
+  width: 100%;
+  max-width: 1440px;
+  min-width: 0;
+  margin-inline: auto;
+  padding: clamp(16px, 2vw, 28px);
+  box-sizing: border-box;
+}
+.rift-tracka-page-content > * { min-width: 0; }
+.rift-tracka-page-content section {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.rift-tracka-page-content table { border-collapse: collapse; }
+.rift-tracka-page-content #metrics-table,
+.rift-tracka-page-content #calib-table {
+  min-width: 760px;
+  white-space: nowrap;
+}
+.rift-tracka-page-content #metrics-table th,
+.rift-tracka-page-content #calib-table th {
+  font-size: 10px;
+  padding-bottom: 9px;
+}
+.rift-tracka-page-content #metrics-table td,
+.rift-tracka-page-content #calib-table td {
+  padding-top: 9px;
+  padding-bottom: 9px;
+}
+.rift-tracka-page-content #feat-grid > div {
+  min-width: 0;
+  border: 1px solid var(--rift-outline, #1e293b);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(15, 23, 42, 0.38);
+  overflow-x: auto;
+}
+.rift-tracka-page-content #cards-grid > div { min-width: 0; overflow-wrap: anywhere; }
+.rift-tracka-page-content #rel-canvas {
+  display: block;
+  height: auto;
+  aspect-ratio: 640 / 300;
+}
+.rift-tracka-page-content #coronary-canvas {
+  width: 100%;
+  height: clamp(340px, 58vh, 660px);
+  min-height: 340px;
+  display: block;
+  touch-action: pan-y;
+}
+#coronary-tip {
+  max-width: min(280px, 80%);
+  line-height: 1.45;
+}
+#rift-tracka-account-menu {
+  position: fixed;
+  z-index: 10020;
+  min-width: 210px;
+  display: none;
+  padding: 8px;
+  border: 1px solid var(--rift-outline, #1e293b);
+  border-radius: 12px;
+  background: #0b1220;
+  color: #e2e8f0;
+  box-shadow: 0 16px 44px rgba(0,0,0,.42);
+}
+#rift-tracka-account-menu a {
+  display: block;
+  padding: 9px 10px;
+  border-radius: 7px;
+  color: #cbd5e1;
+  text-decoration: none;
+  font-size: 12px;
+}
+#rift-tracka-account-menu a:hover,
+#rift-tracka-account-menu a:focus-visible {
+  background: #172033;
+  color: #fff;
+}
+#rift-tracka-toast {
+  position: fixed;
+  z-index: 10030;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  max-width: calc(100vw - 32px);
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #0b1220;
+  color: #e2e8f0;
+  padding: 10px 14px;
+  font: 12px/1.5 Inter, sans-serif;
+  box-shadow: 0 12px 36px rgba(0,0,0,.45);
+}
+@media (max-width: 767px) {
+  .rift-tracka-workspace { width: 100%; margin-left: 0; }
+  .rift-tracka-page-content { padding: 16px; }
+  .rift-tracka-workspace > header > div:first-of-type { padding: 10px 12px; }
+  .rift-tracka-page-content #coronary-canvas {
+    height: clamp(300px, 52vh, 480px);
+    min-height: 300px;
+  }
+  .rift-tracka-page-content #metrics-table,
+  .rift-tracka-page-content #calib-table { min-width: 700px; }
+  .rift-tracka-page-content #rel-canvas { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rift-tracka-workspace *, .rift-tracka-workspace *::before, .rift-tracka-workspace *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
