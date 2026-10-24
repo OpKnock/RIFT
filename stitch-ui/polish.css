@@ -144,3 +144,28 @@ header #rift-avatar, header [aria-label="Account"] { flex-shrink: 0; }
   header > div:first-of-type { flex-wrap: wrap; }
   header > div:first-of-type > div:last-child { width: 100%; }
 }
+
+/* Consistent workspace structure across all RIFT screens. */
+body > aside { box-sizing: border-box; }
+body > main, body > div:has(> header) {
+  min-width: 0;
+}
+body > main > header, body > div > header {
+  width: 100%;
+  box-sizing: border-box;
+}
+body > main > main, body > div > main {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+@media (min-width: 768px) {
+  body:not(.rift-nav-collapsed) > main:not(.md\\:ml-64),
+  body:not(.rift-nav-collapsed) > div.md\\:ml-64 {
+    min-width: 0;
+  }
+}
+@media (max-width: 767px) {
+  body > main, body > div:has(> header) { width: 100%; max-width: 100%; }
+  body > main > main, body > div > main { padding-left: 16px; padding-right: 16px; }
+}
