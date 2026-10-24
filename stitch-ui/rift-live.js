@@ -261,7 +261,10 @@
     btn.id = "rift-nav-toggle";
     btn.setAttribute("aria-label", "Toggle navigation");
     btn.innerHTML = '<span class="material-symbols-outlined" style="font-size:20px">menu</span>';
-    header.insertBefore(btn, header.firstChild);
+    // Keep the toggle in the existing horizontal toolbar, never as a new header row.
+    var toolbar = header.querySelector(":scope > div");
+    if (toolbar) toolbar.insertBefore(btn, toolbar.firstChild);
+    else header.insertBefore(btn, header.firstChild);
     var scrim = document.createElement("div");
     scrim.id = "rift-scrim";
     document.body.appendChild(scrim);
