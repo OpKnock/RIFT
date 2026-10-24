@@ -6,12 +6,20 @@ const NAMES = { cad: 'CAD', lad: 'LAD', lcx: 'LCX', rca: 'RCA' };
 
 function fail(msg) {
   const el = document.getElementById('cardio-error');
-  el.textContent = 'Could not load evaluation data (' + msg + '). Serve via `bash ./local ui`.';
+  if (!el) {
+    console.warn('RIFT Cardio Eval data unavailable:', msg);
+    return;
+  }
+  el.textContent = 'Evaluation data could not be loaded: ' + String(msg) +
+    '. Confirm that the Track A data files are included in this deployment, then refresh.';
+  el.setAttribute('role', 'status');
+  el.setAttribute('aria-live', 'polite');
   el.classList.remove('hidden');
 }
 
 function cell(v, digits) {
-  return Number(v).toFixed(digits === undefined ? 3 : digits);
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toFixed(digits === undefined ? 3 : digits) : '—';
 }
 
 function renderMetrics(report) {
@@ -21,7 +29,9 @@ function renderMetrics(report) {
     ['acc', 'prec', 'rec', 'F1', 'AUC'].map(h => `<th class="py-1.5 pr-3">${h}</th>`).join('') +
     '<th class="py-1.5 pr-3">CV AUC</th><th class="py-1.5 pr-3">Confusion tp/tn/fp/fn</th></tr></thead><tbody>';
   for (const t of TARGETS) {
-    const e = report.targets[t], m = e.test, c = e.cv_train;
+    const e = report.targets && report.targets[t];
+    if (!e || !e.test || !e.cv_train) throw new Error('Missing test/CV metrics for ' + t.toUpperCase());
+    const m = e.test, c = e.cv_train;
     const weak = (t === 'lcx' && m.recall < 0.5) || (t === 'rca' && m.roc_auc < 0.65);
     html += `<tr class="border-t border-outline-variant ${weak ? 'bg-amber-500/5' : ''}">` +
       `<td class="py-1.5 pr-3 font-semibold">${NAMES[t]}${weak ? ' ⚠' : ''}</td>` +
@@ -40,7 +50,8 @@ function renderCalibration(calib) {
     '<th class="py-1.5 pr-3">Target</th><th class="py-1.5 pr-3">Method</th>' +
     '<th class="py-1.5 pr-3">OOF ECE</th><th class="py-1.5 pr-3">Test ECE</th><th class="py-1.5 pr-3">Test Brier</th></tr></thead><tbody>';
   for (const t of TARGETS) {
-    const m = calib.models[t];
+    const m = calib.models && calib.models[t];
+    if (!m || !m.oof || !m.test) throw new Error('Missing calibration metrics for ' + t.toUpperCase());
     html += `<tr class="border-t border-outline-variant">` +
       `<td class="py-1.5 pr-3 font-semibold">${NAMES[t]}</td>` +
       `<td class="py-1.5 pr-3 font-mono">${m.method}</td>` +
@@ -118,7 +129,9 @@ function renderFeatures(expl) {
   const grid = document.getElementById('feat-grid');
   for (const t of TARGETS) {
     const div = document.createElement('div');
-    const rows = expl.targets[t].permutation_top15.slice(0, 10).map((r, i) =>
+    const target = expl.targets && expl.targets[t];
+    if (!target || !Array.isArray(target.permutation_top15)) throw new Error('Missing feature explanation for ' + t.toUpperCase());
+    const rows = target.permutation_top15.slice(0, 10).map((r, i) =>
       `<tr class="border-t border-outline-variant"><td class="py-1 pr-2 text-on-surface-variant">${i + 1}</td>` +
       `<td class="py-1 pr-2">${r.feature}</td>` +
       `<td class="py-1 text-right font-mono">${r.auc_drop_mean.toFixed(4)}</td></tr>`).join('');
@@ -163,9 +176,11 @@ async function main() {
     renderCalibration(calib);
     renderFeatures(expl);
     renderCards(cards);
-    document.getElementById('manifest-line').textContent =
-      `Dataset sha256 ${report.dataset_hash.slice(0, 16)}… · feature schema ${report.feature_schema_version} · ` +
-      `split seed 7 (183/60/60) · 55 predictors · protocol: ${report.protocol}`;
+    const manifest = document.getElementById('manifest-line');
+    const hash = typeof report.dataset_hash === 'string' ? report.dataset_hash.slice(0, 16) + '…' : 'unavailable';
+    manifest.textContent =
+      `Dataset sha256 ${hash} · feature schema ${report.feature_schema_version || 'unavailable'} · ` +
+      `split seed 7 (183/60/60) · 55 predictors · protocol: ${report.protocol || 'unavailable'}`;
   } catch (err) {
     fail(err.message);
   }
